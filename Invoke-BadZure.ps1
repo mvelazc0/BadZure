@@ -35,6 +35,9 @@ if($Build -eq $true){
     . Lib/CreateApps.ps1
     . Lib/AssignAppPerm.ps1
     . Lib/AssignUserPerm.ps1
+    
+    Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory"
+
     Write-Host I will build !
     CreateUsers
     CreateApps
