@@ -3,7 +3,7 @@ Connect-Graph -Scopes "Application.ReadWrite.All","EntitlementManagement.ReadWri
 Function AssignAppPermissions{
     
     $roles = ('Exchange Administrator', 'Security Operator', 'Network Administrator', 'Intune Administrator', 'Attack Simulation Administrator', 'Application Developer')
-    $apps = Import-Csv -Path "apps.csv"
+    $apps = Import-Csv -Path "Lib\apps.csv"
     $used_apps =@()
     foreach ($role in  $roles)
     {
@@ -23,5 +23,4 @@ Function AssignAppPermissions{
         $used_apps += $random_app_dn 
     }
     
-
 }

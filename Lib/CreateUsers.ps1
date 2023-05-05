@@ -1,7 +1,7 @@
 $PasswordProfile = @{
     Password = "bmNEe%PA@hw91vIvg7V%"
 }
-$users = Import-Csv -Path "users.csv"
+$users = Import-Csv -Path "Lib\users.csv"
 
 Function CreateUsers{
 

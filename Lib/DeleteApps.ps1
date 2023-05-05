@@ -1,6 +1,6 @@
 Connect-Graph -Scopes "Application.ReadWrite.All"
 
-$apps = Import-Csv -Path "apps.csv"
+$apps = Import-Csv -Path "Lib\apps.csv"
 Function DeleteApps{
 
     foreach ($app in $apps) {
