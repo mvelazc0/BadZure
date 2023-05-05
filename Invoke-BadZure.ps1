@@ -39,6 +39,7 @@ if($Build -eq $true){
     CreateUsers
     CreateApps
     AssignAppPermissions
+    AssignUserPerm
 
 
 

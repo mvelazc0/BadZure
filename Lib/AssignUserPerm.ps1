@@ -1,6 +1,6 @@
 
 Function AssignUserPerm{
-    $users = Import-Csv -Path "TenantSetup/users.csv"
+    $users = Import-Csv -Path "Lib/users.csv"
     $account=(Get-MgContext | Select-Object Account).Account
     $pos=$account.IndexOf('@')
     $domain=$account.Substring($pos+1)
