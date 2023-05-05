@@ -25,7 +25,7 @@ Function AssignUserPerm{
 
         $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-        Write-Host [+] Assiged $role to user with id $random_user
+        Write-Host [+] Assigned $role to user with id $random_user
         $used_users += $random_user 
     }
 }

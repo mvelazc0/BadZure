@@ -15,7 +15,7 @@ Function AssignAppPermissions{
         $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
         $appObjectId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $appObjectId -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-        Write-Host [+] Assigmed $role to application with displayName $random_app_dn
+        Write-Host [+] Assigned $role to application with displayName $random_app_dn
         $used_apps += $random_app_dn 
     }
     
