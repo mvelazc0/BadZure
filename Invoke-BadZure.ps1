@@ -60,7 +60,8 @@ if($Build -eq $true){
     Write-Host I will build !
     CreateUsers
     CreateApps
-    AssignAppPermissions
+    AssignAppRoles
+    AssignAppApiPermissions
     AssignUserPerm
 
 
