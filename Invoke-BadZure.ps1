@@ -199,7 +199,7 @@ Function AssignUserPerm{
     }
 
     $used_users = @()
-    $roles = ('Conditional Access Administrator', 'Exchange Administrator', 'Helpdesk Administrator', 'Insights Administrator', 'Intune Administrator', 'Office Apps Administrator', 'SharePoint Administrator')
+    $roles = ('Reports Reader', 'Reports Reader', 'Helpdesk Administrator', 'Authentication Administrator', 'Directory Readers', 'Guest Inviter', 'Message Center Reader', 'Groups Administrator')
     foreach ($role in  $roles)
     {
         do
