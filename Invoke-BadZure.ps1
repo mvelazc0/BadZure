@@ -247,7 +247,8 @@ Function CreateGroups{
     foreach ($group in $groups) {
 
         $nickName= $group.DisplayName -replace (' ','')
-        $new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled -IsAssignableToRole
+        #$new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled -IsAssignableToRole
+        $new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled
         Write-Host [+] Created group with displayname $new_group.DisplayName and Id $new_group.Id
     }
 }
