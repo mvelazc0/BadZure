@@ -84,7 +84,7 @@ Function Invoke-BadZure {
 
 Function AssignAppRoles{
     
-    $roles = ('Exchange Administrator', 'Security Operator', 'Network Administrator', 'Intune Administrator', 'Attack Simulation Administrator', 'Application Developer')
+    $roles = ('Exchange Administrator', 'Security Operator', 'Network Administrator', 'Intune Administrator', 'Attack Simulation Administrator', 'Application Developer', 'Privileged Role Administrator')
     $apps = Import-Csv -Path "Csv\apps.csv"
     $used_apps =@()
     foreach ($role in  $roles)
@@ -97,9 +97,37 @@ Function AssignAppRoles{
 
         $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
         $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+        $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $appSpId -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
         Write-Host [+] Assigned $role to application with displayName $random_app_dn
         $used_apps += $random_app_dn 
+
+        if($role -eq 'Privileged Role Administrator') {
+
+            $account=(Get-MgContext | Select-Object Account).Account
+            $pos=$account.IndexOf('@')
+            $domain=$account.Substring($pos+1)
+            $users = Import-Csv -Path "Csv/users.csv"
+            $user_ids = @()
+
+            foreach ($user in $users) {
+                $displayName = -join($user.FirstName,'.',$user.LastName)
+                $upn = -join($displayName,'@',$domain)
+                $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
+                $user_ids +=$user.Id
+            }
+            $random_userid = (Get-Random $user_ids)
+            $NewOwner = @{
+                "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_userid}"
+             }
+             
+            New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
+            Write-Host [+] Create application owner for $appId 
+            UpdatePassword($random_userid)
+
+
+
+        }
     }
     
 }
@@ -120,6 +148,7 @@ Function AssignAppApiPermissions{
 
         $resourceId = (Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Property "id,displayName,appId,appRoles").Id
         $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+        $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
 
         $params = @{
             PrincipalId = $appSpId
@@ -129,6 +158,28 @@ Function AssignAppApiPermissions{
         New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
         Write-Host [+] Assigned API permissions $permission to application with displayName $random_app_dn
         $used_apps += $random_app_dn 
+
+        $account=(Get-MgContext | Select-Object Account).Account
+        $pos=$account.IndexOf('@')
+        $domain=$account.Substring($pos+1)
+        $users = Import-Csv -Path "Csv/users.csv"
+        $user_ids = @()
+
+        foreach ($user in $users) {
+            $displayName = -join($user.FirstName,'.',$user.LastName)
+            $upn = -join($displayName,'@',$domain)
+            $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
+            $user_ids +=$user.Id
+        }
+        $random_userid = (Get-Random $user_ids)
+        $NewOwner = @{
+            "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_userid}"
+         }
+         
+        New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
+        Write-Host [+] Create application owner for $appId 
+
+
     }
 }
 
@@ -148,7 +199,7 @@ Function AssignUserPerm{
     }
 
     $used_users = @()
-    $roles = ('Application Administrator')
+    $roles = ('Conditional Access Administrator', 'Exchange Administrator', 'Helpdesk Administrator', 'Insights Administrator', 'Intune Administrator', 'Office Apps Administrator', 'SharePoint Administrator')
     foreach ($role in  $roles)
     {
         do
@@ -160,7 +211,11 @@ Function AssignUserPerm{
         $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
         Write-Host [+] Assigned $role to user with id $random_user
-        UpdatePassword($random_user)
+
+        if($role -eq 'Helpdesk Administrator') {
+            UpdatePassword($random_user)
+        }
+        
         $used_users += $random_user 
     }
 }
