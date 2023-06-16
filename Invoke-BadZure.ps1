@@ -42,22 +42,23 @@ Function Invoke-BadZure {
     [Parameter(Mandatory = $false,
         Position = 1,
         HelpMessage = 'Build')]
-    [switch]$Build,
+        [switch]$Build,
     [Parameter(Mandatory = $false,
-    Position = 1,
-    HelpMessage = 'Destroy')]
-    [switch]$Destroy,
+        Position = 1,
+        HelpMessage = 'Destroy')]
+        [switch]$Destroy,
     [Parameter(Mandatory = $false,
-    Position = 1,
-    HelpMessage = 'NoAttackPaths')]
-    [switch]$NoAttackPaths
+        Position = 1,
+        HelpMessage = 'NoAttackPaths')]
+        [switch]$NoAttackPaths
     )
 
     Write-Host $banner
 
     if($Build -eq $true){
 
-        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All"
+        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" | Out-Null
+        
 
         Write-Host I will build !
 
@@ -72,8 +73,6 @@ Function Invoke-BadZure {
             AssignAppApiPermissions
             AssignUserPerm
         }
-
-
 
 
     }
