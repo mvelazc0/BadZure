@@ -8,30 +8,39 @@ BadZure is designed for security practitioners with an interest in exploring and
 
 And Azure AD tenant populated with BadZure enables red and blue teams to:
 
-* Experiment with Azure AD attack vectors
+* Experiment with common Azure AD attack vectors
 * Obtain attack telemetry to build, test and enhance detection controls
-* Azure AD Capture The Flag scenarios.
+* Execute purple team exercises in a safe setting
+* Faciliate hands-on Azure AD security training
 
 ## Quick Start Guide
 
-### Clone Repo and Import Module
+### Clone Repository and Import Module
 
 ````
 git clone https://github.com/mvelazc0/BadZure
-. .\Invoke-BadZure.ps1
-Invoke-BadZure
+cd BadZure
+. ./Invoke-BadZure.ps1
 ````
 ### Run BadZure
 
 ````
+# Get Help Menu
 Invoke-BadZure
+
+# Populate a tenant and enable attack paths
 Invoke-BadZure -Build
+
+# Populate a tenant without attack paths
+Invoke-BadZure -Build -NoAttackPaths
+
+# Destroy all created identities
+Invoke-BadZure -Destroy
 ````
 
 ## Authors
 
 * **Mauricio Velazco** - [@mvelazco](https://twitter.com/mvelazco)
-
 
 ## License
 
