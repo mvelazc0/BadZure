@@ -46,7 +46,11 @@ Function Invoke-BadZure {
     [Parameter(Mandatory = $false,
     Position = 1,
     HelpMessage = 'Destroy')]
-    [switch]$Destroy
+    [switch]$Destroy,
+    [Parameter(Mandatory = $false,
+    Position = 1,
+    HelpMessage = 'NoAttackPaths')]
+    [switch]$NoAttackPaths
     )
 
     Write-Host $banner
@@ -61,9 +65,16 @@ Function Invoke-BadZure {
         CreateGroups
         AssignGroups
         CreateApps
-        AssignAppRoles
-        AssignAppApiPermissions
-        AssignUserPerm
+
+        if($NoAttackPaths -eq $false){
+
+            AssignAppRoles
+            AssignAppApiPermissions
+            AssignUserPerm
+        }
+
+
+
 
     }
 
@@ -76,6 +87,11 @@ Function Invoke-BadZure {
         DeleteUsers
         DeleteGroups
         DeleteApps
+
+    }
+    else{
+
+        Get-Help Invoke-BadZure
 
     }
 
