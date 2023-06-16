@@ -7,7 +7,7 @@ BadZure is a PowerShell script that leverages the Microsft Graph SDK to automate
 And Azure AD tenant populated with BadZure enables red and blue teams to:
 
 * Experiment with Azure AD attack vectors
-* Generate telemetry to build, test and enhance detection controls.
+* Generate telemetry to build, test and enhance detection controls
 * Azure AD Capture The Flag scenarios.
 
 ## Quick Start Guide
@@ -25,3 +25,12 @@ Invoke-BadZure
 Invoke-BadZure
 Invoke-BadZure -Build
 ````
+
+## Authors
+
+* **Mauricio Velazco** - [@mvelazco](https://twitter.com/mvelazco)
+
+
+## License
+
+This project is licensed under the Apache 2.0 License - see the [LICENSE](LICENSE) file for details
