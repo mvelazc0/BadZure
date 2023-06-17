@@ -1,19 +1,4 @@
-<#
-    .Synopsis
 
-    .DESCRIPTION
-
-    .EXAMPLE
-
-    .OUTPUTS
-    
-    .NOTES
-
-    .FUNCTIONALITY
-
-    .LINK
-   
-#>
 
 $banner = @"
 
@@ -35,23 +20,62 @@ ____              _  _____
 Function Invoke-BadZure {
 
 
+    <#
+    .Synopsis
+
+    .DESCRIPTION
+
+    .PARAMETER Build
+
+    Used to populate an Azure AD tenant
+
+    .PARAMETER Destroy
+
+    Used to delete all entities from an Azure AD tenant.
+
+    .PARAMETER NoAttackPaths
+
+    Do not install attack paths.
+
+    .PARAMETER Password
+
+    Inital access password set on users.
+
+    .EXAMPLE
+
+    .OUTPUTS
+    
+    .NOTES
+
+    .FUNCTIONALITY
+
+    .LINK
+   
+#>
+
     [CmdletBinding()]
 
     param
     (
     [Parameter(Mandatory = $false,
         Position = 1,
-        HelpMessage = 'Build')]
-        [switch]$Build,
+        HelpMessage = 'Used to populate an Azure AD tenant.')]
+    [switch]$Build,
     [Parameter(Mandatory = $false,
-        Position = 1,
-        HelpMessage = 'Destroy')]
-        [switch]$Destroy,
+        Position = 2,
+        HelpMessage = 'Used to delete all entities from an Azure AD tenant.')]
+    [switch]$Destroy,
     [Parameter(Mandatory = $false,
-        Position = 1,
-        HelpMessage = 'NoAttackPaths')]
-        [switch]$NoAttackPaths
+        Position = 3,
+        HelpMessage = 'Do not install attack paths.')]
+    [switch]$NoAttackPaths,
+        [Parameter(Mandatory = $false,
+        Position = 4,
+        HelpMessage = 'Inital access password set on users.')]
+        [String]$Password
+
     )
+
 
     Write-Host $banner
 
@@ -69,9 +93,9 @@ Function Invoke-BadZure {
 
         if($NoAttackPaths -eq $false){
 
-            AssignAppRoles
             AssignAppApiPermissions
-            AssignUserPerm
+            AssignAppRoles($Password)
+            AssignUserPerm($Password)
         }
 
 
@@ -97,7 +121,7 @@ Function Invoke-BadZure {
 }
 
 
-Function AssignAppRoles{
+Function AssignAppRoles ([String]$Password){
     
     $roles = ('Exchange Administrator', 'Security Operator', 'Network Administrator', 'Intune Administrator', 'Attack Simulation Administrator', 'Application Developer', 'Privileged Role Administrator')
     $apps = Import-Csv -Path "Csv\apps.csv"
@@ -138,9 +162,7 @@ Function AssignAppRoles{
              
             New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
             Write-Host [+] Create application owner for $appId 
-            UpdatePassword($random_userid)
-
-
+            UpdatePassword($random_userid, $Password)
 
         }
     }
@@ -199,7 +221,7 @@ Function AssignAppApiPermissions{
 }
 
 
-Function AssignUserPerm{
+Function AssignUserPerm([String]$Password) {
     $users = Import-Csv -Path "Csv/users.csv"
     $account=(Get-MgContext | Select-Object Account).Account
     $pos=$account.IndexOf('@')
@@ -228,20 +250,31 @@ Function AssignUserPerm{
         Write-Host [+] Assigned $role to user with id $random_user
 
         if($role -eq 'Helpdesk Administrator') {
-            UpdatePassword($random_user)
+            UpdatePassword($random_user, $Password)
         }
         
         $used_users += $random_user 
     }
 }
 
-Function UpdatePassword ($userId) {
+Function UpdatePassword ([String]$userId, [String]$Password) {
 
-    $NewPassword = @{}
-    $NewPassword["Password"]= "!NewPassword2023!"
-    $NewPassword["ForceChangePasswordNextSignIn"] = $False
-    Update-Mguser -UserId $userId -PasswordProfile $NewPassword
-    Write-Host [+] Updated password for user with id $userId
+    if([string]::IsNullOrEmpty($Password)){
+        $randomString = -join ((33..47) + (48..57) + (65..90) + (97..122) + (123..126) | Get-Random -Count 15 | % { [char]$_ })
+        $NewPassword = @{}
+        $NewPassword["Password"]= $randomString
+        $NewPassword["ForceChangePasswordNextSignIn"] = $False
+        Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
+        Write-Host [+] Updated password for user with id $userId with a random password $randomString.
+    }
+    else{
+        $NewPassword = @{}
+        $NewPassword["Password"]= $Password
+        $NewPassword["ForceChangePasswordNextSignIn"] = $False
+        Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
+        Write-Host [+] Updated password for user with id $userId with a cli parameter.
+    }
+
 }
 
 Function CreateApps{
