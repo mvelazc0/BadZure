@@ -38,7 +38,7 @@ Invoke-BadZure -Build -NoAttackPaths
 Invoke-BadZure -Destroy
 ````
 
-## Authors
+## Author
 
 * **Mauricio Velazco** - [@mvelazco](https://twitter.com/mvelazco)
 
