@@ -21,7 +21,6 @@ Function Invoke-BadZure {
 
 
     <#
-    .Synopsis
 
     .DESCRIPTION
 
@@ -44,12 +43,6 @@ Function Invoke-BadZure {
     Inital access password set on users.
 
     .EXAMPLE
-
-    .OUTPUTS
-    
-    .NOTES
-
-    .FUNCTIONALITY
 
     .LINK
 
@@ -81,13 +74,15 @@ Function Invoke-BadZure {
 
     if($Build -eq $true){
 
+        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" | Out-Null
+
         # create principals
         CreateUsers
         CreateGroups
-        AssignGroups
         CreateApps
 
-        # assign random permissions
+        # assign random groups and permissions
+        AssignGroups
         AssignUserPerm
         AssignAppRoles
         AssignAppApiPermissions
@@ -101,7 +96,7 @@ Function Invoke-BadZure {
     }
     elseif($Destroy-eq $true){
 
-        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All"
+        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" | Out-Null
 
         DeleteUsers
         DeleteGroups
@@ -229,25 +224,27 @@ Function UpdatePassword ([String]$userId, [String]$Password) {
 
 Function CreateApps{
 
+    Write-Host [!] Creating application registrations and service principals
     $apps = Import-Csv -Path "Csv\apps.csv"
     foreach ($app in $apps) {
 
         $new_app= New-MgApplication -DisplayName $app.DisplayName 
         $new_sp= New-MgServicePrincipal -AppId $new_app.Appid
-        Write-Host [+] Created application with displayname $app.DisplayName and Service Principal $new_sp.Id
+        Write-Host `t[+] Created application with displayname $app.DisplayName and Service Principal $new_sp.Id
 
     }
 }
 
 Function CreateGroups{
 
+    Write-Host [!] Creating Groups
     $groups = Import-Csv -Path "Csv\groups.csv"
     foreach ($group in $groups) {
 
         $nickName= $group.DisplayName -replace (' ','')
         #$new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled -IsAssignableToRole
         $new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled
-        Write-Host [+] Created group with displayname $new_group.DisplayName and Id $new_group.Id
+        Write-Host `t[+] Created group with displayname $new_group.DisplayName and Id $new_group.Id
     }
 }
 
@@ -291,23 +288,24 @@ Function AssignGroups{
 
 Function DeleteGroups{
 
+    Write-Host [!] Removing all application registrations
     $groups = Import-Csv -Path "Csv\groups.csv"
     foreach ($group in $groups) {
 
         $displayName = $group.DisplayName
         $delgroup = Get-MgGroup -Filter "DisplayName eq '$displayName'"
         Remove-MgGroup -GroupId $delgroup.Id
-        Write-Host [+] Deleted group with displayname $delgroup.DisplayName and Id $delgroup.Id
+        Write-Host `t[+] Deleted group with displayname $delgroup.DisplayName and Id $delgroup.Id
     }
 }
 
 Function CreateUsers{
 
+    Write-Host [!] Creating Users
     $PasswordProfile = @{
         Password = "bmNEe%PA@hw91vIvg7V%"
     }
     
-
     $users = Import-Csv -Path "Csv\users.csv"
     $account=(Get-MgContext | Select-Object Account).Account
     $pos=$account.IndexOf('@')
@@ -318,11 +316,13 @@ Function CreateUsers{
         $displayName = -join($user.FirstName,'.',$user.LastName)
         $upn = -join($displayName,'@',$domain)
         New-MgUser -DisplayName $displayName -PasswordProfile $PasswordProfile -AccountEnabled -MailNickName $displayName -UserPrincipalName $upn | Out-Null
-        Write-Host [+] Created User $upn
+        Write-Host `t[+] Created User $upn
     }
 }
 
 Function DeleteApps{
+
+    Write-Host [!] Removing all application registrations
 
     $apps = Import-Csv -Path "Csv\apps.csv"
     foreach ($app in $apps) {
@@ -330,12 +330,14 @@ Function DeleteApps{
 	    $DisplayName = $app.DisplayName
         $app_id= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
         Remove-MgApplication -ApplicationId $app_id | Out-Null
-        Write-Host [+] Deleted application with Id $app_id
+        Write-Host `t[+] Deleted application with Id $app_id
     }
 }
 
 
 Function DeleteUsers{
+
+    Write-Host [!] Removing all users
 
     $users = Import-Csv -Path "Csv\users.csv"
     $account=(Get-MgContext | Select-Object Account).Account
@@ -347,7 +349,7 @@ Function DeleteUsers{
         $upn = -join($displayName,'@',$domain)
         $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
         Remove-MgUser -UserId $user.Id
-        Write-Host [+] Deleted user with ObjectId $user.Id
+        Write-Host `t[+] Deleted user with ObjectId $user.Id
     }
 }
 
@@ -380,7 +382,7 @@ Function CreateAttackPath1 ([String]$Password){
         }
         
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
-    Write-Host [+] Create application owner for $appId 
+    Write-Host [+] Created application owner for $appId 
     UpdatePassword $random_user_id  $Password
 
 }
