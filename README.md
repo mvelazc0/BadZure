@@ -6,7 +6,7 @@ BadZure is designed for security practitioners with an interest in exploring and
 
 ## Goals / Use Cases
 
-And Azure AD tenant populated with BadZure enables red and blue teams to:
+An Azure AD tenant populated with BadZure enables red and blue teams to:
 
 * Experiment with common Azure AD attack vectors
 * Obtain attack telemetry to build, test and enhance detection controls
