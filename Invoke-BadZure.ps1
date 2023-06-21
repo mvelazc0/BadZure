@@ -81,21 +81,22 @@ Function Invoke-BadZure {
 
     if($Build -eq $true){
 
+        # create principals
         CreateUsers
         CreateGroups
         AssignGroups
         CreateApps
 
+        # assign random permissions
+        AssignUserPerm
         AssignAppRoles
         AssignAppApiPermissions
 
+        # create attack paths
         if($NoAttackPaths -eq $false){
 
             CreateAttackPath1 $Password
-
-            
-             
-            #AssignUserPerm $Password
+            CreateAttackPath2 $Password
         }
     }
     elseif($Destroy-eq $true){
@@ -142,6 +143,7 @@ Function AssignAppRoles (){
 Function AssignAppApiPermissions{
 
     $apps = Import-Csv -Path "Csv\apps.csv"
+    # RoleManagement.ReadWrite.Directory
     $permissions = ('9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
     $used_apps =@()
 
@@ -220,11 +222,6 @@ Function AssignUserPerm([string]$Password) {
         $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
         Write-Host [+] Assigned $role to user with id $random_user
-
-        if($role -eq 'Helpdesk Administrator') {
-            UpdatePassword $random_user $Password
-        }
-        
         $used_users += $random_user 
     }
 }
@@ -407,6 +404,24 @@ Function CreateAttackPath1 ([String]$Password){
     Write-Host [+] Create application owner for $appId 
     UpdatePassword $random_user_id  $Password
 
+}
+
+Function CreateAttackPath2([String]$Password){
+
+    $directoryRole='Helpdesk Administrator'
+    $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
+    $user_id=""
+    $users = Get-MgDirectoryRoleMember -DirectoryRoleId $directoryRoleId 
+
+    if ($users -is [Array]){
+
+        $user_id=$users[0].Id
+    }
+
+    else {
+        $user_id=$users.Id
+    }
+    UpdatePassword $user_id  $Password
 }
 
 
