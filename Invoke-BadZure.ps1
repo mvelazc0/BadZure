@@ -168,27 +168,6 @@ Function AssignAppApiPermissions{
         Write-Host [+] Assigned API permissions $permission to application with displayName $random_app_dn
         $used_apps += $random_app_dn 
 
-        $account=(Get-MgContext | Select-Object Account).Account
-        $pos=$account.IndexOf('@')
-        $domain=$account.Substring($pos+1)
-        $users = Import-Csv -Path "Csv/users.csv"
-        $user_ids = @()
-
-        foreach ($user in $users) {
-            $displayName = -join($user.FirstName,'.',$user.LastName)
-            $upn = -join($displayName,'@',$domain)
-            $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
-            $user_ids +=$user.Id
-        }
-        $random_userid = (Get-Random $user_ids)
-        $NewOwner = @{
-            "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_userid}"
-         }
-         
-        New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
-        Write-Host [+] Create application owner for $appId 
-
-
     }
 }
 
@@ -421,7 +400,30 @@ Function CreateAttackPath2([String]$Password){
     else {
         $user_id=$users.Id
     }
-    UpdatePassword $user_id  $Password
+    $NewOwner = @{
+        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$user_id}"
+     }
+
+     $applications = Import-Csv -Path "Csv\apps.csv"
+     $service_principal_ids= @()
+     foreach ($app in $applications) {
+ 
+         $DisplayName = $app.DisplayName
+         $service_principal_ids+=(Get-MgServicePrincipal -Filter "DisplayName eq '$DisplayName'").Id
+     }
+     
+     foreach ($service_principal_id in $service_principal_ids){
+        $appRoleId = (Get-MgServicePrincipalAppRoleAssignment -ServicePrincipalId $service_principal_id).AppRoleId
+        if ($appRoleId -eq '9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
+        {
+            $DisplayName = (Get-MgServicePrincipal -ServicePrincipalId $service_principal_id).DisplayName
+            $appId= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
+            New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
+            Write-Host [+] Created application owner for $appId 
+            UpdatePassword $user_id $Password
+        }
+     }
+
 }
 
 
