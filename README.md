@@ -17,9 +17,7 @@ An Azure AD tenant populated with BadZure enables red and blue teams to:
 
 ### Create an Azure AD Tenant 
 
-*  [Create an Azure subscription](https://portal.azure.com/)
-
-Creating an Azure subscription will also provide you an Azure AD tenant. Creating a
+[Creating an Azure subscription](https://portal.azure.com/) will also provide you an Azure AD tenant. Creating a
 subscription will require you to submit a valid credit card. However, if you
 only leverage Azure AD and not use any other Azure services like VMs or storage,
 there will be no charges to your credit card. 
