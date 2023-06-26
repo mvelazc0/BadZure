@@ -15,23 +15,14 @@ An Azure AD tenant populated with BadZure enables red and blue teams to:
 
 ## Quick Start Guide
 
-### Create an Azure AD Tenant
-
-You have 2 options for this task
-
-*  [Microsoft 365 developer sandbox](https://learn.microsoft.com/en-us/office/developer-program/microsoft-365-developer-program-get-started)
-
-Microsoft allows developers to create a sandbox environment for 365.
-While the goal of this service isto allow developers to experiment with 365 services like Teams and Sharepoint, it
-also contains an Azure AD tenant. This sandbox is free of cost and practically has no ending time. 
+### Create an Azure AD Tenant 
 
 *  [Create an Azure subscription](https://portal.azure.com/)
 
 Creating an Azure subscription will also provide you an Azure AD tenant. Creating a
-subscription will require you to submit a valid credit card and phone number. However, if you
+subscription will require you to submit a valid credit card. However, if you
 only leverage Azure AD and not use any other Azure services like VMs or storage,
-there will be no charges to your credit card.
-
+there will be no charges to your credit card. 
 
 ### Clone Repository and Import Module
 
