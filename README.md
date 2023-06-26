@@ -20,7 +20,13 @@ An Azure AD tenant populated with BadZure enables red and blue teams to:
 [Creating an Azure subscription](https://learn.microsoft.com/en-us/training/modules/create-an-azure-account/1-introduction) will also provide you an Azure AD tenant. Creating a
 subscription will require you to submit a valid credit card. However, if you
 only leverage Azure AD and not use any other Azure services like VMs or storage,
-there will be no charges to your credit card. 
+there will be no charges to your credit card.
+
+### Install Dependencies
+
+````
+Install-Module Microsoft.Graph -Scope CurrentUser
+````
 
 ### Clone Repository and Import Module
 
