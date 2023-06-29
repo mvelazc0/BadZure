@@ -1,6 +1,6 @@
 # BadZure
 
-BadZure is a PowerShell script that leverages the Microsft Graph SDK to automate the process of populating an Azure Active Directory environment with various entities such as users, groups, applications, and service principals. BadZure will randomly assign Azure AD Roles and API Graph permissions to users and service principals enabling the creation of simulated and unique attack paths within a controlled and vulnerable tenant. 
+BadZure is a PowerShell script that leverages the Microsft Graph SDK to automate the process of populating an Azure Active Directory environment with various entities such as users, groups, applications, and service principals. To simulate common security misconfigurations in real environments, it randomly assign Azure AD Roles, Graph API permissions and application ownership assignments to users and service principals enabling the creation of simulated and unique attack paths within a controlled and vulnerable tenant. 
 
 BadZure is designed for security practitioners with an interest in exploring and understanding Azure AD security. The core value of BadZure lies in its ability to build and destroy these populated and vulnerable Azure AD tenants rapidly facilitating iterative learning as well as experimentation. It empowers users to learn, test, and develop detection strategies for safeguarding their Azure AD environments against real-world attacks. 
 
