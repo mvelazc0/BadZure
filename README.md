@@ -13,6 +13,14 @@ An Azure AD tenant populated with BadZure enables red and blue teams to:
 * Execute purple team exercises in a safe setting
 * Faciliate hands-on Azure AD security training
 
+## Attack Paths
+
+BadZure automatically creates two unique attack paths that leverage Service Principal privilege escalation as shown below.
+
+![](images/attack_paths.png)
+
+
+
 ## Quick Start Guide
 
 ### Create an Azure AD Tenant 
