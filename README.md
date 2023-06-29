@@ -17,7 +17,7 @@ An Azure AD tenant populated with BadZure enables red and blue teams to:
 
 BadZure automatically creates two unique attack paths that leverage Service Principal privilege escalation as shown below.
 
-![](images/attack_paths.png)
+![](img/attack_paths.png)
 
 
 
