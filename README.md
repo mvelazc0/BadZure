@@ -15,11 +15,15 @@ An Azure AD tenant populated with BadZure enables red and blue teams to:
 
 ## Attack Paths
 
-BadZure automatically creates two unique attack paths that leverage Service Principal privilege escalation as shown below.
+### Initial Access
+
+BadZure facilitates initial access by simulating account takover vectors such as password attacks (password spraying, credential reuse, etc.) and token theft scenarios. It achieves this through the assignment of a known password (either randomly generated or user-defined) or by supplying access tokens to randomly selected users with special privileges. These users serve as the initial access vector, creating a realistic starting point for security exploration.
+
+### Privilege Escalation
+
+BadZure crafts privilege escalation attack vectors by simulating service principal abuse scenarios. It achieves this by intentionally introducing misconfigurations, typically exploited in real-world threat scenarios. A BloodHound-generated graph, showcasing the scenarios BadZure simulates, is shown below.
 
 ![](img/attack_paths.png)
-
-
 
 ## Quick Start Guide
 
