@@ -8,7 +8,7 @@ BadZure is designed for security practitioners with an interest in exploring and
 
 An Azure AD tenant populated with BadZure enables red and blue teams to:
 
-* Experiment with common Azure AD attack vectors
+* Experiment with common Azure AD attack vectors (for ideas => [AzureAD Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense))
 * Obtain attack telemetry to build, test and enhance detection controls
 * Execute purple team exercises in a safe setting
 * Faciliate hands-on Azure AD security training
