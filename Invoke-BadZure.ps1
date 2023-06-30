@@ -32,7 +32,7 @@ Function Invoke-BadZure {
 
     .PARAMETER Destroy
 
-    Used to delete all entities from an Azure AD tenant.
+    Used to delete entities created by BadZure on an Azure AD tenant.
 
     .PARAMETER NoAttackPaths
 
@@ -113,6 +113,7 @@ Function Invoke-BadZure {
 
 Function AssignAppRoles (){
 
+    Write-Host [!] Assigning random Azure Ad roles to applications
     $roles = ('Exchange Administrator', 'Security Operator', 'Network Administrator', 'Intune Administrator', 'Attack Simulation Administrator', 'Application Developer', 'Privileged Role Administrator')
     $apps = Import-Csv -Path "Csv\apps.csv"
     $used_apps =@()
@@ -128,7 +129,7 @@ Function AssignAppRoles (){
         $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
         $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $appSpId -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-        Write-Host [+] Assigned $role to application with displayName $random_app_dn
+        Write-Host `t[+] Assigned $role to application with displayName $random_app_dn
         $used_apps += $random_app_dn 
 
     }
@@ -137,6 +138,8 @@ Function AssignAppRoles (){
 
 Function AssignAppApiPermissions{
 
+
+    Write-Host [!] Assigning random Graph API permissions to applications
     $apps = Import-Csv -Path "Csv\apps.csv"
     # RoleManagement.ReadWrite.Directory
     $permissions = ('9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
@@ -160,7 +163,7 @@ Function AssignAppApiPermissions{
             AppRoleId = $permission
         }
         New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
-        Write-Host [+] Assigned API permissions $permission to application with displayName $random_app_dn
+        Write-Host `t[+] Assigned API permissions $permission to application with displayName $random_app_dn
         $used_apps += $random_app_dn 
 
     }
@@ -170,6 +173,7 @@ Function AssignAppApiPermissions{
 Function AssignUserPerm([string]$Password) {
 
 
+    Write-Host [!] Assigning random Azure Ad roles to users
     $users = Import-Csv -Path "Csv/users.csv"
     $account=(Get-MgContext | Select-Object Account).Account
     $pos=$account.IndexOf('@')
@@ -195,7 +199,7 @@ Function AssignUserPerm([string]$Password) {
 
         $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-        Write-Host [+] Assigned $role to user with id $random_user
+        Write-Host `t[+] Assigned $role to user with id $random_user
         $used_users += $random_user 
     }
 }
@@ -209,7 +213,7 @@ Function UpdatePassword ([String]$userId, [String]$Password) {
         $NewPassword["Password"]= $randomString
         $NewPassword["ForceChangePasswordNextSignIn"] = $False
         Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
-        Write-Host [+] Updated password for user with id $userId with a random password $randomString.
+        Write-Host `t[+] Updated password for user with id $userId with a random password $randomString.
     }
     else{
 
@@ -217,7 +221,7 @@ Function UpdatePassword ([String]$userId, [String]$Password) {
         $NewPassword["Password"]= $Password
         $NewPassword["ForceChangePasswordNextSignIn"] = $False
         Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
-        Write-Host [+] Updated password for user with id $userId with a cli parameter.
+        Write-Host `t[+] Updated password for user with id $userId with a cli parameter.
     }
 
 }
@@ -250,6 +254,7 @@ Function CreateGroups{
 
 Function AssignGroups{
 
+    Write-Host [!] Assigning random users to random groups
     $users = Import-Csv -Path "Csv/users.csv"
     $account=(Get-MgContext | Select-Object Account).Account
     $pos=$account.IndexOf('@')
@@ -276,7 +281,7 @@ Function AssignGroups{
             }
             until ($used_users -notcontains $random_user)
             New-MgGroupMember -GroupId $group_id -DirectoryObjectId $random_user
-            Write-Host [+] Added user with Id $random_user to group with id $group_id
+            Write-Host `t[+] Added user with Id $random_user to group with id $group_id
 
             $used_users += $random_user 
         }
@@ -288,7 +293,7 @@ Function AssignGroups{
 
 Function DeleteGroups{
 
-    Write-Host [!] Removing all application registrations
+    Write-Host [!] Removing groups
     $groups = Import-Csv -Path "Csv\groups.csv"
     foreach ($group in $groups) {
 
@@ -322,7 +327,7 @@ Function CreateUsers{
 
 Function DeleteApps{
 
-    Write-Host [!] Removing all application registrations
+    Write-Host [!] Removing application registrations
 
     $apps = Import-Csv -Path "Csv\apps.csv"
     foreach ($app in $apps) {
@@ -337,7 +342,7 @@ Function DeleteApps{
 
 Function DeleteUsers{
 
-    Write-Host [!] Removing all users
+    Write-Host [!] Removing users
 
     $users = Import-Csv -Path "Csv\users.csv"
     $account=(Get-MgContext | Select-Object Account).Account
@@ -356,6 +361,8 @@ Function DeleteUsers{
 Function CreateAttackPath1 ([String]$Password){
 
     # We have to use the Graph beta based on https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/880
+    Write-Host [!] Creating attack path 1
+
     Select-MgProfile beta
     $directoryRole='Privileged Role Administrator'
     $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
@@ -382,13 +389,14 @@ Function CreateAttackPath1 ([String]$Password){
         }
         
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
-    Write-Host [+] Created application owner for $appId 
+    Write-Host `t[+] Created application owner for $appId 
     UpdatePassword $random_user_id  $Password
 
 }
 
 Function CreateAttackPath2([String]$Password){
 
+    Write-Host [!] Creating attack path 2
     $directoryRole='Helpdesk Administrator'
     $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
     $user_id=""
@@ -421,7 +429,7 @@ Function CreateAttackPath2([String]$Password){
             $DisplayName = (Get-MgServicePrincipal -ServicePrincipalId $service_principal_id).DisplayName
             $appId= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
             New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
-            Write-Host [+] Created application owner for $appId 
+            Write-Host `t[+] Created application owner for $appId 
             UpdatePassword $user_id $Password
         }
      }
