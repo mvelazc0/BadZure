@@ -27,7 +27,7 @@ An Azure AD tenant populated with BadZure enables red and blue teams to:
 
 ### Initial Access
 
-BadZure facilitates initial access by simulating account takover vectors such as password attacks (password spraying, credential reuse, etc.) and token theft scenarios. It achieves this through the assignment of a known password (randomly generated or user-defined) or by supplying access tokens to randomly selected users with special privileges. These users serve as the initial access vector, creating a realistic starting point for security exploration.
+BadZure facilitates initial access by simulating account takover vectors such as password attacks and token theft scenarios. It achieves this through the assignment of a known password (randomly generated or user-defined) or by supplying access tokens to randomly selected users with special privileges. These users serve as the initial access vector, creating a realistic starting point for security exploration.
 
 ### Privilege Escalation
 
