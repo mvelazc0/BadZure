@@ -1,6 +1,8 @@
 # BadZure
 
-BadZure is a PowerShell script that leverages the Microsft Graph SDK to automate the process of populating an Azure Active Directory environment with various entities such as:
+BadZure is a PowerShell script that leverages the Microsoft Graph SDK to orchestrate the setup of Azure Active Directory environments, populating them with diverse entities while also introducing common security misconfigurations to create vulnerable Azure AD tenants with multiple attack paths.
+
+Specifically, BadZure automates the process of creating multiple entities such as:
 
 - Users
 - Groups
