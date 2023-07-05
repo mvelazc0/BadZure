@@ -80,6 +80,7 @@ Function Invoke-BadZure {
         CreateUsers
         CreateGroups
         CreateApps
+        CreateAdministrativeUnits
 
         # assign random groups and permissions
         AssignGroups
@@ -101,6 +102,7 @@ Function Invoke-BadZure {
         DeleteUsers
         DeleteGroups
         DeleteApps
+        DeleteeAdministrativeUnits
     }
     else{
 
@@ -109,6 +111,142 @@ Function Invoke-BadZure {
     }
 
 }
+
+
+## Create functions
+
+Function CreateUsers{
+
+    Write-Host [!] Creating Users
+    $PasswordProfile = @{
+        Password = "bmNEe%PA@hw91vIvg7V%"
+    }
+    
+    $users = Import-Csv -Path "Csv\users.csv"
+    $account=(Get-MgContext | Select-Object Account).Account
+    $pos=$account.IndexOf('@')
+    $domain=$account.Substring($pos+1)
+
+
+    foreach ($user in $users) {
+        $displayName = -join($user.FirstName,'.',$user.LastName)
+        $upn = -join($displayName,'@',$domain)
+        New-MgUser -DisplayName $displayName -PasswordProfile $PasswordProfile -AccountEnabled -MailNickName $displayName -UserPrincipalName $upn | Out-Null
+        Write-Host `t[+] Created User $upn
+    }
+}
+
+Function CreateApps{
+
+    Write-Host [!] Creating application registrations and service principals
+    $apps = Import-Csv -Path "Csv\apps.csv"
+    foreach ($app in $apps) {
+
+        $new_app= New-MgApplication -DisplayName $app.DisplayName 
+        $new_sp= New-MgServicePrincipal -AppId $new_app.Appid
+        Write-Host `t[+] Created application with displayname $app.DisplayName and Service Principal $new_sp.Id
+
+    }
+}
+
+Function CreateGroups{
+
+    Write-Host [!] Creating Groups
+    $groups = Import-Csv -Path "Csv\groups.csv"
+    foreach ($group in $groups) {
+
+        $nickName= $group.DisplayName -replace (' ','')
+        #$new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled -IsAssignableToRole
+        $new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled
+        Write-Host `t[+] Created group with displayname $new_group.DisplayName and Id $new_group.Id
+    }
+}
+
+Function CreateAdministrativeUnits{
+
+    Write-Host [!] Creating administrative units
+    $a_units = Import-Csv -Path "Csv\a_units.csv"
+    foreach ($a_unit in $a_units) {
+
+        $params = @{
+            displayName = $a_unit.DisplayName
+        }
+        $new_adunit = New-MgDirectoryAdministrativeUnit -BodyParameter $params
+        Write-Host `t[+] Created administrative unit with displayname $new_adunit.DisplayName and Id $new_adunit.Id
+    }
+
+}
+
+
+## Delete functions
+
+
+Function DeleteGroups{
+
+    Write-Host [!] Removing groups
+    $groups = Import-Csv -Path "Csv\groups.csv"
+    foreach ($group in $groups) {
+
+        $displayName = $group.DisplayName
+        $delgroup = Get-MgGroup -Filter "DisplayName eq '$displayName'"
+        Remove-MgGroup -GroupId $delgroup.Id
+        Write-Host `t[+] Deleted group with displayname $delgroup.DisplayName and Id $delgroup.Id
+    }
+}
+
+
+
+Function DeleteApps{
+
+    Write-Host [!] Removing application registrations
+
+    $apps = Import-Csv -Path "Csv\apps.csv"
+    foreach ($app in $apps) {
+
+	    $DisplayName = $app.DisplayName
+        $app_id= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
+        Remove-MgApplication -ApplicationId $app_id | Out-Null
+        Write-Host `t[+] Deleted application with Id $app_id
+    }
+}
+
+
+Function DeleteUsers{
+
+    Write-Host [!] Removing users
+
+    $users = Import-Csv -Path "Csv\users.csv"
+    $account=(Get-MgContext | Select-Object Account).Account
+    $pos=$account.IndexOf('@')
+    $domain=$account.Substring($pos+1)
+
+    foreach ($user in $users) {
+        $displayName = -join($user.FirstName,'.',$user.LastName)
+        $upn = -join($displayName,'@',$domain)
+        $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
+        Remove-MgUser -UserId $user.Id
+        Write-Host `t[+] Deleted user with ObjectId $user.Id
+    }
+}
+
+
+Function DeleteeAdministrativeUnits{
+
+    Write-Host [!] Removing administrative units
+    $a_units = Import-Csv -Path "Csv\a_units.csv"
+    foreach ($a_unit in $a_units) {
+
+        $DisplayName = $a_unit.DisplayName
+        $admunit_id= (Get-MgDirectoryAdministrativeUnit -Filter "DisplayName eq '$DisplayName'").Id
+        Remove-MgDirectoryAdministrativeUnit -AdministrativeUnitId $admunit_id | Out-Null
+        Write-Host `t[+] Deleted administrative unit with Id $admunit_id
+    }
+
+}
+
+
+
+## Assign functions
 
 
 Function AssignAppRoles (){
@@ -204,53 +342,6 @@ Function AssignUserPerm([string]$Password) {
     }
 }
 
-Function UpdatePassword ([String]$userId, [String]$Password) {
-
-    if([string]::IsNullOrEmpty($Password)){
-
-        $randomString = -join ((33..47) + (48..57) + (65..90) + (97..122) + (123..126) | Get-Random -Count 15 | % { [char]$_ })
-        $NewPassword = @{}
-        $NewPassword["Password"]= $randomString
-        $NewPassword["ForceChangePasswordNextSignIn"] = $False
-        Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
-        Write-Host `t[+] Updated password for user with id $userId with a random password $randomString.
-    }
-    else{
-
-        $NewPassword = @{}
-        $NewPassword["Password"]= $Password
-        $NewPassword["ForceChangePasswordNextSignIn"] = $False
-        Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
-        Write-Host `t[+] Updated password for user with id $userId with a cli parameter.
-    }
-
-}
-
-Function CreateApps{
-
-    Write-Host [!] Creating application registrations and service principals
-    $apps = Import-Csv -Path "Csv\apps.csv"
-    foreach ($app in $apps) {
-
-        $new_app= New-MgApplication -DisplayName $app.DisplayName 
-        $new_sp= New-MgServicePrincipal -AppId $new_app.Appid
-        Write-Host `t[+] Created application with displayname $app.DisplayName and Service Principal $new_sp.Id
-
-    }
-}
-
-Function CreateGroups{
-
-    Write-Host [!] Creating Groups
-    $groups = Import-Csv -Path "Csv\groups.csv"
-    foreach ($group in $groups) {
-
-        $nickName= $group.DisplayName -replace (' ','')
-        #$new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled -IsAssignableToRole
-        $new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled
-        Write-Host `t[+] Created group with displayname $new_group.DisplayName and Id $new_group.Id
-    }
-}
 
 Function AssignGroups{
 
@@ -291,72 +382,7 @@ Function AssignGroups{
 
 }
 
-Function DeleteGroups{
-
-    Write-Host [!] Removing groups
-    $groups = Import-Csv -Path "Csv\groups.csv"
-    foreach ($group in $groups) {
-
-        $displayName = $group.DisplayName
-        $delgroup = Get-MgGroup -Filter "DisplayName eq '$displayName'"
-        Remove-MgGroup -GroupId $delgroup.Id
-        Write-Host `t[+] Deleted group with displayname $delgroup.DisplayName and Id $delgroup.Id
-    }
-}
-
-Function CreateUsers{
-
-    Write-Host [!] Creating Users
-    $PasswordProfile = @{
-        Password = "bmNEe%PA@hw91vIvg7V%"
-    }
-    
-    $users = Import-Csv -Path "Csv\users.csv"
-    $account=(Get-MgContext | Select-Object Account).Account
-    $pos=$account.IndexOf('@')
-    $domain=$account.Substring($pos+1)
-
-
-    foreach ($user in $users) {
-        $displayName = -join($user.FirstName,'.',$user.LastName)
-        $upn = -join($displayName,'@',$domain)
-        New-MgUser -DisplayName $displayName -PasswordProfile $PasswordProfile -AccountEnabled -MailNickName $displayName -UserPrincipalName $upn | Out-Null
-        Write-Host `t[+] Created User $upn
-    }
-}
-
-Function DeleteApps{
-
-    Write-Host [!] Removing application registrations
-
-    $apps = Import-Csv -Path "Csv\apps.csv"
-    foreach ($app in $apps) {
-
-	    $DisplayName = $app.DisplayName
-        $app_id= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
-        Remove-MgApplication -ApplicationId $app_id | Out-Null
-        Write-Host `t[+] Deleted application with Id $app_id
-    }
-}
-
-
-Function DeleteUsers{
-
-    Write-Host [!] Removing users
-
-    $users = Import-Csv -Path "Csv\users.csv"
-    $account=(Get-MgContext | Select-Object Account).Account
-    $pos=$account.IndexOf('@')
-    $domain=$account.Substring($pos+1)
-
-    foreach ($user in $users) {
-        $displayName = -join($user.FirstName,'.',$user.LastName)
-        $upn = -join($displayName,'@',$domain)
-        $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
-        Remove-MgUser -UserId $user.Id
-        Write-Host `t[+] Deleted user with ObjectId $user.Id
-    }
-}
+## Attack path functions
 
 Function CreateAttackPath1 ([String]$Password){
 
@@ -436,6 +462,7 @@ Function CreateAttackPath2([String]$Password){
 
 }
 
+## Util functions
 
 Function GetRandomUser{
 
@@ -456,3 +483,24 @@ Function GetRandomUser{
 
 }
 
+Function UpdatePassword ([String]$userId, [String]$Password) {
+
+    if([string]::IsNullOrEmpty($Password)){
+
+        $randomString = -join ((33..47) + (48..57) + (65..90) + (97..122) + (123..126) | Get-Random -Count 15 | % { [char]$_ })
+        $NewPassword = @{}
+        $NewPassword["Password"]= $randomString
+        $NewPassword["ForceChangePasswordNextSignIn"] = $False
+        Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
+        Write-Host `t[+] Updated password for user with id $userId with a random password $randomString.
+    }
+    else{
+
+        $NewPassword = @{}
+        $NewPassword["Password"]= $Password
+        $NewPassword["ForceChangePasswordNextSignIn"] = $False
+        Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
+        Write-Host `t[+] Updated password for user with id $userId with a cli parameter.
+    }
+
+}
