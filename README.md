@@ -35,6 +35,8 @@ BadZure crafts privilege escalation attack vectors by simulating service princip
 
 [Creating an Azure subscription](https://learn.microsoft.com/en-us/training/modules/create-an-azure-account/1-introduction) will also provide you an Azure AD tenant. 
 
+**Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it exclusively operates with Azure AD, a service offered [free of charge](https://azure.microsoft.com/en-us/free/).
+
 ### Install Dependencies
 
 ````
