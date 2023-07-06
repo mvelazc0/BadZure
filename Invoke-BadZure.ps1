@@ -65,7 +65,10 @@ Function Invoke-BadZure {
         [switch]$NoAttackPaths,
     [Parameter(Mandatory = $false,
         HelpMessage = 'Inital access password set on users.')]
-        [String]$Password
+        [String]$Password,
+    [Parameter(Mandatory = $false,
+    HelpMessage = 'Print access tokens for initial access simulation')]
+    [Switch]$Token
 
     )
 
@@ -91,14 +94,15 @@ Function Invoke-BadZure {
         # create attack paths
         if($NoAttackPaths -eq $false){
 
-            CreateAttackPath1 $Password
-            CreateAttackPath2 $Password
+            CreateAttackPath1 $Password $Token
+            CreateAttackPath2 $Password $Token
         }
     }
     elseif($Destroy-eq $true){
 
         Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" | Out-Null
 
+        # remove principals
         DeleteUsers
         DeleteGroups
         DeleteApps
@@ -111,7 +115,6 @@ Function Invoke-BadZure {
     }
 
 }
-
 
 ## Create functions
 
@@ -245,8 +248,45 @@ Function DeleteeAdministrativeUnits{
 }
 
 
-
 ## Assign functions
+
+Function AssignGroups{
+
+    Write-Host [!] Assigning random users to random groups
+    $users = Import-Csv -Path "Csv/users.csv"
+    $account=(Get-MgContext | Select-Object Account).Account
+    $pos=$account.IndexOf('@')
+    $domain=$account.Substring($pos+1)
+    $user_ids = @()
+
+    foreach ($user in $users) {
+        $displayName = -join($user.FirstName,'.',$user.LastName)
+        $upn = -join($displayName,'@',$domain)
+        $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
+        $user_ids +=$user.Id
+    }
+
+    $groups = Import-Csv -Path "Csv\groups.csv"
+    foreach ($group in $groups) {
+
+        $displayName = $group.DisplayName
+        $group_id = (Get-MgGroup -Filter "DisplayName eq '$displayName'").Id
+        $used_users = @()
+        foreach($i in 1..3){
+            do
+            {
+                $random_user = (Get-Random $user_ids)
+            }
+            until ($used_users -notcontains $random_user)
+            New-MgGroupMember -GroupId $group_id -DirectoryObjectId $random_user
+            Write-Host `t[+] Added user with Id $random_user to group with id $group_id
+
+            $used_users += $random_user 
+        }
+
+    }
+
+}
 
 
 Function AssignAppRoles (){
@@ -343,48 +383,11 @@ Function AssignUserPerm([string]$Password) {
 }
 
 
-Function AssignGroups{
 
-    Write-Host [!] Assigning random users to random groups
-    $users = Import-Csv -Path "Csv/users.csv"
-    $account=(Get-MgContext | Select-Object Account).Account
-    $pos=$account.IndexOf('@')
-    $domain=$account.Substring($pos+1)
-    $user_ids = @()
-
-    foreach ($user in $users) {
-        $displayName = -join($user.FirstName,'.',$user.LastName)
-        $upn = -join($displayName,'@',$domain)
-        $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
-        $user_ids +=$user.Id
-    }
-
-    $groups = Import-Csv -Path "Csv\groups.csv"
-    foreach ($group in $groups) {
-
-        $displayName = $group.DisplayName
-        $group_id = (Get-MgGroup -Filter "DisplayName eq '$displayName'").Id
-        $used_users = @()
-        foreach($i in 1..3){
-            do
-            {
-                $random_user = (Get-Random $user_ids)
-            }
-            until ($used_users -notcontains $random_user)
-            New-MgGroupMember -GroupId $group_id -DirectoryObjectId $random_user
-            Write-Host `t[+] Added user with Id $random_user to group with id $group_id
-
-            $used_users += $random_user 
-        }
-
-    }
-
-
-}
 
 ## Attack path functions
 
-Function CreateAttackPath1 ([String]$Password){
+Function CreateAttackPath1 ([String]$Password, [Boolean]$Token){
 
     # We have to use the Graph beta based on https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/880
     Write-Host [!] Creating attack path 1
@@ -416,11 +419,13 @@ Function CreateAttackPath1 ([String]$Password){
         
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
     Write-Host `t[+] Created application owner for $appId 
-    UpdatePassword $random_user_id  $Password
+    UpdatePassword $random_user_id $Password $Token
+
+    
 
 }
 
-Function CreateAttackPath2([String]$Password){
+Function CreateAttackPath2([String]$Password, [Boolean]$Token){
 
     Write-Host [!] Creating attack path 2
     $directoryRole='Helpdesk Administrator'
@@ -456,7 +461,8 @@ Function CreateAttackPath2([String]$Password){
             $appId= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
             New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
             Write-Host `t[+] Created application owner for $appId 
-            UpdatePassword $user_id $Password
+            UpdatePassword $user_id $Password $Token
+
         }
      }
 
@@ -483,7 +489,7 @@ Function GetRandomUser{
 
 }
 
-Function UpdatePassword ([String]$userId, [String]$Password) {
+Function UpdatePassword ([String]$userId, [String]$Password, [Boolean]$Token) {
 
     if([string]::IsNullOrEmpty($Password)){
 
@@ -492,7 +498,18 @@ Function UpdatePassword ([String]$userId, [String]$Password) {
         $NewPassword["Password"]= $randomString
         $NewPassword["ForceChangePasswordNextSignIn"] = $False
         Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
-        Write-Host `t[+] Updated password for user with id $userId with a random password $randomString.
+        $username = (Get-MgUser -Filter "Id eq '$userId'").UserPrincipalName
+
+        if ($Token -eq $false)
+        {
+            Write-Host `t[+] Updated password for user $username with random password `"$randomString`"
+        }
+        else{
+            GetAccessToken $userId $randomString
+        }
+        
+        
+
     }
     else{
 
@@ -500,7 +517,27 @@ Function UpdatePassword ([String]$userId, [String]$Password) {
         $NewPassword["Password"]= $Password
         $NewPassword["ForceChangePasswordNextSignIn"] = $False
         Update-Mguser -UserId $userId.Trim() -PasswordProfile $NewPassword
-        Write-Host `t[+] Updated password for user with id $userId with a cli parameter.
+        $username = (Get-MgUser -Filter "Id eq '$userId'").UserPrincipalName
+        if ($Token -eq $false)
+        {
+            Write-Host `t[+] Updated password for user $username with password `"$Password`".
+        }
+        else{
+            GetAccessToken $userId $Password
+        }
+
     }
+
+}
+
+Function GetAccessToken ([String]$userId, [String]$Password) {
+
+    Write-Host `t`[!] Obtaining user access token
+    $username = (Get-MgUser -Filter "Id eq '$userId'").UserPrincipalName
+    $SecurePassword = ConvertTo-SecureString “$Password” -AsPlainText -Force
+    $credentials = New-Object System.Management.Automation.PSCredential($username, $SecurePassword)
+    Connect-AzAccount -Credential $credentials | Out-Null
+    Write-Host `t`[+] Access token for $username :
+    Write-Host `t` (Get-AzAccessToken -ResourceUrl "https://graph.microsoft.com/").Token
 
 }
