@@ -4,15 +4,13 @@ BadZure is a PowerShell script that leverages the Microsoft Graph SDK to orchest
 
 Specifically, BadZure automates the process of creating multiple entities such as: users, groups, application registrations, service principals and administrative units. To simulate common security misconfigurations in real environments, it randomly assigns Azure AD roles, Graph permissions and application ownership privileges to randomly picked security principals enabling the creation of unique attack paths within a controlled and vulnerable tenant. 
 
-BadZure is designed for security practitioners with an interest in exploring and understanding Azure AD security. The key advantage of BadZure lies in its ability to rapidly populate and purge existing Azure AD tenants with randomly generated vulnerable configurations facilitating continous and iterative attack simulation (red team) and detection development (blue team) experimentation. 
-
-in an existing azure ad tenant.
+The key advantage of BadZure lies in its ability to rapidly populate and purge existing Azure AD tenants with randomly generated vulnerable configurations facilitating continous and iterative attack simulation (red team) and detection development (blue team) experimentation. It is designed for security practitioners with an interest in exploring and understanding Azure AD security. 
 
 ## Goals / Use Cases
 
-It enables  detection engineering teams to collect attack telemetry, develop detection strategies for safeguarding their Azure AD environments against real-world attacks. 
+BadZure initial use case is to enable detection engineering teams to quickly stand up vulnerable envioronments to collect attack telemetry and develop detection strategies for Azure AD attacks. 
 
-An Azure AD tenant populated with BadZure enables red and blue teams to:
+An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
 * Experiment with common Azure AD attack vectors (for ideas => [AzureAD Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense))
 * Obtain attack telemetry to build, test and enhance detection controls
