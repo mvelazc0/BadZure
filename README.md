@@ -6,6 +6,8 @@ Specifically, BadZure automates the process of creating multiple entities such a
 
 BadZure is designed for security practitioners with an interest in exploring and understanding Azure AD security. The key advantage of BadZure lies in its ability to rapidly build and destroy populated and randomly generated vulnerable Azure AD tenants facilitating iterative red and blue experimentation. 
 
+in an existing azure ad tenant.
+
 ## Goals / Use Cases
 
 It enables  detection engineering teams to collect attack telemetry, develop detection strategies for safeguarding their Azure AD environments against real-world attacks. 
