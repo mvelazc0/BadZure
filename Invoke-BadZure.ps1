@@ -70,6 +70,8 @@ Function Invoke-BadZure {
         [Switch]$Token
 
     )
+    $Verbose = $false
+    if ($PSCmdlet.MyInvocation.BoundParameters["Verbose"].IsPresent){$Verbose = $true}
     
     Write-Host $banner
 
@@ -78,15 +80,15 @@ Function Invoke-BadZure {
         Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" | Out-Null
 
         # create principals
-        CreateUsers
+        CreateUsers 
         CreateGroups
-        CreateApps
-        CreateAdministrativeUnits
+        CreateApps 
+        CreateAdministrativeUnits 
 
         # assign random groups and permissions
-        AssignGroups
-        AssignUserPerm
-        AssignAppRoles
+        AssignGroups 
+        AssignUserPerm 
+        AssignAppRoles 
         AssignAppApiPermissions
 
         # create attack paths
@@ -102,9 +104,9 @@ Function Invoke-BadZure {
 
         # remove principals
         DeleteUsers
-        DeleteGroups
-        DeleteApps
-        DeleteeAdministrativeUnits
+        DeleteGroups 
+        DeleteApps 
+        DeleteeAdministrativeUnits 
     }
     else{
 
@@ -116,11 +118,13 @@ Function Invoke-BadZure {
 
 ## Create functions
 
-Function CreateUsers{
+Function CreateUsers([Boolean]$Verbose) {
 
     Write-Host [!] Creating Users
+    # set a random password for each user
+    $randomString = -join ((33..47) + (48..57) + (65..90) + (97..122) + (123..126) | Get-Random -Count 15 | % { [char]$_ })
     $PasswordProfile = @{
-        Password = "bmNEe%PA@hw91vIvg7V%"
+        Password = $randomString
     }
     
     $users = Import-Csv -Path "Csv\users.csv"
@@ -133,11 +137,12 @@ Function CreateUsers{
         $displayName = -join($user.FirstName,'.',$user.LastName)
         $upn = -join($displayName,'@',$domain)
         New-MgUser -DisplayName $displayName -PasswordProfile $PasswordProfile -AccountEnabled -MailNickName $displayName -UserPrincipalName $upn | Out-Null
-        Write-Host `t[+] Created User $upn
+        Write-Verbose "`t[+] Created User $upn"
+    
     }
 }
 
-Function CreateApps{
+Function CreateApps([Boolean]$Verbose){
 
     Write-Host [!] Creating application registrations and service principals
     $apps = Import-Csv -Path "Csv\apps.csv"
@@ -145,12 +150,12 @@ Function CreateApps{
 
         $new_app= New-MgApplication -DisplayName $app.DisplayName 
         $new_sp= New-MgServicePrincipal -AppId $new_app.Appid
-        Write-Host `t[+] Created application with displayname $app.DisplayName and Service Principal $new_sp.Id
+        Write-Verbose "`t[+] Created application with displayname $($app.DisplayName) and Service Principal $($new_sp.Id)"
 
     }
 }
 
-Function CreateGroups{
+Function CreateGroups([Boolean]$Verbose){
 
     Write-Host [!] Creating Groups
     $groups = Import-Csv -Path "Csv\groups.csv"
@@ -159,11 +164,12 @@ Function CreateGroups{
         $nickName= $group.DisplayName -replace (' ','')
         #$new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled -IsAssignableToRole
         $new_group = New-MgGroup -DisplayName $group.DisplayName -MailEnabled:$False -MailNickName $nickName -SecurityEnabled
-        Write-Host `t[+] Created group with displayname $new_group.DisplayName and Id $new_group.Id
+        Write-Verbose "`t[+] Created group with displayname $($new_group.DisplayName) and Id $($new_group.Id)"
+
     }
 }
 
-Function CreateAdministrativeUnits{
+Function CreateAdministrativeUnits([Boolean]$Verbose){
 
     Write-Host [!] Creating administrative units
     $a_units = Import-Csv -Path "Csv\a_units.csv"
@@ -173,7 +179,7 @@ Function CreateAdministrativeUnits{
             displayName = $a_unit.DisplayName
         }
         $new_adunit = New-MgDirectoryAdministrativeUnit -BodyParameter $params
-        Write-Host `t[+] Created administrative unit with displayname $new_adunit.DisplayName and Id $new_adunit.Id
+        Write-Verbose "`t[+] Created administrative unit with displayname $($new_adunit.DisplayName) and Id $($new_adunit.Id)"
     }
 
 }
@@ -182,7 +188,7 @@ Function CreateAdministrativeUnits{
 ## Delete functions
 
 
-Function DeleteGroups{
+Function DeleteGroups([Boolean]$Verbose){
 
     Write-Host [!] Removing groups
     $groups = Import-Csv -Path "Csv\groups.csv"
@@ -191,13 +197,15 @@ Function DeleteGroups{
         $displayName = $group.DisplayName
         $delgroup = Get-MgGroup -Filter "DisplayName eq '$displayName'"
         Remove-MgGroup -GroupId $delgroup.Id
-        Write-Host `t[+] Deleted group with displayname $delgroup.DisplayName and Id $delgroup.Id
+        Write-Verbose "`t[+] Deleted group with displayname $($delgroup.DisplayName) and Id $($delgroup.Id)"
+
+
     }
 }
 
 
 
-Function DeleteApps{
+Function DeleteApps([Boolean]$Verbose){
 
     Write-Host [!] Removing application registrations
 
@@ -207,12 +215,12 @@ Function DeleteApps{
 	    $DisplayName = $app.DisplayName
         $app_id= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
         Remove-MgApplication -ApplicationId $app_id | Out-Null
-        Write-Host `t[+] Deleted application with Id $app_id
+        Write-Verbose "`t[+] Deleted application with Id $app_id"
     }
 }
 
 
-Function DeleteUsers{
+Function DeleteUsers([Boolean]$Verbose){
 
     Write-Host [!] Removing users
 
@@ -226,12 +234,12 @@ Function DeleteUsers{
         $upn = -join($displayName,'@',$domain)
         $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
         Remove-MgUser -UserId $user.Id
-        Write-Host `t[+] Deleted user with ObjectId $user.Id
+        Write-Verbose "`t[+] Deleted user with ObjectId $($user.Id)"
     }
 }
 
 
-Function DeleteeAdministrativeUnits{
+Function DeleteeAdministrativeUnits([Boolean]$Verbose){
 
     Write-Host [!] Removing administrative units
     $a_units = Import-Csv -Path "Csv\a_units.csv"
@@ -240,7 +248,8 @@ Function DeleteeAdministrativeUnits{
         $DisplayName = $a_unit.DisplayName
         $admunit_id= (Get-MgDirectoryAdministrativeUnit -Filter "DisplayName eq '$DisplayName'").Id
         Remove-MgDirectoryAdministrativeUnit -AdministrativeUnitId $admunit_id | Out-Null
-        Write-Host `t[+] Deleted administrative unit with Id $admunit_id
+        Write-Verbose "`t[+] Deleted administrative unit with Id $admunit_id"
+        
     }
 
 }
@@ -248,7 +257,7 @@ Function DeleteeAdministrativeUnits{
 
 ## Assign functions
 
-Function AssignGroups{
+Function AssignGroups([Boolean]$Verbose){
 
     Write-Host [!] Assigning random users to random groups
     $users = Import-Csv -Path "Csv/users.csv"
@@ -277,7 +286,7 @@ Function AssignGroups{
             }
             until ($used_users -notcontains $random_user)
             New-MgGroupMember -GroupId $group_id -DirectoryObjectId $random_user
-            Write-Host `t[+] Added user with Id $random_user to group with id $group_id
+            Write-Verbose "`t[+] Added user with Id $random_user to group with id $group_id"
 
             $used_users += $random_user 
         }
@@ -287,10 +296,10 @@ Function AssignGroups{
 }
 
 
-Function AssignAppRoles (){
+Function AssignAppRoles([Boolean]$Verbose){
 
     Write-Host [!] Assigning random Azure Ad roles to applications
-    $roles = ('Exchange Administrator', 'Security Operator', 'Network Administrator', 'Intune Administrator', 'Attack Simulation Administrator', 'Application Developer', 'Privileged Role Administrator')
+    $roles = ('Exchange Administrator', 'Security Operator', 'Network Administrator', 'Intune Administrator', 'Attack Simulation Administrator', 'Application Developer')
     $apps = Import-Csv -Path "Csv\apps.csv"
     $used_apps =@()
     foreach ($role in  $roles)
@@ -305,20 +314,22 @@ Function AssignAppRoles (){
         $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
         $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $appSpId -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-        Write-Host `t[+] Assigned $role to application with displayName $random_app_dn
+        Write-Verbose "`t[+] Assigned $role to application with displayName $random_app_dn"
         $used_apps += $random_app_dn 
 
     }
     
 }
 
-Function AssignAppApiPermissions{
+Function AssignAppApiPermissions([Boolean]$Verbose){
 
 
     Write-Host [!] Assigning random Graph API permissions to applications
     $apps = Import-Csv -Path "Csv\apps.csv"
-    # RoleManagement.ReadWrite.Directory
-    $permissions = ('9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
+
+    $permissions = ('d07a8cc0-3d51-4b77-b3b0-32704d1f69fa', '134fd756-38ce-4afd-ba33-e9623dbe66c2', '93283d0a-6322-4fa8-966b-8c121624760d', '798ee544-9d2d-430c-a058-570e29e34338', '6b7d71aa-70aa-4810-a8d9-5d9fb2830017', '06da0dbc-49e2-44d2-8312-53f166ab848a' ,'7e05723c-0bb0-42da-be95-ae9f08a6e53c' ,'4f5ac95f-62fd-472c-b60f-125d24ca0bc5' ,'9be106e1-f4e3-4df5-bdff-e4bc531cbe43' ,'eedb7fdd-7539-4345-a38b-4839e4a84cbd' ,'eda39fa6-f8cf-4c3c-a909-432c683e4c9b' ,'6323133e-1f6e-46d4-9372-ac33a0870636')
+
+
     $used_apps =@()
 
     foreach ($permission in  $permissions)
@@ -338,15 +349,16 @@ Function AssignAppApiPermissions{
             ResourceId = $resourceId 
             AppRoleId = $permission
         }
+        
         New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
-        Write-Host `t[+] Assigned API permissions $permission to application with displayName $random_app_dn
+        Write-Verbose "`t[+] Assigned API permissions $permission to application with displayName $random_app_dn"
         $used_apps += $random_app_dn 
 
     }
 }
 
 
-Function AssignUserPerm([string]$Password) {
+Function AssignUserPerm([string]$Password, [Boolean]$Verbose) {
 
 
     Write-Host [!] Assigning random Azure Ad roles to users
@@ -375,7 +387,7 @@ Function AssignUserPerm([string]$Password) {
 
         $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
         New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-        Write-Host `t[+] Assigned $role to user with id $random_user
+        Write-Verbose "`t[+] Assigned $role to user with id $random_user"
         $used_users += $random_user 
     }
 }
@@ -387,29 +399,26 @@ Function AssignUserPerm([string]$Password) {
 
 Function CreateAttackPath1 ([String]$Password, [Boolean]$Token){
 
-    # We have to use the Graph beta based on https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/880
     Write-Host [!] Creating attack path 1
 
-    Select-MgProfile beta
+    <#
+    We have to use the Graph beta based on https://github.com/microsoftgraph/msgraph-sdk-powershell/issues/880
+    Select-MgProfile beta -Verbose:$false
     $directoryRole='Privileged Role Administrator'
     $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
     $service_principal_id=""
     $service_principals= Get-MgDirectoryRoleMember -DirectoryRoleId $directoryRoleId | where { $_.AdditionalProperties."@odata.type" -eq "#microsoft.graph.servicePrincipal"}
-    Select-MgProfile v1.0
+    Select-MgProfile v1.0 -Verbose:$false
+    #>
 
-    if ($service_principals -is [Array]){
-
-        $service_principal_id=$service_principals[0].Id
-    }
-
-    else {
-        $service_principal_id=$service_principals.Id
-    }
-    
-
-    $displayName= (Get-MgServicePrincipal -Filter "Id eq '$service_principal_id'").DisplayName
-    $appId = (Get-MgApplication -Filter "DisplayName eq '$displayName'").Id
-
+    $role = "Privileged Role Administrator"
+    $apps = Import-Csv -Path "Csv\apps.csv"
+    $random_app_dn = (Get-Random $apps).DisplayName
+    $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
+    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
+    New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $appSpId -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
+    Write-Host `t[+] Assigned $role to application with displayName $random_app_dn
     $random_user_id= GetRandomUser
     $NewOwner = @{
         "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_user_id}"
@@ -443,6 +452,8 @@ Function CreateAttackPath2([String]$Password, [Boolean]$Token){
         "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$user_id}"
      }
 
+
+     <#
      $applications = Import-Csv -Path "Csv\apps.csv"
      $service_principal_ids= @()
      foreach ($app in $applications) {
@@ -462,7 +473,27 @@ Function CreateAttackPath2([String]$Password, [Boolean]$Token){
             UpdatePassword $user_id $Password $Token
 
         }
-     }
+     #>
+
+    # RoleManagement.ReadWrite.Directory
+    $permission = ('9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
+    $apps = Import-Csv -Path "Csv\apps.csv"
+    $random_app_dn = (Get-Random $apps).DisplayName
+    $resourceId = (Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Property "id,displayName,appId,appRoles").Id
+    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
+
+    $params = @{
+        PrincipalId = $appSpId
+        ResourceId = $resourceId 
+        AppRoleId = $permission
+    }
+    
+    New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
+    Write-Host `t[+] Assigned API permissions $permission to application with displayName $random_app_dn
+    New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
+    Write-Host `t[+] Created application owner for $appId 
+    UpdatePassword $user_id $Password $Token
 
 }
 
