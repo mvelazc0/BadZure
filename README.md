@@ -76,11 +76,10 @@ Invoke-BadZure -Build -NoAttackPaths
 
 ````
 
-### Simulate Atacks !
+### Experiment
 
-````
-Abuse the simulated attack paths by BadZure to escalate privileges in the tenant and obtain attack telemetry
-````
+* Simulate attacks
+* Review resulting telemetry
 
 ### Purge AzureAD with BadZure
 
