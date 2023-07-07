@@ -8,7 +8,7 @@ The key advantage of BadZure lies in its ability to rapidly populate and purge e
 
 ## Goals / Use Cases
 
-BadZure initial use case is to enable detection engineering teams to quickly stand up vulnerable envioronments to collect attack telemetry and develop detection strategies for Azure AD attacks. 
+BadZure was written to enable the author and detection engineering teams to quickly stand up vulnerable envioronments and collect attack telemetry to develop detection analytics against Azure AD attacks. 
 
 An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
@@ -37,6 +37,12 @@ BadZure crafts privilege escalation attack vectors by simulating service princip
 
 **Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it exclusively operates with Azure AD, a service offered [free of charge](https://azure.microsoft.com/en-us/free/).
 
+### Create a Global Administrator
+
+
+[Assign Azure AD roles to users](https://learn.microsoft.com/en-us/azure/active-directory/roles/manage-roles-portal)
+
+
 ### Install Dependencies
 
 ````
@@ -50,7 +56,7 @@ git clone https://github.com/mvelazc0/BadZure
 cd BadZure
 . ./Invoke-BadZure.ps1
 ````
-### Run BadZure
+### Set up your tenant
 
 ````
 # Get Help Menu
@@ -59,12 +65,21 @@ Invoke-BadZure
 # Populate a tenant and enable attack paths
 Invoke-BadZure -Build
 
+# Use a custom password for initial access
+Invoke-BadZure -Build -Password Summer2023!
+
+# Use tokens for initial access
+Invoke-BadZure -Build -Token
+
 # Populate a tenant without attack paths
 Invoke-BadZure -Build -NoAttackPaths
 
 # Destroy all created identities
 Invoke-BadZure -Destroy
 ````
+
+### Simulate Atacks !
+
 
 ## Author
 
