@@ -95,11 +95,12 @@ Invoke-BadZure -Destroy
 
 ## Acknowledgments
 
-This project is possible thanks to the Azure AD security community and their work. Special thanks to:
+This project is possible thanks to all the Azure AD security community and their work. Special thanks to:
 
 * [Cloud Katana](https://github.com/Azure/Cloud-Katana) by [Roberto Rodriguez](https://twitter.com/Cyb3rWard0g)
 * [Azure Attack Paths](https://cloudbrothers.info/en/azure-attack-paths/) by [Fabian Bader](https://twitter.com/fabian_bader) 
 * [Azure AD - Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense) by [Sami Lamppu](https://twitter.com/samilamppu) and [Thomas Naunheim](https://twitter.com/Thomas_Live)
+* Blog posts & talks by [@_wald0](https://twitter.com/_wald0), [@_dirkjan](https://twitter.com/_dirkjan), [@DrAzureAD](https://twitter.com/DrAzureAD). [@Haus3c](https://twitter.com/Haus3c), [@kfosaaen](https://twitter.com/kfosaaen), [@inversecos](https://twittert.com/inversecos) and others.
 
 ## License
 
