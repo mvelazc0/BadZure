@@ -97,8 +97,9 @@ Invoke-BadZure -Destroy
 
 This project is possible thanks to the Azure AD security community and their work. Special thanks to:
 
-* Cloud Katana and Roberto Rodriguez
-* Azure Attack And Defense Playbook
+* [Cloud Katana](https://github.com/Azure/Cloud-Katana) by [Roberto Rodriguez](https://twitter.com/Cyb3rWard0g)
+* [Azure Attack Paths](https://cloudbrothers.info/en/azure-attack-paths/) by [Fabian Bader](https://twitter.com/fabian_bader) 
+* [Azure AD - Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense) by [Sami Lamppu](https://twitter.com/samilamppu) and [Thomas Naunheim](https://twitter.com/Thomas_Live)
 
 ## License
 
