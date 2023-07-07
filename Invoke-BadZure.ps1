@@ -24,11 +24,11 @@ Function Invoke-BadZure {
 
     .DESCRIPTION
 
-    BadZure is a PowerShell script that leverages the Microsft Graph SDK to automate the process of populating an Azure Active Directory environment with various entities such as users, groups, applications, and service principals. It then randomly assigns Azure AD Roles and API Graph permissions to users and service principals enabling the creation of simulated and unique attack paths within a controlled and vulnerable tenant.
-
+    BadZure is a PowerShell script that leverages the Microsoft Graph SDK to orchestrate the setup of Azure Active Directory environments, populating them with diverse entities while also introducing common security misconfigurations to create vulnerable Azure AD tenants with multiple attack paths.
+    
     .PARAMETER Build
 
-    Used to populate an Azure AD tenant
+    Used to populate and configure an Azure AD tenant
 
     .PARAMETER Destroy
 
@@ -36,11 +36,15 @@ Function Invoke-BadZure {
 
     .PARAMETER NoAttackPaths
 
-    Do not install attack paths.
+    If set, no attack paths are configured.
 
     .PARAMETER Password
 
-    Inital access password set on users.
+    If set, Passwords will be leveraged for initial access simulation. Can be either random or user defined.
+
+    .PARAMETER Token
+
+    If set, Tokens will be leveraged for initial access simulation.
 
     .EXAMPLE
 
@@ -54,25 +58,19 @@ Function Invoke-BadZure {
 
     param
     (
-    [Parameter(Mandatory = $false,
-        HelpMessage = 'Used to populate an Azure AD tenant.')]
+    [Parameter(Mandatory = $false)]
         [switch]$Build,
-    [Parameter(Mandatory = $false,
-        HelpMessage = 'Used to delete all entities from an Azure AD tenant.')]
+    [Parameter(Mandatory = $false)]
         [switch]$Destroy,
-    [Parameter(Mandatory = $false,
-        HelpMessage = 'Do not install attack paths.')]
+    [Parameter(Mandatory = $false)]
         [switch]$NoAttackPaths,
-    [Parameter(Mandatory = $false,
-        HelpMessage = 'Inital access password set on users.')]
+    [Parameter(Mandatory = $false)]
         [String]$Password,
-    [Parameter(Mandatory = $false,
-    HelpMessage = 'Print access tokens for initial access simulation')]
-    [Switch]$Token
+    [Parameter(Mandatory = $false)]
+        [Switch]$Token
 
     )
-
-
+    
     Write-Host $banner
 
     if($Build -eq $true){
