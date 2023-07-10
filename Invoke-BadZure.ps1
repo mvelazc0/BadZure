@@ -131,15 +131,17 @@ Function CreateUsers([Boolean]$Verbose) {
     $account=(Get-MgContext | Select-Object Account).Account
     $pos=$account.IndexOf('@')
     $domain=$account.Substring($pos+1)
+    $upns=@()
 
 
     foreach ($user in $users) {
         $displayName = -join($user.FirstName,'.',$user.LastName)
         $upn = -join($displayName,'@',$domain)
+        $upns+=$upn
         New-MgUser -DisplayName $displayName -PasswordProfile $PasswordProfile -AccountEnabled -MailNickName $displayName -UserPrincipalName $upn | Out-Null
         Write-Verbose "`t[+] Created User $upn"
-    
     }
+    $upns | Out-File -FilePath users.txt
 }
 
 Function CreateApps([Boolean]$Verbose){
