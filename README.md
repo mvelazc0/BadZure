@@ -12,7 +12,7 @@ BadZure was written to enable the author to quickly stand up vulnerable environm
 
 An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
-* Experiment with common Azure AD attack vectors (for ideas => [AzureAD Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense))
+* Experiment with common Azure AD attack vectors and tools (for ideas => [AzureAD Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense))
 * Obtain attack telemetry to build, test and enhance detection controls
 * Execute purple team exercises in a safe setting
 * Faciliate hands-on Azure AD security training
@@ -95,9 +95,10 @@ Invoke-BadZure -Destroy
 
 ## References
 
-This project is possible thanks to all the Azure AD security community and their work. Special thanks to:
+This project came to be thanks to the Azure AD security community and their work. Special thanks to:
 
 * [Cloud Katana](https://github.com/Azure/Cloud-Katana) by [Roberto Rodriguez](https://twitter.com/Cyb3rWard0g)
+* [AADInternals](https://github.com/Gerenios/AADInternals) by [Nestori Syynimaa](https://twitter.com/DrAzureAD)
 * [Azure Attack Paths](https://cloudbrothers.info/en/azure-attack-paths/) by [Fabian Bader](https://twitter.com/fabian_bader) 
 * [Azure AD - Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense) by [Sami Lamppu](https://twitter.com/samilamppu) and [Thomas Naunheim](https://twitter.com/Thomas_Live)
 * Blog posts & talks by [@_wald0](https://twitter.com/_wald0), [@_dirkjan](https://twitter.com/_dirkjan), [@DrAzureAD](https://twitter.com/DrAzureAD), [@Haus3c](https://twitter.com/Haus3c), [@kfosaaen](https://twitter.com/kfosaaen), [@inversecos](https://twitter.com/inversecos) and others.
