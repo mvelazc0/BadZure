@@ -21,7 +21,7 @@ An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
 ### Initial Access
 
-BadZure facilitates initial access by simulating account takover vectors such as password attacks and token theft scenarios. It achieves this through the assignment of a password (randomly generated or user-defined) or by supplying access tokens. These options serve as the initial access vector, providing BadZure users a realistic starting point to continue with enumeration and privilege escalation.
+BadZure facilitates initial access by simulating account takover vectors such as password attacks and token theft. It achieves this through the assignment of a password (randomly generated or user-defined) or by supplying principal access tokens. These options serve as the initial access vector, providing BadZure users a realistic starting point to continue with enumeration and privilege escalation.
 
 ### Privilege Escalation
 
@@ -35,7 +35,7 @@ BadZure crafts privilege escalation attack vectors by simulating service princip
 
 [Creating an Azure subscription](https://learn.microsoft.com/en-us/training/modules/create-an-azure-account/1-introduction) will also provide you an Azure AD tenant. 
 
-**Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it exclusively operates with Azure AD, a service offered [free of charge](https://azure.microsoft.com/en-us/free/).
+**Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it only requires an [Azure AD Free license](https://azure.microsoft.com/en-us/free/).
 
 ### Create a Global Administrator
 
