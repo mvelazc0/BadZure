@@ -8,7 +8,7 @@ The key advantage of BadZure lies in its ability to rapidly populate and purge e
 
 ## Goals / Use Cases
 
-BadZure was written to enable the author and detection engineering teams to quickly stand up vulnerable environments and collect attack telemetry to develop and test detection analytics against Azure AD attacks. 
+BadZure was written to enable the author to quickly stand up vulnerable environments, simulate attacks and collect attack telemetry to develop and test detection analytics against Azure AD attacks. 
 
 An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
