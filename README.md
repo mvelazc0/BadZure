@@ -63,13 +63,13 @@ cd BadZure
 # Get Help Menu
 Invoke-BadZure
 
-# Populate a tenant and enable attack paths
+# Populate a tenant and enable all attack paths
 Invoke-BadZure -Build
 
 # Use a custom password for initial access
 Invoke-BadZure -Build -Password Summer2023!
 
-# Use tokens for initial access
+# Print JWT access tokens for initial access
 Invoke-BadZure -Build -Token
 
 # Populate a tenant without attack paths
