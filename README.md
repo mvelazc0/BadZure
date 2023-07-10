@@ -16,6 +16,7 @@ An Azure AD tenant populated with BadZure also enables red and blue teams to:
 * Obtain attack telemetry to build, test and enhance detection controls
 * Execute purple team exercises in a safe setting
 * Faciliate hands-on Azure AD security training
+* Host dynamic Azure AD Capture the Flag (CTF) events
 
 ## Attack Paths
 
