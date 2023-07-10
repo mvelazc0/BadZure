@@ -93,7 +93,7 @@ Invoke-BadZure -Destroy
 
 * **Mauricio Velazco** - [@mvelazco](https://twitter.com/mvelazco)
 
-## Acknowledgments
+## References
 
 This project is possible thanks to all the Azure AD security community and their work. Special thanks to:
 
