@@ -8,7 +8,7 @@ The key advantage of BadZure lies in its ability to rapidly populate and purge e
 
 ## Goals / Use Cases
 
-BadZure was written to enable the author to quickly stand up vulnerable environments, simulate attacks and collect attack telemetry to develop and test detection analytics against Azure AD attacks. 
+BadZure was written to enable the author to quickly stand up vulnerable environments, simulate attacks and collect attack telemetry to develop and test detection analytics for Azure AD attacks. 
 
 An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
@@ -63,14 +63,17 @@ cd BadZure
 # Get Help Menu
 Invoke-BadZure
 
-# Populate a tenant and enable all attack paths
-Invoke-BadZure -Build
+# Populate a tenant and configure all attack paths with verbose logging
+Invoke-BadZure -Build -Verbose
 
-# Use a custom password for initial access
+# Populate a tenant and configure a random attack path
+Invoke-BadZure -Build $RandomAttackPath
+
+# Populate a tenant, configure all attack pahts and use a custom password for initial access
 Invoke-BadZure -Build -Password Summer2023!
 
-# Print JWT access tokens for initial access
-Invoke-BadZure -Build -Token
+# Populate a tenant, configure a random attack path and provide JWT access tokens for initial access
+Invoke-BadZure -Build -RandomAttackPAth -Token
 
 # Populate a tenant without attack paths
 Invoke-BadZure -Build -NoAttackPaths
@@ -86,7 +89,7 @@ Invoke-BadZure -Build -NoAttackPaths
 
 ````
 # Destroy all created identities
-Invoke-BadZure -Destroy
+Invoke-BadZure -Destroy -Verbose
 ````
 
 ## Author
