@@ -38,6 +38,10 @@ Function Invoke-BadZure {
 
     If set, no attack paths are configured.
 
+    .PARAMETER RandomAttackPath
+
+    If set, only one random attack path is configured.
+
     .PARAMETER Password
 
     If set, Passwords will be leveraged for initial access simulation. Can be either random or user defined.
@@ -51,6 +55,7 @@ Function Invoke-BadZure {
     .LINK
 
     https://github.com/mvelazc0/BadZure/
+
    
 #>
 
@@ -67,7 +72,9 @@ Function Invoke-BadZure {
     [Parameter(Mandatory = $false)]
         [String]$Password,
     [Parameter(Mandatory = $false)]
-        [Switch]$Token
+        [Switch]$Token,
+    [Parameter(Mandatory = $false)]
+        [Switch]$RandomAttackPath
 
     )
     $Verbose = $false
@@ -94,8 +101,20 @@ Function Invoke-BadZure {
         # create attack paths
         if($NoAttackPaths -eq $false){
 
-            CreateAttackPath1 $Password $Token
-            CreateAttackPath2 $Password $Token
+            # choose a random attack path
+            if ($RandomAttackPath -eq $true)
+            {
+                $path = Get-Random (1,2)
+                Switch ($path){
+                    1 {CreateAttackPath1 $Password $Token}
+                    2 {CreateAttackPath2 $Password $Token}
+                }
+            }
+            else
+            {
+                CreateAttackPath1 $Password $Token
+                CreateAttackPath2 $Password $Token
+            }    
         }
     }
     elseif($Destroy-eq $true){
@@ -329,7 +348,11 @@ Function AssignAppApiPermissions([Boolean]$Verbose){
     Write-Host [!] Assigning random Graph API permissions to applications
     $apps = Import-Csv -Path "Csv\apps.csv"
 
-    $permissions = ('d07a8cc0-3d51-4b77-b3b0-32704d1f69fa', '134fd756-38ce-4afd-ba33-e9623dbe66c2', '93283d0a-6322-4fa8-966b-8c121624760d', '798ee544-9d2d-430c-a058-570e29e34338', '6b7d71aa-70aa-4810-a8d9-5d9fb2830017', '06da0dbc-49e2-44d2-8312-53f166ab848a' ,'7e05723c-0bb0-42da-be95-ae9f08a6e53c' ,'4f5ac95f-62fd-472c-b60f-125d24ca0bc5' ,'9be106e1-f4e3-4df5-bdff-e4bc531cbe43' ,'eedb7fdd-7539-4345-a38b-4839e4a84cbd' ,'eda39fa6-f8cf-4c3c-a909-432c683e4c9b' ,'6323133e-1f6e-46d4-9372-ac33a0870636')
+    $permissions = ('d07a8cc0-3d51-4b77-b3b0-32704d1f69fa', '134fd756-38ce-4afd-ba33-e9623dbe66c2', '93283d0a-6322-4fa8-966b-8c121624760d', '798ee544-9d2d-430c-a058-570e29e34338', '6b7d71aa-70aa-4810-a8d9-5d9fb2830017', '7e05723c-0bb0-42da-be95-ae9f08a6e53c' ,'4f5ac95f-62fd-472c-b60f-125d24ca0bc5' , 'eedb7fdd-7539-4345-a38b-4839e4a84cbd')
+    # 06da0dbc-49e2-44d2-8312-53f166ab848a
+    # eda39fa6-f8cf-4c3c-a909-432c683e4c9b
+    # eda39fa6-f8cf-4c3c-a909-432c683e4c9b
+    # 6323133e-1f6e-46d4-9372-ac33a0870636
 
 
     $used_apps =@()
@@ -351,7 +374,6 @@ Function AssignAppApiPermissions([Boolean]$Verbose){
             ResourceId = $resourceId 
             AppRoleId = $permission
         }
-        
         New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
         Write-Verbose "`t[+] Assigned API permissions $permission to application with displayName $random_app_dn"
         $used_apps += $random_app_dn 
@@ -420,14 +442,14 @@ Function CreateAttackPath1 ([String]$Password, [Boolean]$Token){
     $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
     $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
     New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $appSpId -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-    Write-Host `t[+] Assigned $role to application with displayName $random_app_dn
+    Write-Verbose "`t[+] Assigned $role to application with displayName $random_app_dn"
     $random_user_id= GetRandomUser
     $NewOwner = @{
         "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_user_id}"
         }
         
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
-    Write-Host `t[+] Created application owner for $appId 
+    Write-Verbose "`t[+] Created application owner for $appId"
     UpdatePassword $random_user_id $Password $Token
 
     
@@ -492,9 +514,9 @@ Function CreateAttackPath2([String]$Password, [Boolean]$Token){
     }
     
     New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
-    Write-Host `t[+] Assigned API permissions $permission to application with displayName $random_app_dn
+    Write-Verbose "`t[+] Assigned API permissions $permission to application with displayName $random_app_dn"
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
-    Write-Host `t[+] Created application owner for $appId 
+    Write-Verbose "`t[+] Created application owner for $appId"
     UpdatePassword $user_id $Password $Token
 
 }
@@ -533,14 +555,14 @@ Function UpdatePassword ([String]$userId, [String]$Password, [Boolean]$Token) {
 
         if ($Token -eq $false)
         {
-            Write-Host `t[+] Updated password for user $username with random password `"$randomString`"
+            Write-Host `t[+] Password assigned to random user: `"$randomString`"
+            Write-Verbose  "t[+] $username"
+
         }
         else{
             GetAccessToken2 $userId $randomString
         }
         
-        
-
     }
     else{
 
@@ -551,7 +573,8 @@ Function UpdatePassword ([String]$userId, [String]$Password, [Boolean]$Token) {
         $username = (Get-MgUser -Filter "Id eq '$userId'").UserPrincipalName
         if ($Token -eq $false)
         {
-            Write-Host `t[+] Updated password for user $username with password `"$Password`".
+            Write-Host `t[+] Password assigned to random user: `"$Password`".
+            Write-Verbose "`t[+] $username"
         }
         else{
             GetAccessToken $userId $Password
@@ -589,6 +612,7 @@ Function GetAccessToken2 ([String]$userId, [String]$Password) {
 
 ## External Functions
 
+## credtis to Roberto Rodriguez for this function https://github.com/Azure/Cloud-Katana/blob/main/CloudKatanaAbilities/AzureAD/Authentication/Get-CKAccessToken.ps1
 function Get-CKAccessToken {
     <#
     .SYNOPSIS
