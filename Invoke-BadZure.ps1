@@ -94,7 +94,7 @@ Function Invoke-BadZure {
 
         # assign random groups and permissions
         AssignGroups 
-        AssignUserPerm 
+        AssignUserRoles 
         AssignAppRoles 
         AssignAppApiPermissions
 
@@ -104,16 +104,19 @@ Function Invoke-BadZure {
             # choose a random attack path
             if ($RandomAttackPath -eq $true)
             {
-                $path = Get-Random (1,2)
+                $path = Get-Random (1,3)
                 Switch ($path){
                     1 {CreateAttackPath1 $Password $Token}
                     2 {CreateAttackPath2 $Password $Token}
+                    2 {CreateAttackPath3 $Password $Token}
+
                 }
             }
             else
             {
                 CreateAttackPath1 $Password $Token
                 CreateAttackPath2 $Password $Token
+                CreateAttackPath3 $Password $Token
             }    
         }
     }
@@ -382,7 +385,7 @@ Function AssignAppApiPermissions([Boolean]$Verbose){
 }
 
 
-Function AssignUserPerm([string]$Password, [Boolean]$Verbose) {
+Function AssignUserRoles([string]$Password, [Boolean]$Verbose) {
 
 
     Write-Host [!] Assigning random Azure Ad roles to users
@@ -400,7 +403,7 @@ Function AssignUserPerm([string]$Password, [Boolean]$Verbose) {
     }
 
     $used_users = @()
-    $roles = ('Reports Reader', 'Reports Reader', 'Helpdesk Administrator', 'Authentication Administrator', 'Directory Readers', 'Guest Inviter', 'Message Center Reader', 'Groups Administrator')
+    $roles = ('Reports Reader', 'Reports Reader', 'Helpdesk Administrator', 'Authentication Administrator', 'Directory Readers', 'Guest Inviter', 'Message Center Reader', 'Groups Administrator', 'User Administrator')
     foreach ($role in  $roles)
     {
         do
@@ -459,6 +462,15 @@ Function CreateAttackPath1 ([String]$Password, [Boolean]$Token){
 Function CreateAttackPath2([String]$Password, [Boolean]$Token){
 
     Write-Host [!] Creating attack path 2
+    <#
+    $random_user_id = GetRandomUser
+    $role="HelpDesk Administrator"
+    $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
+    New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user_id -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
+    Write-Verbose "`t[+] Assigned $role to user with id $random_user_id"
+     #>
+
+    
     $directoryRole='Helpdesk Administrator'
     $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
     $user_id=""
@@ -472,8 +484,9 @@ Function CreateAttackPath2([String]$Password, [Boolean]$Token){
     else {
         $user_id=$users.Id
     }
+
     $NewOwner = @{
-        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$user_id}"
+        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_user_id"
      }
 
 
@@ -542,6 +555,81 @@ Function GetRandomUser{
 
 }
 
+Function CreateAttackPath3([String]$Password, [Boolean]$Token){
+
+    Write-Host [!] Creating attack path3
+    <#
+    $random_user_id = GetRandomUser
+    $role="HelpDesk Administrator"
+    $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
+    New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user_id -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
+    Write-Verbose "`t[+] Assigned $role to user with id $random_user_id"
+     #>
+
+    
+    $directoryRole='Helpdesk Administrator'
+    $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
+    $user_id=""
+    $users = Get-MgDirectoryRoleMember -DirectoryRoleId $directoryRoleId 
+
+    if ($users -is [Array]){
+
+        $user_id=$users[0].Id
+    }
+
+    else {
+        $user_id=$users.Id
+    }
+
+    $NewOwner = @{
+        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_user_id"
+     }
+
+
+    # RoleManagement.ReadWrite.Directory
+    $permission = ('9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
+    $apps = Import-Csv -Path "Csv\apps.csv"
+    $random_app_dn = (Get-Random $apps).DisplayName
+    $resourceId = (Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Property "id,displayName,appId,appRoles").Id
+    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
+
+    $params = @{
+        PrincipalId = $appSpId
+        ResourceId = $resourceId 
+        AppRoleId = $permission
+    }
+    
+    New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
+    Write-Verbose "`t[+] Assigned API permissions $permission to application with displayName $random_app_dn"
+    New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
+    Write-Verbose "`t[+] Created application owner for $appId"
+    UpdatePassword $user_id $Password $Token
+
+}
+
+## Util functions
+
+Function GetRandomUser{
+
+    $account=(Get-MgContext | Select-Object Account).Account
+    $pos=$account.IndexOf('@')
+    $domain=$account.Substring($pos+1)
+    $users = Import-Csv -Path "Csv/users.csv"
+    $user_ids = @()
+
+    foreach ($user in $users) {
+        $displayName = -join($user.FirstName,'.',$user.LastName)
+        $upn = -join($displayName,'@',$domain)
+        $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
+        $user_ids +=$user.Id
+    }
+    $random_userid = (Get-Random $user_ids)
+    return $random_userid
+
+}
+
+
 Function UpdatePassword ([String]$userId, [String]$Password, [Boolean]$Token) {
 
     if([string]::IsNullOrEmpty($Password)){
@@ -555,7 +643,7 @@ Function UpdatePassword ([String]$userId, [String]$Password, [Boolean]$Token) {
 
         if ($Token -eq $false)
         {
-            Write-Host `t[+] Password assigned to random user: `"$randomString`"
+            Write-Host `t[+] `"$randomString`" assigned as password to random user.
             Write-Verbose  "t[+] $username"
 
         }
@@ -573,7 +661,7 @@ Function UpdatePassword ([String]$userId, [String]$Password, [Boolean]$Token) {
         $username = (Get-MgUser -Filter "Id eq '$userId'").UserPrincipalName
         if ($Token -eq $false)
         {
-            Write-Host `t[+] Password assigned to random user: `"$Password`".
+            Write-Host `t[+] `"$Password`" assigned as password to random user.
             Write-Verbose "`t[+] $username"
         }
         else{
