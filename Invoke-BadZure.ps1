@@ -108,7 +108,7 @@ Function Invoke-BadZure {
                 Switch ($path){
                     1 {CreateAttackPath1 $Password $Token}
                     2 {CreateAttackPath2 $Password $Token}
-                    2 {CreateAttackPath3 $Password $Token}
+                    3 {CreateAttackPath3 $Password $Token}
 
                 }
             }
