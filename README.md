@@ -98,8 +98,6 @@ Invoke-BadZure -Destroy -Verbose
 
 ## References
 
-This project came to be thanks to the Azure AD security community and their work. Special thanks to:
-
 * [Cloud Katana](https://github.com/Azure/Cloud-Katana) by [Roberto Rodriguez](https://twitter.com/Cyb3rWard0g)
 * [AADInternals](https://github.com/Gerenios/AADInternals) by [Nestori Syynimaa](https://twitter.com/DrAzureAD)
 * [Azure Attack Paths](https://cloudbrothers.info/en/azure-attack-paths/) by [Fabian Bader](https://twitter.com/fabian_bader)
