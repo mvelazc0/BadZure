@@ -61,7 +61,7 @@ cd BadZure
 
 ````
 # Get Help Menu
-Invoke-BadZure
+Get-Help Invoke-BadZure -Detailed
 
 # Populate a tenant and configure all attack paths with verbose logging
 Invoke-BadZure -Build -Verbose
@@ -73,7 +73,7 @@ Invoke-BadZure -Build $RandomAttackPath
 Invoke-BadZure -Build -Password Summer2023!
 
 # Populate a tenant, configure a random attack path and provide JWT access tokens for initial access
-Invoke-BadZure -Build -RandomAttackPAth -Token
+Invoke-BadZure -Build -RandomAttackPath -Token
 
 # Populate a tenant without attack paths
 Invoke-BadZure -Build -NoAttackPaths
