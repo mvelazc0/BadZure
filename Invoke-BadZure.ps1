@@ -403,7 +403,7 @@ Function AssignUserRoles([string]$Password, [Boolean]$Verbose) {
     }
 
     $used_users = @()
-    $roles = ('Reports Reader', 'Reports Reader', 'Helpdesk Administrator', 'Authentication Administrator', 'Directory Readers', 'Guest Inviter', 'Message Center Reader', 'Groups Administrator', 'User Administrator')
+    $roles = ('Reports Reader', 'Reports Reader', 'Authentication Administrator', 'Directory Readers', 'Guest Inviter', 'Message Center Reader', 'Groups Administrator', 'Guest Inviter', 'Network Administrator')
     foreach ($role in  $roles)
     {
         do
@@ -462,31 +462,15 @@ Function CreateAttackPath1 ([String]$Password, [Boolean]$Token){
 Function CreateAttackPath2([String]$Password, [Boolean]$Token){
 
     Write-Host [!] Creating attack path 2
-    <#
+    
     $random_user_id = GetRandomUser
-    $role="HelpDesk Administrator"
+    $role= 'Helpdesk Administrator'
     $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
     New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user_id -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
     Write-Verbose "`t[+] Assigned $role to user with id $random_user_id"
-     #>
-
     
-    $directoryRole='Helpdesk Administrator'
-    $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
-    $user_id=""
-    $users = Get-MgDirectoryRoleMember -DirectoryRoleId $directoryRoleId 
-
-    if ($users -is [Array]){
-
-        $user_id=$users[0].Id
-    }
-
-    else {
-        $user_id=$users.Id
-    }
-
     $NewOwner = @{
-        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_user_id"
+        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/$random_user_id"
      }
 
 
@@ -527,12 +511,67 @@ Function CreateAttackPath2([String]$Password, [Boolean]$Token){
     }
     
     New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
+    Write-Verbose "[+] Assigned API permissions $permission to application with displayName $random_app_dn"
+    New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
+    Write-Verbose "[+] Created application owner for $appId"
+    UpdatePassword $random_user_id $Password $Token
+
+}
+
+Function CreateAttackPath3([String]$Password, [Boolean]$Token){
+
+    Write-Host [!] Creating attack path3
+    
+    $random_user_id = GetRandomUser
+    $role= 'User Administrator'
+    $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
+    New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user_id -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
+    Write-Verbose "`t[+] Assigned $role to user with id $random_user_id"
+     
+
+    <#
+    $directoryRole='User Administrator'
+    $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
+    $user_id=""
+    $users = Get-MgDirectoryRoleMember -DirectoryRoleId $directoryRoleId 
+
+    if ($users -is [Array]){
+
+        $user_id=$users[0].Id
+    }
+
+    else {
+        $user_id=$users.Id
+    }
+    #>
+
+    $NewOwner = @{
+        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/$random_user_id"
+     }
+
+
+    # AppRoleAssignment.ReadWrite.All
+    $permission = ('06b708a9-e830-4db3-a914-8e69da51d44f')
+    $apps = Import-Csv -Path "Csv\apps.csv"
+    $random_app_dn = (Get-Random $apps).DisplayName
+    $resourceId = (Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Property "id,displayName,appId,appRoles").Id
+    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
+
+    $params = @{
+        PrincipalId = $appSpId
+        ResourceId = $resourceId 
+        AppRoleId = $permission
+    }
+    
+    New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
     Write-Verbose "`t[+] Assigned API permissions $permission to application with displayName $random_app_dn"
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
     Write-Verbose "`t[+] Created application owner for $appId"
-    UpdatePassword $user_id $Password $Token
+    UpdatePassword $random_user_id $Password $Token
 
 }
+
 
 ## Util functions
 
@@ -555,58 +594,7 @@ Function GetRandomUser{
 
 }
 
-Function CreateAttackPath3([String]$Password, [Boolean]$Token){
 
-    Write-Host [!] Creating attack path3
-    <#
-    $random_user_id = GetRandomUser
-    $role="HelpDesk Administrator"
-    $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
-    New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $random_user_id -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
-    Write-Verbose "`t[+] Assigned $role to user with id $random_user_id"
-     #>
-
-    
-    $directoryRole='Helpdesk Administrator'
-    $directoryRoleId= (Get-MgDirectoryRole -Filter "DisplayName eq '$directoryRole'").Id
-    $user_id=""
-    $users = Get-MgDirectoryRoleMember -DirectoryRoleId $directoryRoleId 
-
-    if ($users -is [Array]){
-
-        $user_id=$users[0].Id
-    }
-
-    else {
-        $user_id=$users.Id
-    }
-
-    $NewOwner = @{
-        "@odata.id"= "https://graph.microsoft.com/v1.0/directoryObjects/{$random_user_id"
-     }
-
-
-    # RoleManagement.ReadWrite.Directory
-    $permission = ('9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
-    $apps = Import-Csv -Path "Csv\apps.csv"
-    $random_app_dn = (Get-Random $apps).DisplayName
-    $resourceId = (Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Property "id,displayName,appId,appRoles").Id
-    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
-    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
-
-    $params = @{
-        PrincipalId = $appSpId
-        ResourceId = $resourceId 
-        AppRoleId = $permission
-    }
-    
-    New-MgServicePrincipalAppRoleAssignedTo -ServicePrincipalId $appSpId -BodyParameter $params | Out-Null
-    Write-Verbose "`t[+] Assigned API permissions $permission to application with displayName $random_app_dn"
-    New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
-    Write-Verbose "`t[+] Created application owner for $appId"
-    UpdatePassword $user_id $Password $Token
-
-}
 
 ## Util functions
 
@@ -665,7 +653,7 @@ Function UpdatePassword ([String]$userId, [String]$Password, [Boolean]$Token) {
             Write-Verbose "`t[+] $username"
         }
         else{
-            GetAccessToken $userId $Password
+            GetAccessToken2 $userId $Password
         }
 
     }
@@ -689,7 +677,7 @@ Function GetAccessToken2 ([String]$userId, [String]$Password) {
     Write-Host `t`[!] Obtaining access and refresh tokens for $username
     $username = (Get-MgUser -Filter "Id eq '$userId'").UserPrincipalName
     $tenantId = (Get-MgContext).TenantId
-    $tokens = Get-CKAccessToken -ClientId 1950a258-227b-4e31-a9cf-717495945fc2 -Resource 'https://graph.microsoft.com/' -TenantId $tenantId  -GrantType password -Username $username -Password $Password
+    $tokens = Get-CKAccessToken -ClientId 1950a258-227b-4e31-a9cf-717495945fc2 -Resource 'https://graph.microsoft.com/' -TenantId $tenantId  -GrantType password -Username $username -Password $Password -Verbose:$false
     $access_token = $tokens.access_token 
     $refresh_token = $tokens.refresh_token 
     Write-Host `t`[+] access_token:$access_token
