@@ -26,7 +26,7 @@ BadZure facilitates initial access by simulating account takover vectors such as
 
 ### Privilege Escalation
 
-BadZure crafts three privilege escalation attack vectors by simulating service principal abuse scenarios. It achieves this by intentionally introducing misconfigurations cause by Azure AD roles, Graph permissions and application ownerships. A BloodHound-generated graph, showcasing the attack paths BadZure creates, is shown below.
+BadZure crafts three privilege escalation attack vectors by simulating service principal abuse scenarios. It achieves this by intentionally introducing misconfigurations caused by Azure AD roles, Graph permissions and application ownerships. A BloodHound-generated graph, showcasing the attack paths BadZure creates, is shown below.
 
 ![](img/attack_paths.png)
 
