@@ -42,6 +42,9 @@ dotnet-uninstall-debian-packages.sh
 *.dll
 *.wixpdb
 
+#ignore text files
+*.txt
+
 # Ignore packages
 *.deb
 *.tar.gz
