@@ -30,6 +30,11 @@ BadZure crafts three privilege escalation attack vectors by simulating service p
 
 ![](img/attack_paths.png)
 
+## Demo
+
+[![BadZure](https://img.youtube.com/vi/7IdyU7tQgww/0.jpg)](https://www.youtube.com/watch?v=7IdyU7tQgww)
+
+
 ## Quick Start Guide
 
 ### Create an Azure AD Tenant 
