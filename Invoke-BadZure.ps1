@@ -219,10 +219,21 @@ Function DeleteGroups([Boolean]$Verbose){
     foreach ($group in $groups) {
 
         $displayName = $group.DisplayName
-        $delgroup = Get-MgGroup -Filter "DisplayName eq '$displayName'"
-        Remove-MgGroup -GroupId $delgroup.Id
-        Write-Verbose "`t[+] Deleted group with displayname $($delgroup.DisplayName) and Id $($delgroup.Id)"
+        $groups = Get-MgGroup -Filter "DisplayName eq '$displayName'"
 
+        # in case groups were created more than once
+        if ($groups -is [Array]) {
+            foreach ($group in $groups){
+                
+                Remove-MgGroup -GroupId $group.Id
+                Write-Verbose "`t[+] Deleted group with displayname $($group.DisplayName) and Id $($group.Id)"
+
+            }
+        }
+        else {
+            Remove-MgGroup -GroupId $delgroup.Id
+            Write-Verbose "`t[+] Deleted group with displayname $($groups.DisplayName) and Id $($groups.Id)"
+        }
 
     }
 }
