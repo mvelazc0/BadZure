@@ -293,12 +293,22 @@ Function DeleteeAdministrativeUnits([Boolean]$Verbose){
     foreach ($a_unit in $a_units) {
 
         $DisplayName = $a_unit.DisplayName
-        $admunit_id= (Get-MgDirectoryAdministrativeUnit -Filter "DisplayName eq '$DisplayName'").Id
-        Remove-MgDirectoryAdministrativeUnit -AdministrativeUnitId $admunit_id | Out-Null
-        Write-Verbose "`t[+] Deleted administrative unit with Id $admunit_id"
-        
-    }
+        $admunit_ids= (Get-MgDirectoryAdministrativeUnit -Filter "DisplayName eq '$DisplayName'").Id
 
+        # in case adm units were created more than once
+        if ($admunit_ids -is [Array]) {
+            foreach ($admunit_id in $admunit_ids){
+                
+                Remove-MgDirectoryAdministrativeUnit -AdministrativeUnitId $admunit_id | Out-Null
+                Write-Verbose "`t[+] Deleted administrative unit with Id $admunit_id"
+
+            }
+        }
+        else {
+            Remove-MgDirectoryAdministrativeUnit -AdministrativeUnitId $admunit_ids| Out-Null
+            Write-Verbose "`t[+] Deleted administrative unit with Id $admunit_ids"
+        }
+    }
 }
 
 
