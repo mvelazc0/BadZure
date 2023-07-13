@@ -237,9 +237,21 @@ Function DeleteApps([Boolean]$Verbose){
     foreach ($app in $apps) {
 
 	    $DisplayName = $app.DisplayName
-        $app_id= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
-        Remove-MgApplication -ApplicationId $app_id | Out-Null
-        Write-Verbose "`t[+] Deleted application with Id $app_id"
+        $app_ids= (Get-MgApplication -Filter "DisplayName eq '$DisplayName'").Id
+
+        # in case apps were created more than once
+        if ($app_ids -is [Array]) {
+            foreach ($app_id in $app_ids){
+                Remove-MgApplication -ApplicationId $app_id | Out-Null
+                Write-Verbose "`t[+] Deleted application with Id $app_id"
+
+            }
+        }
+        else {
+            Remove-MgApplication -ApplicationId $app_ids | Out-Null
+            Write-Verbose "`t[+] Deleted application with Id $app_ids"
+        }
+
     }
 }
 
