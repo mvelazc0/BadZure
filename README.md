@@ -56,7 +56,7 @@ BadZure crafts three privilege escalation attack vectors by simulating service p
 Install-Module Microsoft.Graph -Scope CurrentUser
 ````
 
-### Clone Repository and Import Module
+### Clone Repository and Import Script
 
 ````
 git clone https://github.com/mvelazc0/BadZure
