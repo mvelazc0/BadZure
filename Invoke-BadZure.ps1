@@ -231,7 +231,7 @@ Function DeleteGroups([Boolean]$Verbose){
             }
         }
         else {
-            Remove-MgGroup -GroupId $delgroup.Id
+            Remove-MgGroup -GroupId $($groups.Id)
             Write-Verbose "`t[+] Deleted group with displayname $($groups.DisplayName) and Id $($groups.Id)"
         }
 
