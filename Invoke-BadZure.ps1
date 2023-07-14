@@ -117,6 +117,7 @@ Function Invoke-BadZure {
                 CreateAttackPath1 $Password $Token
                 CreateAttackPath2 $Password $Token
                 CreateAttackPath3 $Password $Token
+                $global:attackpath_apps =@()
             }    
         }
     }
@@ -137,6 +138,10 @@ Function Invoke-BadZure {
     }
 
 }
+
+## Global var
+
+$global:attackpath_apps =@()
 
 ## Create functions
 
@@ -473,10 +478,16 @@ Function CreateAttackPath1 ([String]$Password, [Boolean]$Token){
 
     $role = "Privileged Role Administrator"
     $apps = Import-Csv -Path "Csv\apps.csv"
-    $random_app_dn = (Get-Random $apps).DisplayName
+
+    Do 
+    {
+        $random_app_dn = (Get-Random $apps).DisplayName
+        $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+        $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
+    }
+    While ($global:attackpath_apps -contains $appId )
+
     $roleDefinitionId = (Get-MgRoleManagementDirectoryRoleDefinition -Filter "DisplayName eq '$role'").Id
-    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
-    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
     New-MgRoleManagementDirectoryRoleAssignment -PrincipalId $appSpId -RoleDefinitionId $roleDefinitionId -DirectoryScopeId "/" | Out-Null
     Write-Verbose "`t[+] Assigned $role to application with displayName $random_app_dn"
     $random_user_id= GetRandomUser
@@ -486,6 +497,7 @@ Function CreateAttackPath1 ([String]$Password, [Boolean]$Token){
         
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
     Write-Verbose "`t[+] Created application owner for $appId"
+    $global:attackpath_apps+=$appId
     UpdatePassword $random_user_id $Password $Token
 
     
@@ -532,10 +544,16 @@ Function CreateAttackPath2([String]$Password, [Boolean]$Token){
     # RoleManagement.ReadWrite.Directory
     $permission = ('9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8')
     $apps = Import-Csv -Path "Csv\apps.csv"
-    $random_app_dn = (Get-Random $apps).DisplayName
+
+    Do 
+    {
+        $random_app_dn = (Get-Random $apps).DisplayName
+        $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+        $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
+    }
+    While ($global:attackpath_apps -contains $appId )
+
     $resourceId = (Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Property "id,displayName,appId,appRoles").Id
-    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
-    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
 
     $params = @{
         PrincipalId = $appSpId
@@ -547,6 +565,7 @@ Function CreateAttackPath2([String]$Password, [Boolean]$Token){
     Write-Verbose "[+] Assigned API permissions $permission to application with displayName $random_app_dn"
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
     Write-Verbose "[+] Created application owner for $appId"
+    $global:attackpath_apps+=$appId
     UpdatePassword $random_user_id $Password $Token
 
 }
@@ -586,10 +605,16 @@ Function CreateAttackPath3([String]$Password, [Boolean]$Token){
     # AppRoleAssignment.ReadWrite.All
     $permission = ('06b708a9-e830-4db3-a914-8e69da51d44f')
     $apps = Import-Csv -Path "Csv\apps.csv"
-    $random_app_dn = (Get-Random $apps).DisplayName
+
+    Do 
+    {
+        $random_app_dn = (Get-Random $apps).DisplayName
+        $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
+        $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
+    }
+    While ($global:attackpath_apps -contains $appId )
+
     $resourceId = (Get-MgServicePrincipal -Filter "displayName eq 'Microsoft Graph'" -Property "id,displayName,appId,appRoles").Id
-    $appSpId = (Get-MgServicePrincipal -Filter "DisplayName eq '$random_app_dn'").Id
-    $appId = (Get-MgApplication -Filter "DisplayName eq '$random_app_dn'").Id
 
     $params = @{
         PrincipalId = $appSpId
@@ -601,6 +626,7 @@ Function CreateAttackPath3([String]$Password, [Boolean]$Token){
     Write-Verbose "`t[+] Assigned API permissions $permission to application with displayName $random_app_dn"
     New-MgApplicationOwnerByRef -ApplicationId $appId -BodyParameter $NewOwner
     Write-Verbose "`t[+] Created application owner for $appId"
+    $global:attackpath_apps+=$appId
     UpdatePassword $random_user_id $Password $Token
 
 }
