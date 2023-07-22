@@ -171,7 +171,7 @@ Function CreateUsers([Boolean]$Verbose) {
     }
      
     $pos=$account.IndexOf('@')
-    $domain=$account.Substring($pos+1) #HJKK hardcoding the domain
+    $domain=$account.Substring($pos+1) 
     $upns=@()
 
 
