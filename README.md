@@ -70,19 +70,19 @@ cd BadZure
 Get-Help Invoke-BadZure -Detailed
 
 # Populate a tenant and configure all attack paths with verbose logging
-Invoke-BadZure -Build -Verbose
+Invoke-BadZure -Build -Verbose -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant and configure a random attack path
-Invoke-BadZure -Build $RandomAttackPath
+Invoke-BadZure -Build $RandomAttackPath -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
-# Populate a tenant, configure all attack pahts and use a custom password for initial access
-Invoke-BadZure -Build -Password Summer2023!
+# Populate a tenant, configure all attack paths and use a custom password for initial access
+Invoke-BadZure -Build -Password Summer2023! -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant, configure a random attack path and provide JWT access tokens for initial access
-Invoke-BadZure -Build -RandomAttackPath -Token
+Invoke-BadZure -Build -RandomAttackPath -Token -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant without attack paths
-Invoke-BadZure -Build -NoAttackPaths
+Invoke-BadZure -Build -NoAttackPaths -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 ````
 
@@ -95,7 +95,7 @@ Invoke-BadZure -Build -NoAttackPaths
 
 ````
 # Destroy all created identities
-Invoke-BadZure -Destroy -Verbose
+Invoke-BadZure -Destroy -Verbose -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 ````
 
 ## Author
