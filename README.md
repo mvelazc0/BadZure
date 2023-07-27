@@ -70,7 +70,7 @@ cd BadZure
 Get-Help Invoke-BadZure -Detailed
 
 # Populate a tenant and configure all attack paths with verbose logging
-# Note: Authenticate as the new global administrator created in the same directory.
+# Note: Authenticate with the new global administrator created in the same directory. 
 Invoke-BadZure -Build -Verbose
 
 # Populate a tenant and configure a random attack path
