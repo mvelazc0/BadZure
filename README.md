@@ -45,8 +45,7 @@ BadZure crafts three privilege escalation attack vectors by simulating service p
 
 **Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it only requires an [Azure AD Free license](https://azure.microsoft.com/en-us/free/).
 
-### Create a Global Administrator
-
+### Create a new Global Administrator
 
 [Assign Azure AD roles to users](https://learn.microsoft.com/en-us/azure/active-directory/roles/manage-roles-portal)
 
@@ -71,6 +70,7 @@ cd BadZure
 Get-Help Invoke-BadZure -Detailed
 
 # Populate a tenant and configure all attack paths with verbose logging
+# Note: Authenticate as the new global administrator created in the same directory.
 Invoke-BadZure -Build -Verbose
 
 # Populate a tenant and configure a random attack path
