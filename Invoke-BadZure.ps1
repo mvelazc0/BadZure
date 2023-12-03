@@ -34,6 +34,10 @@ Function Invoke-BadZure {
 
     Used to delete entities created by BadZure on an Azure AD tenant.
 
+    .PARAMETER LoginTenantId
+
+    Used to specify the Tenant ID for the initial authentication with Azure AD
+
     .PARAMETER NoAttackPaths
 
     If set, no attack paths are configured.
@@ -49,6 +53,7 @@ Function Invoke-BadZure {
     .PARAMETER Token
 
     If set, Tokens will be leveraged for initial access simulation.
+
 
     .EXAMPLE
 
@@ -74,7 +79,9 @@ Function Invoke-BadZure {
     [Parameter(Mandatory = $false)]
         [Switch]$Token,
     [Parameter(Mandatory = $false)]
-        [Switch]$RandomAttackPath
+        [Switch]$RandomAttackPath,
+    [Parameter(Mandatory = $true, ValueFromPipeline=$true)]
+        [string]$LoginTenantId
 
     )
     $Verbose = $false
@@ -84,7 +91,7 @@ Function Invoke-BadZure {
 
     if($Build -eq $true){
 
-        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" | Out-Null
+        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" -TenantId $LoginTenantId | Out-Null #Added the -TenantId parameter here
 
         # create principals
         CreateUsers 
@@ -123,7 +130,7 @@ Function Invoke-BadZure {
     }
     elseif($Destroy-eq $true){
 
-        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" | Out-Null
+        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" -TenantId $LoginTenantId | Out-Null #Added the -TenantId parameter here 
 
         # remove principals
         DeleteUsers
@@ -155,9 +162,16 @@ Function CreateUsers([Boolean]$Verbose) {
     }
     
     $users = Import-Csv -Path "Csv\users.csv"
-    $account=(Get-MgContext | Select-Object Account).Account
+    $checkdomain = (Get-MgContext | Select-Object Account).Account
+    if ([string]::IsNullorEmpty($checkdomain) -eq $false){ #if $checkdomain has a value, use it as part of the newly created users' email addresses
+        $checkdomain = $account
+    }
+    else{ #if get-mgcontext does not have the .account, ask them to enter their domain in the form of an email. code flow proceeds. 
+        $account = Read-Host -Prompt "Enter a verified email domain in the format hello@emaildomain"
+    }
+     
     $pos=$account.IndexOf('@')
-    $domain=$account.Substring($pos+1)
+    $domain=$account.Substring($pos+1) 
     $upns=@()
 
 
@@ -277,7 +291,14 @@ Function DeleteUsers([Boolean]$Verbose){
     Write-Host [!] Removing users
 
     $users = Import-Csv -Path "Csv\users.csv"
-    $account=(Get-MgContext | Select-Object Account).Account
+    $checkdomain = (Get-MgContext | Select-Object Account).Account
+    if ([string]::IsNullorEmpty($checkdomain) -eq $false){ #if $checkdomain has a value, use it as part of the newly created users' email addresses
+        $checkdomain = $account
+    }
+    else{ #if get-mgcontext does not have the .account, ask them to enter their domain in the form of an email. code flow proceeds. 
+        $account = Read-Host -Prompt "Enter a verified email domain in the format hello@emaildomain"
+    }
+    
     $pos=$account.IndexOf('@')
     $domain=$account.Substring($pos+1)
 
@@ -323,8 +344,15 @@ Function AssignGroups([Boolean]$Verbose){
 
     Write-Host [!] Assigning random users to random groups
     $users = Import-Csv -Path "Csv/users.csv"
-    $account=(Get-MgContext | Select-Object Account).Account
-    $pos=$account.IndexOf('@')
+    $checkdomain = (Get-MgContext | Select-Object Account).Account
+    if ([string]::IsNullorEmpty($checkdomain) -eq $false){ #if $checkdomain has a value, use it as part of the newly created users' email addresses
+        $checkdomain = $account
+    }
+    else{ #if get-mgcontext does not have the .account, ask them to enter their domain in the form of an email. code flow proceeds. 
+        $account = Read-Host -Prompt "Enter a verified email domain in the format hello@emaildomain"
+    }
+
+    $pos=$account.IndexOf('@') 
     $domain=$account.Substring($pos+1)
     $user_ids = @()
 
@@ -428,7 +456,14 @@ Function AssignUserRoles([string]$Password, [Boolean]$Verbose) {
 
     Write-Host [!] Assigning random Azure Ad roles to users
     $users = Import-Csv -Path "Csv/users.csv"
-    $account=(Get-MgContext | Select-Object Account).Account
+    $checkdomain = (Get-MgContext | Select-Object Account).Account
+    if ([string]::IsNullorEmpty($checkdomain) -eq $false){ #if $checkdomain has a value, use it as part of the newly created users' email addresses
+        $checkdomain = $account
+    }
+    else{ #if get-mgcontext does not have the .account, ask them to enter their domain in the form of an email. code flow proceeds. 
+        $account = Read-Host -Prompt "Enter a verified email domain in the format hello@emaildomain"
+    }
+    
     $pos=$account.IndexOf('@')
     $domain=$account.Substring($pos+1)
     $user_ids = @()
@@ -636,30 +671,14 @@ Function CreateAttackPath3([String]$Password, [Boolean]$Token){
 
 Function GetRandomUser{
 
-    $account=(Get-MgContext | Select-Object Account).Account
-    $pos=$account.IndexOf('@')
-    $domain=$account.Substring($pos+1)
-    $users = Import-Csv -Path "Csv/users.csv"
-    $user_ids = @()
-
-    foreach ($user in $users) {
-        $displayName = -join($user.FirstName,'.',$user.LastName)
-        $upn = -join($displayName,'@',$domain)
-        $user = Get-MgUser -Filter "UserPrincipalName eq '$upn'"
-        $user_ids +=$user.Id
+    $checkdomain = (Get-MgContext | Select-Object Account).Account
+    if ([string]::IsNullorEmpty($checkdomain) -eq $false){ #if $checkdomain has a value, use it as part of the newly created users' email addresses
+        $checkdomain = $account
     }
-    $random_userid = (Get-Random $user_ids)
-    return $random_userid
+    else{ #if get-mgcontext does not have the .account, ask them to enter their domain in the form of an email. code flow proceeds. 
+        $account = Read-Host -Prompt "Enter a verified email domain in the format hello@emaildomain"
+    }
 
-}
-
-
-
-## Util functions
-
-Function GetRandomUser{
-
-    $account=(Get-MgContext | Select-Object Account).Account
     $pos=$account.IndexOf('@')
     $domain=$account.Substring($pos+1)
     $users = Import-Csv -Path "Csv/users.csv"
