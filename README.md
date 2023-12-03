@@ -9,11 +9,12 @@ The key advantage of BadZure lies in its ability to rapidly populate and purge e
 
 ## Goals / Use Cases
 
-BadZure was written to enable the author to quickly stand up vulnerable environments, simulate attacks and collect attack telemetry to develop and test detection analytics for Azure AD attacks. 
+BadZure was initialy written to host the [Azure AD Battle School: Hands-on Attack and Defense](https://www.x33fcon.com/#!s/MauricioVelazco.md) workshop at X33fcon 2023.
 
 An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
 * Experiment with common Azure AD attack vectors and tools (for ideas => [AzureAD Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense))
+* Quickly stand up misconfigured Azure AD lab tenants.
 * Obtain attack telemetry to build, test and enhance detection controls
 * Execute purple team exercises in a safe setting
 * Faciliate hands-on Azure AD security training
@@ -44,8 +45,7 @@ BadZure crafts three privilege escalation attack vectors by simulating service p
 
 **Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it only requires an [Azure AD Free license](https://azure.microsoft.com/en-us/free/).
 
-### Create a Global Administrator
-
+### Create a new Global Administrator
 
 [Assign Azure AD roles to users](https://learn.microsoft.com/en-us/azure/active-directory/roles/manage-roles-portal)
 
@@ -70,6 +70,7 @@ cd BadZure
 Get-Help Invoke-BadZure -Detailed
 
 # Populate a tenant and configure all attack paths with verbose logging
+# Note: Authenticate with the new global administrator created in the same directory. 
 Invoke-BadZure -Build -Verbose -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant and configure a random attack path
