@@ -103,6 +103,10 @@ Invoke-BadZure -Destroy -Verbose -LoginTenantId "abcd1234-abcd-1234-abcd-1234abc
 
 * **Mauricio Velazco** - [@mvelazco](https://twitter.com/mvelazco)
 
+## Contributors
+
+* [Chan Huan Jun](https://www.linkedin.com/in/chan-huan-jun-50a704115/) 
+
 ## References
 
 * [Cloud Katana](https://github.com/Azure/Cloud-Katana) by [Roberto Rodriguez](https://twitter.com/Cyb3rWard0g)
