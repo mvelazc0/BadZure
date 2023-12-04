@@ -34,7 +34,7 @@ Function Invoke-BadZure {
 
     Used to delete entities created by BadZure on an Azure AD tenant.
 
-    .PARAMETER LoginTenantId
+    .PARAMETER TenantId
 
     Used to specify the Tenant ID for the initial authentication with Azure AD
 
@@ -81,7 +81,7 @@ Function Invoke-BadZure {
     [Parameter(Mandatory = $false)]
         [Switch]$RandomAttackPath,
     [Parameter(Mandatory = $true, ValueFromPipeline=$true)]
-        [string]$LoginTenantId
+        [string]$TenantId
 
     )
     $Verbose = $false
@@ -91,7 +91,7 @@ Function Invoke-BadZure {
 
     if($Build -eq $true){
 
-        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" -TenantId $LoginTenantId | Out-Null #Added the -TenantId parameter here
+        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" -TenantId $TenantId | Out-Null #Added the -TenantId parameter here
 
         # create principals
         CreateUsers 
@@ -130,7 +130,7 @@ Function Invoke-BadZure {
     }
     elseif($Destroy-eq $true){
 
-        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" -TenantId $LoginTenantId | Out-Null #Added the -TenantId parameter here 
+        Connect-Graph -Scopes "Application.ReadWrite.All", "Directory.AccessAsUser.All","EntitlementManagement.ReadWrite.All","RoleManagement.ReadWrite.Directory","Group.Read.All" -TenantId $TenantId | Out-Null #Added the -TenantId parameter here 
 
         # remove principals
         DeleteUsers

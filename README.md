@@ -71,19 +71,19 @@ Get-Help Invoke-BadZure -Detailed
 
 # Populate a tenant and configure all attack paths with verbose logging
 # Note: Authenticate with the new global administrator created in the same directory. 
-Invoke-BadZure -Build -Verbose -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
+Invoke-BadZure -Build -Verbose -TenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant and configure a random attack path
-Invoke-BadZure -Build $RandomAttackPath -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
+Invoke-BadZure -Build $RandomAttackPath -TenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant, configure all attack paths and use a custom password for initial access
-Invoke-BadZure -Build -Password Summer2023! -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
+Invoke-BadZure -Build -Password Summer2023! -TenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant, configure a random attack path and provide JWT access tokens for initial access
-Invoke-BadZure -Build -RandomAttackPath -Token -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
+Invoke-BadZure -Build -RandomAttackPath -Token -TenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 # Populate a tenant without attack paths
-Invoke-BadZure -Build -NoAttackPaths -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
+Invoke-BadZure -Build -NoAttackPaths -TenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 
 ````
 
@@ -96,7 +96,7 @@ Invoke-BadZure -Build -NoAttackPaths -LoginTenantId "abcd1234-abcd-1234-abcd-123
 
 ````
 # Destroy all created identities
-Invoke-BadZure -Destroy -Verbose -LoginTenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
+Invoke-BadZure -Destroy -Verbose -TenantId "abcd1234-abcd-1234-abcd-1234abcd1234"
 ````
 
 ## Author
