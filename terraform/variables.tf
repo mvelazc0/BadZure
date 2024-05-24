@@ -23,3 +23,17 @@ variable "groups" {
     display_name = string
   }))
 }
+
+variable "applications" {
+  description = "A map of applications to create"
+  type = map(object({
+    display_name = string
+  }))
+}
+
+variable "administrative_units" {
+  description = "A map of administrative units to create"
+  type = map(object({
+    display_name = string
+  }))
+}

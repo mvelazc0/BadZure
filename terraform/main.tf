@@ -15,7 +15,7 @@ data "azuread_domains" "example" {
   only_initial = true
 }
 
-resource "azuread_user" "example" {
+resource "azuread_user" "users" {
   for_each = var.users
 
   user_principal_name = "${each.value.user_principal_name}@${var.domain}"
@@ -24,7 +24,7 @@ resource "azuread_user" "example" {
   password            = each.value.password
 }
 
-resource "azuread_group" "example" {
+resource "azuread_group" "groups" {
   for_each = var.groups
 
   display_name     = each.value.display_name
@@ -32,3 +32,20 @@ resource "azuread_group" "example" {
   security_enabled = true
 }
 
+resource "azuread_application" "spns" {
+  for_each = var.applications
+
+  display_name = each.value.display_name
+}
+
+resource "azuread_service_principal" "spns" {
+  for_each = var.applications
+
+  application_id = azuread_application.spns[each.key].application_id
+}
+
+resource "azuread_administrative_unit" "aunits" {
+  for_each = var.administrative_units
+
+  display_name = each.value.display_name
+}

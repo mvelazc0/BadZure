@@ -24,8 +24,20 @@ def load_config(file_path):
         exit(1)
 
 def generate_random_password(length=15):
-    characters = string.ascii_letters + string.digits + string.punctuation
-    return ''.join(random.choice(characters) for i in range(length))
+    if length < 8:
+        raise ValueError("Password length must be at least 8 characters")
+
+    password = [
+        random.choice(string.ascii_uppercase),
+        random.choice(string.ascii_lowercase),
+        random.choice(string.digits),
+        random.choice(string.punctuation)
+    ]
+
+    password += random.choices(string.ascii_letters + string.digits + string.punctuation, k=length - 4)
+    random.shuffle(password)
+    return ''.join(password)
+
 
 def load_users_from_csv(file_path):
     import csv
@@ -54,6 +66,29 @@ def load_groups_from_csv(file_path):
             }
     return groups
 
+def load_applications_from_csv(file_path):
+    import csv
+    applications = {}
+    with open(file_path, mode='r') as infile:
+        reader = csv.DictReader(infile)
+        for row in reader:
+            key = row['DisplayName']  # Use DisplayName as the key
+            applications[key] = {
+                'display_name': row['DisplayName']
+            }
+    return applications
+
+def load_administrative_units_from_csv(file_path):
+    import csv
+    administrative_units = {}
+    with open(file_path, mode='r') as infile:
+        reader = csv.DictReader(infile)
+        for row in reader:
+            key = row['DisplayName']  # Use DisplayName as the key
+            administrative_units[key] = {
+                'display_name': row['DisplayName']
+            }
+    return administrative_units
 
 @click.group()
 def cli():
@@ -74,16 +109,26 @@ def build(verbose):
     # Load groups data from CSV
     groups = load_groups_from_csv('Csv/groups.csv')
 
+    # Load applications data from CSV
+    applications = load_applications_from_csv('Csv/apps.csv')
+
+    # Load administrative units data from CSV
+    administrative_units = load_administrative_units_from_csv('Csv/a_units.csv')
+
+
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
     group_vars = {group['display_name']: group for group in groups.values()}
-
+    application_vars = {app['display_name']: app for app in applications.values()}
+    administrative_unit_vars = {au['display_name']: au for au in administrative_units.values()}
 
     tf_vars = {
         'tenant_id': tenant_id,
         'domain': domain,
         'users': user_vars,
-        'groups': group_vars
+        'groups': group_vars,
+        'applications': application_vars,
+        'administrative_units': administrative_unit_vars
     }
 
     # Write the Terraform variables to a file
