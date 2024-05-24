@@ -104,3 +104,33 @@ StartupProfileData-NonInteractive
 
 # Ignore logfiles
 logfile/*
+
+# Ignore Python virtual environment
+venv/
+.venv/
+
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore environment configuration files
+.env
+*.env
+
+# Ignore Terraform state files and backups
+*.tfstate
+*.tfstate.*
+*.backup
+
+# Ignore Terraform configuration files
+.terraform/
+.terraform.lock.hcl
+
+# Ignore Terraform variable files
+*.tfvars
+*.tfvars.json
+
+# Ignore config file
+badzure.yml
