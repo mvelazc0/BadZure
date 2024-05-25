@@ -23,6 +23,34 @@ def load_config(file_path):
         #logging.error(f"Error parsing the YAML file: {e}")
         exit(1)
 
+def create_random_assignments(users, groups, administrative_units):
+    user_group_assignments = {}
+    user_au_assignments = {}
+
+    user_keys = list(users.keys())
+    group_keys = list(groups.keys())
+    au_keys = list(administrative_units.keys())
+
+    for user in user_keys:
+        if groups:
+            group = random.choice(group_keys)
+            assignment_key = f"{user}-{group}"
+            user_group_assignments[assignment_key] = {
+                'user_name': user,
+                'group_name': group
+            }
+
+        if administrative_units:
+            au = random.choice(au_keys)
+            assignment_key = f"{user}-{au}"
+            user_au_assignments[assignment_key] = {
+                'user_name': user,
+                'administrative_unit_name': au
+            }
+
+    return user_group_assignments, user_au_assignments
+
+
 def generate_random_password(length=15):
     if length < 8:
         raise ValueError("Password length must be at least 8 characters")
@@ -115,6 +143,9 @@ def build(verbose):
     # Load administrative units data from CSV
     administrative_units = load_administrative_units_from_csv('Csv/a_units.csv')
 
+    # Create random assignments
+    user_group_assignments, user_au_assignments = create_random_assignments(users, groups, administrative_units)
+
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -128,7 +159,9 @@ def build(verbose):
         'users': user_vars,
         'groups': group_vars,
         'applications': application_vars,
-        'administrative_units': administrative_unit_vars
+        'administrative_units': administrative_unit_vars,
+        'user_group_assignments': user_group_assignments,
+        'user_au_assignments': user_au_assignments
     }
 
     # Write the Terraform variables to a file

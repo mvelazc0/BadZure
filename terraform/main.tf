@@ -49,3 +49,17 @@ resource "azuread_administrative_unit" "aunits" {
 
   display_name = each.value.display_name
 }
+
+resource "azuread_group_member" "group_membership" {
+  for_each = var.user_group_assignments
+
+  group_object_id = azuread_group.groups[each.value.group_name].id
+  member_object_id = azuread_user.users[each.value.user_name].id
+}
+
+resource "azuread_administrative_unit_member" "au_membership" {
+  for_each = var.user_au_assignments
+
+  administrative_unit_object_id = azuread_administrative_unit.aunits[each.value.administrative_unit_name].id
+  member_object_id = azuread_user.users[each.value.user_name].id
+}

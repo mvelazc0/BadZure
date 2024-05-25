@@ -37,3 +37,20 @@ variable "administrative_units" {
     display_name = string
   }))
 }
+
+variable "user_group_assignments" {
+  description = "A map of user-to-group assignments"
+  type = map(object({
+    user_name = string
+    group_name = string
+  }))
+}
+
+variable "user_au_assignments" {
+  description = "A map of user-to-administrative unit assignments"
+  type = map(object({
+    user_name = string
+    administrative_unit_name = string
+  }))
+}
+
