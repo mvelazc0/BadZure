@@ -23,9 +23,21 @@ def load_config(file_path):
         #logging.error(f"Error parsing the YAML file: {e}")
         exit(1)
 
+# List of Azure AD role definition IDs and their display names
+AZURE_AD_ROLES = [
+    ("4a5d8f65-41da-4de4-8968-e035b65339cf", "Reports Reader"),
+    ("c4e39bd9-1100-46d3-8c65-fb160da0071f", "Authentication Administrator"),
+    ("88d8e3e3-8f55-4a1e-953a-9b9898b8876b", "Directory Readers"),
+    ("95e79109-95c0-4d8e-aee3-d01accf2d47b", "Guest Inviter"),
+    ("790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b", "Message Center Reader"),
+    ("fdd7a751-b60b-444a-984c-02652fe8fa1c", "Groups Administrator"),
+    ("d37c8bed-0711-4417-ba38-b4abe66ce4c2", "Network Administrator")
+]
+
 def create_random_assignments(users, groups, administrative_units):
     user_group_assignments = {}
     user_au_assignments = {}
+    user_role_assignments = {}
 
     user_keys = list(users.keys())
     group_keys = list(groups.keys())
@@ -48,7 +60,16 @@ def create_random_assignments(users, groups, administrative_units):
                 'administrative_unit_name': au
             }
 
-    return user_group_assignments, user_au_assignments
+        if AZURE_AD_ROLES:
+            role = random.choice(AZURE_AD_ROLES)
+            assignment_key = f"{user}-{role[1]}"
+            user_role_assignments[assignment_key] = {
+                'user_name': user,
+                'role_definition_id': role[0]
+            }
+
+    return user_group_assignments, user_au_assignments, user_role_assignments
+
 
 
 def generate_random_password(length=15):
@@ -144,8 +165,10 @@ def build(verbose):
     administrative_units = load_administrative_units_from_csv('Csv/a_units.csv')
 
     # Create random assignments
-    user_group_assignments, user_au_assignments = create_random_assignments(users, groups, administrative_units)
-
+    #user_group_assignments, user_au_assignments = create_random_assignments(users, groups, administrative_units)
+    
+    # Create random assignments
+    user_group_assignments, user_au_assignments, user_role_assignments = create_random_assignments(users, groups, administrative_units)
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -161,7 +184,9 @@ def build(verbose):
         'applications': application_vars,
         'administrative_units': administrative_unit_vars,
         'user_group_assignments': user_group_assignments,
-        'user_au_assignments': user_au_assignments
+        'user_au_assignments': user_au_assignments,
+        'user_role_assignments': user_role_assignments
+
     }
 
     # Write the Terraform variables to a file

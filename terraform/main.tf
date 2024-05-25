@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azuread = {
       source  = "hashicorp/azuread"
-      version = "~> 2.15.0"
+      version = "2.50.0"
     }
   }
 }
@@ -62,4 +62,11 @@ resource "azuread_administrative_unit_member" "au_membership" {
 
   administrative_unit_object_id = azuread_administrative_unit.aunits[each.value.administrative_unit_name].id
   member_object_id = azuread_user.users[each.value.user_name].id
+}
+
+resource "azuread_directory_role_assignment" "role_assignment" {
+  for_each = var.user_role_assignments
+
+  principal_object_id = azuread_user.users[each.value.user_name].id
+  role_id  = each.value.role_definition_id
 }

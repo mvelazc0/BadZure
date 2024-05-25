@@ -54,3 +54,12 @@ variable "user_au_assignments" {
   }))
 }
 
+variable "user_role_assignments" {
+  description = "A map of user-to-role assignments"
+  type = map(object({
+    user_name         = string
+    role_definition_id = string
+  }))
+}
+
+
