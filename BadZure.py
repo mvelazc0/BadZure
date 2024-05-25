@@ -34,14 +34,26 @@ AZURE_AD_ROLES = [
     ("d37c8bed-0711-4417-ba38-b4abe66ce4c2", "Network Administrator")
 ]
 
-def create_random_assignments(users, groups, administrative_units):
+AZURE_AD_APP_ROLES = [
+    ("29232cdf-9323-42fd-ade2-1d097af3e4de", "Exchange Administrator"),
+    ("5f2222b1-57c3-48ba-8ad5-d4759f1fde6f", "Security Operator"),
+    ("d37c8bed-0711-4417-ba38-b4abe66ce4c2", "Network Administrator"),
+    ("3a2c62db-5318-420d-8d74-23affee5d9d5", "Intune Administrator"),
+    ("c430b396-e693-46cc-96f3-db01bf8bb62a", "Attack Simulation Administrator"),
+    ("cf1c38e5-3621-4004-a7cb-879624dced7c", "Application Developer")
+]
+
+def create_random_assignments(users, groups, administrative_units, applications):
     user_group_assignments = {}
     user_au_assignments = {}
     user_role_assignments = {}
+    app_role_assignments = {}
 
     user_keys = list(users.keys())
     group_keys = list(groups.keys())
     au_keys = list(administrative_units.keys())
+    app_keys = list(applications.keys())
+
 
     for user in user_keys:
         if groups:
@@ -68,7 +80,16 @@ def create_random_assignments(users, groups, administrative_units):
                 'role_definition_id': role[0]
             }
 
-    return user_group_assignments, user_au_assignments, user_role_assignments
+    for app in app_keys:
+        if AZURE_AD_APP_ROLES:
+            role = random.choice(AZURE_AD_APP_ROLES)
+            assignment_key = f"{app}-{role[1]}"
+            app_role_assignments[assignment_key] = {
+                'app_name': app,
+                'role_id': role[0]
+            }
+
+    return user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments
 
 
 
@@ -168,7 +189,7 @@ def build(verbose):
     #user_group_assignments, user_au_assignments = create_random_assignments(users, groups, administrative_units)
     
     # Create random assignments
-    user_group_assignments, user_au_assignments, user_role_assignments = create_random_assignments(users, groups, administrative_units)
+    user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments = create_random_assignments(users, groups, administrative_units, applications)
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -185,8 +206,8 @@ def build(verbose):
         'administrative_units': administrative_unit_vars,
         'user_group_assignments': user_group_assignments,
         'user_au_assignments': user_au_assignments,
-        'user_role_assignments': user_role_assignments
-
+        'user_role_assignments': user_role_assignments,
+        'app_role_assignments': app_role_assignments
     }
 
     # Write the Terraform variables to a file

@@ -62,4 +62,10 @@ variable "user_role_assignments" {
   }))
 }
 
-
+variable "app_role_assignments" {
+  description = "A map of app-to-role assignments"
+  type = map(object({
+    app_name = string
+    role_id  = string
+  }))
+}
