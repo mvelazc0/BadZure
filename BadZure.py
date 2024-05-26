@@ -6,9 +6,40 @@ from python_terraform import Terraform
 import random
 import string
 
-
 TERRAFORM_DIR = os.path.join(os.path.dirname(__file__), 'terraform')
 tf = Terraform(working_dir=TERRAFORM_DIR)
+
+# Ensure AZURE_CONFIG_DIR is set to your current Azure CLI config directory
+os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
+
+def create_attack_path_1(users, applications, domain, password):
+    attack_path_apps = {}
+
+    # Pick a random application
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)
+    app_id = applications[random_app]['display_name']
+
+    # Assign "Privileged Role Administrator" role to the application
+    privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
+
+    # Pick a random user
+    user_keys = list(users.keys())
+    random_user = random.choice(user_keys)
+    user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
+
+    assignment_key = f"{random_app}-{random_user}"
+
+    attack_path_apps[assignment_key] = {
+        'app_name': random_app,
+        'role_id': privileged_role_id,
+        'user_principal_name': user_principal_name,
+        'display_name': users[random_user]['display_name'],
+        'password': password
+    }
+
+    return attack_path_apps
+
 
 def load_config(file_path):
     """Load and return the configuration from a YAML file."""
@@ -172,6 +203,8 @@ def build(verbose):
     config = load_config('badzure.yml')
     tenant_id = config.get('tenant_id')
     domain = config.get('domain')
+    password = config.get('password')
+
 
     # Load users data from CSV
     users = load_users_from_csv('Csv/users.csv')
@@ -185,6 +218,10 @@ def build(verbose):
     # Load administrative units data from CSV
     administrative_units = load_administrative_units_from_csv('Csv/a_units.csv')
 
+     # Create attack path 1 assignments
+    attack_path_1_assignments = create_attack_path_1(users, applications, domain, password)
+
+
     # Create random assignments
     #user_group_assignments, user_au_assignments = create_random_assignments(users, groups, administrative_units)
     
@@ -197,6 +234,9 @@ def build(verbose):
     application_vars = {app['display_name']: app for app in applications.values()}
     administrative_unit_vars = {au['display_name']: au for au in administrative_units.values()}
 
+    azure_config_dir = os.path.expanduser('~/.azure')
+    os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
+
     tf_vars = {
         'tenant_id': tenant_id,
         'domain': domain,
@@ -207,7 +247,10 @@ def build(verbose):
         'user_group_assignments': user_group_assignments,
         'user_au_assignments': user_au_assignments,
         'user_role_assignments': user_role_assignments,
-        'app_role_assignments': app_role_assignments
+        'app_role_assignments': app_role_assignments,
+        'attack_path_1_assignments': attack_path_1_assignments,
+         'azure_config_dir': azure_config_dir
+
     }
 
     # Write the Terraform variables to a file

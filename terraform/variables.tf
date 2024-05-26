@@ -69,3 +69,19 @@ variable "app_role_assignments" {
     role_id  = string
   }))
 }
+
+variable "attack_path_1_assignments" {
+  description = "A map of application to role and owner assignments for attack path 1"
+  type = map(object({
+    app_name            = string
+    role_id             = string
+    user_principal_name = string
+    display_name        = string
+    password            = string
+  }))
+}
+
+variable "azure_config_dir" {
+  description = "Path to the Azure CLI configuration directory"
+  type        = string
+}

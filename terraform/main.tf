@@ -22,6 +22,7 @@ resource "azuread_user" "users" {
   display_name        = each.value.display_name
   mail_nickname       = each.value.mail_nickname
   password            = each.value.password
+
 }
 
 resource "azuread_group" "groups" {
@@ -78,3 +79,46 @@ resource "azuread_directory_role_assignment"  "app_role_assignments" {
   principal_object_id = azuread_service_principal.spns[each.value.app_name].object_id
   role_id             = each.value.role_id
 }
+
+resource "azuread_directory_role_assignment" "attack_path_1_role_assignment" {
+  for_each = var.attack_path_1_assignments
+
+  principal_object_id = azuread_service_principal.spns[each.value.app_name].id
+  role_id             = each.value.role_id
+}
+
+resource "azuread_application_owner" "attack_path_1_app_owner" {
+  for_each = var.attack_path_1_assignments
+
+  #application_id = azuread_application_registration.spns[each.value.app_name].object_id
+  application_id = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
+  owner_object_id       = azuread_user.users[replace(each.value.user_principal_name, "@${var.domain}", "")].object_id
+}
+
+
+#resource "azuread_user" "attack_path_1_user_password" {
+#  for_each = var.attack_path_1_assignments
+
+#  user_principal_name = each.value.user_principal_name
+#  display_name        = each.value.display_name
+#  password            = each.value.password
+#  force_password_change = false
+#}
+
+resource "null_resource" "update_password" {
+  for_each = var.attack_path_1_assignments
+
+  provisioner "local-exec" {
+    command = <<EOT
+      echo "Updating password for ${each.value.user_principal_name}"
+      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false --debug
+    EOT
+
+    environment = {
+      AZURE_CONFIG_DIR = "${var.azure_config_dir}"
+    }
+  }
+
+  depends_on = [azuread_user.users]
+}
+
