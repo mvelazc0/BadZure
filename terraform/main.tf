@@ -32,7 +32,7 @@ resource "azuread_group" "groups" {
   security_enabled = true
 }
 
-resource "azuread_application" "spns" {
+resource "azuread_application_registration" "spns" {
   for_each = var.applications
 
   display_name = each.value.display_name
@@ -41,8 +41,9 @@ resource "azuread_application" "spns" {
 resource "azuread_service_principal" "spns" {
   for_each = var.applications
 
-  application_id = azuread_application.spns[each.key].application_id
+  client_id = azuread_application_registration.spns[each.key].client_id
 }
+
 
 resource "azuread_administrative_unit" "aunits" {
   for_each = var.administrative_units

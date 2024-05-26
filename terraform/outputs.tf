@@ -10,7 +10,7 @@ output "group_ids" {
 
 output "application_ids" {
   description = "The IDs of the created applications"
-  value       = [for app in azuread_application.spns : app.application_id]
+  value       = [for app in azuread_application_registration.spns : app.object_id]
 }
 
 output "service_principal_ids" {
