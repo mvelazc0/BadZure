@@ -82,6 +82,19 @@ variable "attack_path_1_assignments" {
   }))
 }
 
+variable "attack_path_2_assignments" {
+  description = "A map of application to API permission and owner assignments for attack path 2"
+  default = {}
+  type = map(object({
+    app_name            = string
+    api_permission_id   = string
+    user_principal_name = string
+    display_name        = string
+    password            = string
+  }))
+}
+
+
 variable "azure_config_dir" {
   description = "Path to the Azure CLI configuration directory"
   type        = string

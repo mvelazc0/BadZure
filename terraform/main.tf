@@ -118,7 +118,40 @@ resource "null_resource" "update_password" {
       AZURE_CONFIG_DIR = "${var.azure_config_dir}"
     }
   }
-
   depends_on = [azuread_user.users]
 }
 
+resource "azuread_app_role_assignment" "attack_path_2_api_permission" {
+  for_each = var.attack_path_2_assignments
+
+  app_role_id            = each.value.api_permission_id
+  principal_object_id    = azuread_service_principal.spns[each.value.app_name].id
+  resource_object_id     = data.azuread_service_principal.microsoft_graph.id
+}
+
+resource "azuread_application_owner" "attack_path_2_app_owner" {
+  for_each = var.attack_path_2_assignments
+
+  application_id    = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
+  owner_object_id   = azuread_user.users[replace(each.value.user_principal_name, "@${var.domain}", "")].object_id
+}
+
+resource "null_resource" "update_password_2" {
+  for_each = var.attack_path_2_assignments
+
+  provisioner "local-exec" {
+    command = <<EOT
+      echo "Updating password for ${each.value.user_principal_name}"
+      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false --debug
+    EOT
+
+    environment = {
+      AZURE_CONFIG_DIR = "${var.azure_config_dir}"
+    }
+  }
+  depends_on = [azuread_user.users]
+}
+
+data "azuread_service_principal" "microsoft_graph" {
+  display_name = "Microsoft Graph"
+}
