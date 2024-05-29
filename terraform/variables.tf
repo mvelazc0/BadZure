@@ -72,6 +72,7 @@ variable "app_role_assignments" {
 
 variable "attack_path_1_assignments" {
   description = "A map of application to role and owner assignments for attack path 1"
+  default = {}
   type = map(object({
     app_name            = string
     role_id             = string

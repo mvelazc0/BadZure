@@ -201,10 +201,8 @@ def build(verbose):
     """Build and configure Azure AD users and groups"""
     # Load configuration
     config = load_config('badzure.yml')
-    tenant_id = config.get('tenant_id')
-    domain = config.get('domain')
-    password = config.get('password')
-
+    tenant_id = config['tenant']['tenant_id']
+    domain = config['tenant']['domain']
 
     # Load users data from CSV
     users = load_users_from_csv('Csv/users.csv')
@@ -218,16 +216,16 @@ def build(verbose):
     # Load administrative units data from CSV
     administrative_units = load_administrative_units_from_csv('Csv/a_units.csv')
 
-     # Create attack path 1 assignments
-    attack_path_1_assignments = create_attack_path_1(users, applications, domain, password)
-
-
-    # Create random assignments
-    #user_group_assignments, user_au_assignments = create_random_assignments(users, groups, administrative_units)
-    
-    # Create random assignments
+     # Create random assignments
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments = create_random_assignments(users, groups, administrative_units, applications)
 
+     # Create attack path 1 assignments
+    attack_path_1_assignments = None
+    if config['attack_paths']['attack_path_1']['enabled']:
+        password = config['attack_paths']['attack_path_1']['password']
+        attack_path_1_assignments = create_attack_path_1(users, applications, domain, password)
+  
+   
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
     group_vars = {group['display_name']: group for group in groups.values()}
@@ -241,6 +239,7 @@ def build(verbose):
         'tenant_id': tenant_id,
         'domain': domain,
         'users': user_vars,
+        'azure_config_dir': azure_config_dir,
         'groups': group_vars,
         'applications': application_vars,
         'administrative_units': administrative_unit_vars,
@@ -248,9 +247,7 @@ def build(verbose):
         'user_au_assignments': user_au_assignments,
         'user_role_assignments': user_role_assignments,
         'app_role_assignments': app_role_assignments,
-        'attack_path_1_assignments': attack_path_1_assignments,
-         'azure_config_dir': azure_config_dir
-
+        'attack_path_1_assignments': attack_path_1_assignments if attack_path_1_assignments is not None else {}
     }
 
     # Write the Terraform variables to a file
