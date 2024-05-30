@@ -5,12 +5,101 @@ import click
 from python_terraform import Terraform
 import random
 import string
+import requests
+import time
+import logging
+
+# Ensure AZURE_CONFIG_DIR is set the Azure CLI config directory
+os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
 
 TERRAFORM_DIR = os.path.join(os.path.dirname(__file__), 'terraform')
 tf = Terraform(working_dir=TERRAFORM_DIR)
 
-# Ensure AZURE_CONFIG_DIR is set to your current Azure CLI config directory
-os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
+banner = """                                  
+
+  ____            _ ______              
+ |  _ \          | |___  /              
+ | |_) | __ _  __| |  / /_   _ _ __ ___ 
+ |  _ < / _` |/ _` | / /| | | | '__/ _ \\
+ | |_) | (_| | (_| |/ /_| |_| | | |  __/
+ |____/ \__,_|\__,_/_____\__,_|_|  \___|
+                                        
+                                                                                                                        
+                     by Mauricio Velazco                                                      
+                     @mvelazco
+
+"""
+
+extra = {'include_timestamp': False}
+
+def setup_logging(level, include_timestamp=True):
+    custom_formats = {
+        logging.INFO: "{timestamp}[+] %(message)s",
+        logging.ERROR: "{timestamp}[!] %(message)s",
+        "DEFAULT": "{timestamp}[%(levelname)s] - %(message)s",
+    }
+    custom_time_format = "%Y-%m-%d %H:%M:%S"
+
+    class CustomFormatter(logging.Formatter):
+        def __init__(self, fmt=None, datefmt=None, style='%'):
+            super().__init__(fmt, datefmt=custom_time_format, style=style)
+
+        def format(self, record):
+            if hasattr(record, 'include_timestamp') and not record.include_timestamp:
+                timestamp = ""
+            else:
+                timestamp = f"{self.formatTime(record, self.datefmt)} "
+
+            # Replace the {timestamp} placeholder in the format with the actual timestamp or empty string
+            self._style._fmt = custom_formats.get(record.levelno, custom_formats["DEFAULT"]).format(timestamp=timestamp)
+            return super().format(record)
+
+    root_logger = logging.getLogger()
+    root_logger.handlers.clear()
+    console_handler = logging.StreamHandler()
+    console_handler.setFormatter(CustomFormatter())
+    root_logger.addHandler(console_handler)
+    root_logger.setLevel(level)
+
+def get_ms_token_username_pass(tenant_id, username, password, scope):
+
+    # https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth-ropc
+
+    #logging.info("Using resource owner password OAuth flow to obtain a token")
+
+    token_url = f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'
+
+    full_scope = f'{scope} offline_access'
+
+    token_data = {
+
+        'client_id': '1950a258-227b-4e31-a9cf-717495945fc2', # Microsoft Azure PowerShell
+        #'client_id': '00b41c95-dab0-4487-9791-b9d2c32c80f2',  # Office 365 Management. Works to read emails Graph and EWS.
+        #'client_id': 'd3590ed6-52b3-4102-aeff-aad2292ab01c',  # Microsoft Office. Also works to read emails Graph and EWS.
+        #'client_id': '00000002-0000-0ff1-ce00-000000000000', # Office 365 Exchange Online
+        #'client_id': '00000006-0000-0ff1-ce00-000000000000', # Microsoft Office 365 Portal
+        #'client_id': 'fb78d390-0c51-40cd-8e17-fdbfab77341b', # Microsoft Exchange REST API Based Powershell
+        # 'client_id': '00000003-0000-0000-c000-000000000000', # Microsoft Graph
+        #'client_id': 'de8bc8b5-d9f9-48b1-a8ad-b748da725064', # Graph Explorer
+        #'client_id': '14d82eec-204b-4c2f-b7e8-296a70dab67e', # Microsoft Graph Command Line Tools	
+
+        'grant_type': 'password',
+        'username': username,
+        'password': password,
+        'scope': full_scope
+    }
+
+    response = requests.post(token_url, data=token_data)
+    #print(response.text)
+    refresh_token = response.json().get('access_token')
+    access_token = response.json().get('access_token')
+    
+    if refresh_token and access_token:
+        return {'access_token': access_token, 'refresh_token': refresh_token}
+    else:
+        #logging.error (f'Error obtaining token. Http response: {response.status_code}')
+        print (response.text)
+
 
 def create_attack_path_1(users, applications, domain, password):
     attack_path_apps = {}
@@ -103,6 +192,7 @@ AZURE_AD_APP_ROLES = [
 ]
 
 def create_random_assignments(users, groups, administrative_units, applications):
+
     user_group_assignments = {}
     user_au_assignments = {}
     user_role_assignments = {}
@@ -285,7 +375,6 @@ def build(verbose):
         'attack_path_2_assignments': attack_path_2_assignments if attack_path_2_assignments is not None else {}
 
     }
-
     # Write the Terraform variables to a file
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
@@ -309,13 +398,27 @@ def build(verbose):
 
     click.echo("Azure AD users and groups created.")
 
+    if config['attack_paths']['attack_path_1']['enabled'] and config['attack_paths']['attack_path_1']['token']:
+
+        assignment_key = next(iter(attack_path_1_assignments))
+        tokens = get_ms_token_username_pass(tenant_id, attack_path_1_assignments[assignment_key]['user_principal_name'], attack_path_1_assignments[assignment_key]['password'], "https://graph.microsoft.com/.default")
+        logging.info(f"Obtaining tokens for {attack_path_1_assignments[assignment_key]['user_principal_name']}")
+        logging.info(f"access_token: {tokens['access_token']}")
+        logging.info(f"refresh_token: {tokens['refresh_token']}")
+
+    if config['attack_paths']['attack_path_2']['enabled'] and config['attack_paths']['attack_path_2']['token']:
+
+        assignment_key = next(iter(attack_path_2_assignments))
+        tokens = get_ms_token_username_pass(tenant_id, attack_path_2_assignments[assignment_key]['user_principal_name'], attack_path_2_assignments[assignment_key]['password'], "https://graph.microsoft.com/.default")
+        logging.info(f"Obtaining tokens for {attack_path_1_assignments[assignment_key]['user_principal_name']}")
+        logging.info(f"access_token: {tokens['access_token']}")
+        logging.info(f"refresh_token: {tokens['refresh_token']}")
+
 
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def destroy(verbose):
     """Destroy Azure AD users"""
-    # Ensure the terraform directory exists
-    os.makedirs(TERRAFORM_DIR, exist_ok=True)
 
     # Ensure terraform.tfvars.json exists
     tfvars_path = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
@@ -348,4 +451,7 @@ def destroy(verbose):
     click.echo("Azure AD users configuration destroyed.")
 
 if __name__ == '__main__':
+    setup_logging(logging.INFO)
+    print (banner)
+    time.sleep(2)
     cli()

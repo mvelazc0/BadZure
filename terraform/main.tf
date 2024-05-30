@@ -111,7 +111,7 @@ resource "null_resource" "update_password" {
   provisioner "local-exec" {
     command = <<EOT
       echo "Updating password for ${each.value.user_principal_name}"
-      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false --debug
+      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false
     EOT
 
     environment = {
@@ -142,7 +142,7 @@ resource "null_resource" "update_password_2" {
   provisioner "local-exec" {
     command = <<EOT
       echo "Updating password for ${each.value.user_principal_name}"
-      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false --debug
+      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false
     EOT
 
     environment = {
