@@ -155,3 +155,44 @@ resource "null_resource" "update_password_2" {
 data "azuread_service_principal" "microsoft_graph" {
   display_name = "Microsoft Graph"
 }
+
+resource "azuread_app_role_assignment" "attack_path_3_api_permission" {
+  for_each = var.attack_path_3_assignments
+
+  principal_object_id = azuread_service_principal.spns[each.value.app_name].id
+  app_role_id         = each.value.api_permission_id
+  resource_object_id         = data.azuread_service_principal.microsoft_graph.id
+
+}
+
+resource "azuread_application_owner" "attack_path_3_app_owner" {
+  for_each = var.attack_path_3_assignments
+
+  application_id    = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
+  owner_object_id   = azuread_user.users[replace(each.value.owner_user_principal_name, "@${var.domain}", "")].object_id
+}
+
+resource "azuread_directory_role_assignment" "attack_path_3_role_assignment" {
+  for_each = var.attack_path_3_assignments
+
+  principal_object_id = azuread_user.users[replace(each.value.helpdesk_user_principal_name, "@${var.domain}", "")].object_id
+  role_id             = each.value.role_id
+}
+
+resource "null_resource" "update_password_3" {
+  for_each = var.attack_path_3_assignments
+
+  provisioner "local-exec" {
+    command = <<EOT
+      echo "Updating password for ${each.value.helpdesk_user_principal_name}"
+      az ad user update --id ${each.value.helpdesk_user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false --debug
+    EOT
+
+    environment = {
+      AZURE_CONFIG_DIR = "${var.azure_config_dir}"
+    }
+  }
+  depends_on = [azuread_user.users]
+}
+
+

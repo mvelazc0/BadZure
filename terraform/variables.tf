@@ -99,3 +99,19 @@ variable "azure_config_dir" {
   description = "Path to the Azure CLI configuration directory"
   type        = string
 }
+
+variable "attack_path_3_assignments" {
+  description = "A map of application to API permission and owner assignments for attack path 3"
+  default = {}
+  type = map(object({
+    app_name                    = string
+    api_permission_id           = string
+    helpdesk_user_principal_name = string
+    helpdesk_display_name       = string
+    owner_user_principal_name   = string
+    owner_display_name          = string
+    password                    = string
+    role_id                     = string
+
+  }))
+}

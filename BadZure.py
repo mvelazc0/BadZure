@@ -157,6 +157,42 @@ def create_attack_path_2(users, applications, domain, password):
 
     return attack_path_apps
 
+def create_attack_path_3(users, applications, domain, password):
+    attack_path_apps = {}
+
+    # Pick a random application
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)
+    app_id = applications[random_app]['display_name']
+
+    # Assign API permission to the application
+    api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"
+
+    # Pick a random user for helpdesk admin role
+    helpdesk_admin_role_id = "729827e3-9c14-49f7-bb1b-9608f156bbb8"  # ID for "Helpdesk Administrator"
+    user_keys = list(users.keys())
+    random_helpdesk_user = random.choice(user_keys)
+    helpdesk_user_principal_name = f"{users[random_helpdesk_user]['user_principal_name']}@{domain}"
+
+    # Pick another random user to be the owner
+    random_owner_user = random.choice(user_keys)
+    owner_user_principal_name = f"{users[random_owner_user]['user_principal_name']}@{domain}"
+
+    assignment_key = f"{random_app}-{random_helpdesk_user}-{random_owner_user}"
+
+    attack_path_apps[assignment_key] = {
+        'app_name': random_app,
+        'api_permission_id': api_permission_id,
+        'helpdesk_user_principal_name': helpdesk_user_principal_name,
+        'helpdesk_display_name': users[random_helpdesk_user]['display_name'],
+        'owner_user_principal_name': owner_user_principal_name,
+        'owner_display_name': users[random_owner_user]['display_name'],
+        'role_id': helpdesk_admin_role_id,
+        'password': password
+    }
+
+    return attack_path_apps
+
 
 def load_config(file_path):
     """Load and return the configuration from a YAML file."""
@@ -348,7 +384,11 @@ def build(verbose):
     if config['attack_paths']['attack_path_2']['enabled']:
         password = config['attack_paths']['attack_path_2']['password']
         attack_path_2_assignments = create_attack_path_2(users, applications, domain, password)
-   
+
+    attack_path_3_assignments = None
+    if config['attack_paths']['attack_path_3']['enabled']:
+        password = config['attack_paths']['attack_path_3']['password']
+        attack_path_3_assignments = create_attack_path_3(users, applications, domain, password)  
    
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -372,7 +412,9 @@ def build(verbose):
         'user_role_assignments': user_role_assignments,
         'app_role_assignments': app_role_assignments,
         'attack_path_1_assignments': attack_path_1_assignments if attack_path_1_assignments is not None else {},
-        'attack_path_2_assignments': attack_path_2_assignments if attack_path_2_assignments is not None else {}
+        'attack_path_2_assignments': attack_path_2_assignments if attack_path_2_assignments is not None else {},
+        'attack_path_3_assignments': attack_path_3_assignments if attack_path_3_assignments is not None else {}
+
 
     }
     # Write the Terraform variables to a file
