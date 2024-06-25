@@ -176,8 +176,7 @@ resource "azuread_directory_role_assignment" "attack_path_3_role_assignment" {
   for_each = var.attack_path_3_assignments
 
   principal_object_id = azuread_user.users[replace(each.value.helpdesk_user_principal_name, "@${var.domain}", "")].object_id
-  role_id             = each.value.role_id
-}
+#  role_id             = eac
 
 resource "null_resource" "update_password_3" {
   for_each = var.attack_path_3_assignments
