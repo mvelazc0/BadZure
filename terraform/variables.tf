@@ -1,3 +1,8 @@
+variable "azure_config_dir" {
+  description = "Path to the Azure CLI configuration directory"
+  type        = string
+}
+
 variable "tenant_id" {
   description = "The tenant ID for Azure AD"
   type        = string
@@ -70,48 +75,39 @@ variable "app_role_assignments" {
   }))
 }
 
-variable "attack_path_1_assignments" {
-  description = "A map of application to role and owner assignments for attack path 1"
-  default = {}
+
+variable "attack_path_user_role_assignments" {
+  description = "A map of user role assignments in an attack path"
   type = map(object({
-    app_name            = string
-    role_id             = string
-    user_principal_name = string
-    display_name        = string
-    password            = string
+    user_name         = string
+    role_definition_id = string
   }))
 }
 
-variable "attack_path_2_assignments" {
-  description = "A map of application to API permission and owner assignments for attack path 2"
+variable "attack_path_application_role_assignments" {
+  description = "A map of application role assignments used in an attack path"
+  default = {}
+  type = map(object({
+    app_name = string
+    role_id  = string
+  }))
+}
+
+variable "attack_path_application_api_permission_assignments" {
+  description = "A map of application to API permission assingments in an attack path"
   default = {}
   type = map(object({
     app_name            = string
     api_permission_id   = string
-    user_principal_name = string
-    display_name        = string
-    password            = string
   }))
 }
 
 
-variable "azure_config_dir" {
-  description = "Path to the Azure CLI configuration directory"
-  type        = string
-}
-
-variable "attack_path_3_assignments" {
-  description = "A map of application to API permission and owner assignments for attack path 3"
+variable "attack_path_application_owner_assignments" {
+  description = "A map of application owner assignments used in an attack path"
   default = {}
   type = map(object({
-    app_name                    = string
-    api_permission_id           = string
-    helpdesk_user_principal_name = string
-    helpdesk_display_name       = string
-    owner_user_principal_name   = string
-    owner_display_name          = string
-    password                    = string
-    role_id                     = string
-
+    app_name = string
+    user_principal_name = string
   }))
 }

@@ -101,6 +101,61 @@ def get_ms_token_username_pass(tenant_id, username, password, scope):
         print (response.text)
 
 
+def create_attack_path(priv_esc_type, users, applications, domain, password):
+  
+    app_owner_assignments = {}  
+    user_role_assignments = {}
+    app_role_assignments = {}  
+    app_api_permission_assignments = {}
+    
+    # Pick a random application
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)
+    app_id = applications[random_app]['display_name']
+    
+    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    key = f"attack-path-{attack_path_id}"
+
+
+    # Pick a random user
+    user_keys = list(users.keys())
+    random_user = random.choice(user_keys)
+    user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
+    
+    initial_access_user = {
+        "user_principal_name": user_principal_name,
+        "password": password
+    }
+    
+    app_owner_assignments[key]  = {
+        'app_name': random_app,            
+        'user_principal_name': user_principal_name,        
+    }    
+    
+    if priv_esc_type == "AzureADRole":
+        
+        # Assign "Privileged Role Administrator" role to the application
+        privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
+        
+        app_role_assignments[key]  = {
+            'app_name': random_app,
+            'role_id': privileged_role_id,        
+        }     
+
+    elif priv_esc_type == "GraphAPIPermission":
+        
+        # Assign API permission to the application
+        api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"       
+        
+        app_api_permission_assignments[key]  = {
+            'app_name': random_app,
+            'api_permission_id': api_permission_id,
+        }    
+
+
+
+    return initial_access_user, app_owner_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments
+
 def create_attack_path_1(users, applications, domain, password):
     attack_path_apps = {}
 
@@ -351,14 +406,7 @@ def update_password(users, username, new_password):
         #print(f"Password for {username} has been updated.")
     else:
         print(f"User {username} not found.")
-        
-def extract_attack_path_user(users):
-    for key, value in users.items():
-        user_principal_name = value.get('user_principal_name', '')
-        if user_principal_name:
-            user_without_domain = user_principal_name.split('@')[0]
-            return user_without_domain
-            print(f"Extracted user: {user_without_domain}")                    
+                   
 
 @click.group()
 def cli():
@@ -368,6 +416,10 @@ def cli():
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def build(verbose):
     """Build and configure Azure AD users and groups"""
+    
+    azure_config_dir = os.path.expanduser('~/.azure')
+    os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
+    
     # Load configuration
     config = load_config('badzure.yml')
     tenant_id = config['tenant']['tenant_id']
@@ -387,32 +439,30 @@ def build(verbose):
 
      # Create random assignments
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments = create_random_assignments(users, groups, administrative_units, applications)
-
-     # Create attack path 1 assignments
-    attack_path_1_assignments = None
-    if config['attack_paths']['attack_path_1']['enabled']:
-        password = config['attack_paths']['attack_path_1']['password']
-        attack_path_1_assignments = create_attack_path_1(users, applications, domain, password)
-
-    # Create attack path 2 assignments
-    attack_path_2_assignments = None
-    if config['attack_paths']['attack_path_2']['enabled']:
-        password = config['attack_paths']['attack_path_2']['password']
-        attack_path_2_assignments = create_attack_path_2(users, applications, domain, password)
-
-    attack_path_3_assignments = None
-    if config['attack_paths']['attack_path_3']['enabled']:
-        password = config['attack_paths']['attack_path_3']['password']
-        attack_path_3_assignments = create_attack_path_3(users, applications, domain, password)  
+    
+    attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
+    
+    user_creds = []
+  
+    for attack_path in config['attack_paths']:
+        
+        if config['attack_paths'][attack_path]['enabled']:
+            
+            password = config['attack_paths'][attack_path]['password']
+            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path]['priv_esc'], users, applications, domain, password)
+            attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
+            attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
+            attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
+            attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
+            user_creds.append(initial_access)
+            update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
+                               
    
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
     group_vars = {group['display_name']: group for group in groups.values()}
     application_vars = {app['display_name']: app for app in applications.values()}
     administrative_unit_vars = {au['display_name']: au for au in administrative_units.values()}
-
-    azure_config_dir = os.path.expanduser('~/.azure')
-    os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
 
     tf_vars = {
         'tenant_id': tenant_id,
@@ -426,24 +476,17 @@ def build(verbose):
         'user_au_assignments': user_au_assignments,
         'user_role_assignments': user_role_assignments,
         'app_role_assignments': app_role_assignments,
-        'attack_path_1_assignments': attack_path_1_assignments if attack_path_1_assignments is not None else {},
-        'attack_path_2_assignments': attack_path_2_assignments if attack_path_2_assignments is not None else {},
-        'attack_path_3_assignments': attack_path_3_assignments if attack_path_3_assignments is not None else {}
-
-
+        'attack_path_application_owner_assignments' : attack_path_application_owner_assignments,
+        'attack_path_user_role_assignments' : attack_path_user_role_assignments,
+        'attack_path_application_role_assignments' : attack_path_app_role_assignments,
+        'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments
     }
-    
-    if attack_path_1_assignments is not None:
-        
-        username_to_update = extract_attack_path_user(attack_path_1_assignments)
-        new_password =  attack_path_1_assignments[next(iter(attack_path_1_assignments))].get('password')
-        update_password(users, username_to_update, new_password)    
     
     # Write the Terraform variables to a file
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
 
-
+    
     # Initialize and apply the Terraform configuration
     return_code, stdout, stderr = tf.init()
     if return_code != 0:
@@ -462,24 +505,17 @@ def build(verbose):
         return
 
     click.echo("Azure AD users and groups created.")
-
-    if config['attack_paths']['attack_path_1']['enabled'] and config['attack_paths']['attack_path_1']['token']:
-
-        assignment_key = next(iter(attack_path_1_assignments))
-        tokens = get_ms_token_username_pass(tenant_id, attack_path_1_assignments[assignment_key]['user_principal_name'], attack_path_1_assignments[assignment_key]['password'], "https://graph.microsoft.com/.default")
-        logging.info(f"Obtaining tokens for {attack_path_1_assignments[assignment_key]['user_principal_name']}")
-        logging.info(f"access_token: {tokens['access_token']}")
-        logging.info(f"refresh_token: {tokens['refresh_token']}")
-
-    if config['attack_paths']['attack_path_2']['enabled'] and config['attack_paths']['attack_path_2']['token']:
-
-        assignment_key = next(iter(attack_path_2_assignments))
-        tokens = get_ms_token_username_pass(tenant_id, attack_path_2_assignments[assignment_key]['user_principal_name'], attack_path_2_assignments[assignment_key]['password'], "https://graph.microsoft.com/.default")
-        logging.info(f"Obtaining tokens for {attack_path_1_assignments[assignment_key]['user_principal_name']}")
-        logging.info(f"access_token: {tokens['access_token']}")
-        logging.info(f"refresh_token: {tokens['refresh_token']}")
+     
     
-    
+    for index, attack_path in enumerate(config['attack_paths']):
+        
+        if config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['token']:
+            
+            print (index)
+            tokens = get_ms_token_username_pass(tenant_id, user_creds[index]['user_principal_name'], user_creds[index]['password'], "https://graph.microsoft.com/.default")
+            logging.info(f"Obtaining tokens for {user_creds[index]['user_principal_name']} with {user_creds[index]['password']}")
+            logging.info(f"access_token: {tokens['access_token']}")
+            logging.info(f"refresh_token: {tokens['refresh_token']}") 
 
 
 @cli.command()
