@@ -105,13 +105,18 @@ resource "azuread_application_owner" "attack_path_1_app_owner" {
 #  force_password_change = false
 #}
 
+/*
 resource "null_resource" "update_password" {
   for_each = var.attack_path_1_assignments
 
   provisioner "local-exec" {
     command = <<EOT
       echo "Updating password for ${each.value.user_principal_name}"
-      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false
+      echo "AZURE_CONFIG_DIR=${var.azure_config_dir}"
+      which az
+      az --version
+      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false --debug
+      echo "Password update command executed with exit code $?"
     EOT
 
     environment = {
@@ -120,6 +125,8 @@ resource "null_resource" "update_password" {
   }
   depends_on = [azuread_user.users]
 }
+*/
+
 
 resource "azuread_app_role_assignment" "attack_path_2_api_permission" {
   for_each = var.attack_path_2_assignments
@@ -136,13 +143,19 @@ resource "azuread_application_owner" "attack_path_2_app_owner" {
   owner_object_id   = azuread_user.users[replace(each.value.user_principal_name, "@${var.domain}", "")].object_id
 }
 
+/*
 resource "null_resource" "update_password_2" {
   for_each = var.attack_path_2_assignments
 
   provisioner "local-exec" {
     command = <<EOT
       echo "Updating password for ${each.value.user_principal_name}"
-      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false
+      echo "AZURE_CONFIG_DIR=${var.azure_config_dir}"
+      which az
+      az --version
+      az ad user update --id ${each.value.user_principal_name} --password "${each.value.password}" --force-change-password-next-sign-in false --debug
+      echo "Password update command executed with exit code $?"
+
     EOT
 
     environment = {
@@ -151,6 +164,7 @@ resource "null_resource" "update_password_2" {
   }
   depends_on = [azuread_user.users]
 }
+*/
 
 data "azuread_service_principal" "microsoft_graph" {
   display_name = "Microsoft Graph"
@@ -176,8 +190,11 @@ resource "azuread_directory_role_assignment" "attack_path_3_role_assignment" {
   for_each = var.attack_path_3_assignments
 
   principal_object_id = azuread_user.users[replace(each.value.helpdesk_user_principal_name, "@${var.domain}", "")].object_id
-#  role_id             = eac
+  role_id = each.value.role_id
 
+}
+
+/*
 resource "null_resource" "update_password_3" {
   for_each = var.attack_path_3_assignments
 
@@ -193,5 +210,5 @@ resource "null_resource" "update_password_3" {
   }
   depends_on = [azuread_user.users]
 }
-
+*/
 

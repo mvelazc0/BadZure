@@ -345,6 +345,21 @@ def load_administrative_units_from_csv(file_path):
             }
     return administrative_units
 
+def update_password(users, username, new_password):
+    if username in users:
+        users[username]['password'] = new_password
+        #print(f"Password for {username} has been updated.")
+    else:
+        print(f"User {username} not found.")
+        
+def extract_attack_path_user(users):
+    for key, value in users.items():
+        user_principal_name = value.get('user_principal_name', '')
+        if user_principal_name:
+            user_without_domain = user_principal_name.split('@')[0]
+            return user_without_domain
+            print(f"Extracted user: {user_without_domain}")                    
+
 @click.group()
 def cli():
     pass
@@ -417,9 +432,17 @@ def build(verbose):
 
 
     }
+    
+    if attack_path_1_assignments is not None:
+        
+        username_to_update = extract_attack_path_user(attack_path_1_assignments)
+        new_password =  attack_path_1_assignments[next(iter(attack_path_1_assignments))].get('password')
+        update_password(users, username_to_update, new_password)    
+    
     # Write the Terraform variables to a file
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
+
 
     # Initialize and apply the Terraform configuration
     return_code, stdout, stderr = tf.init()
@@ -455,6 +478,8 @@ def build(verbose):
         logging.info(f"Obtaining tokens for {attack_path_1_assignments[assignment_key]['user_principal_name']}")
         logging.info(f"access_token: {tokens['access_token']}")
         logging.info(f"refresh_token: {tokens['refresh_token']}")
+    
+    
 
 
 @cli.command()
