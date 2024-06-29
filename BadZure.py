@@ -12,21 +12,23 @@ import logging
 # Ensure AZURE_CONFIG_DIR is set the Azure CLI config directory
 os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
 
+
+
 TERRAFORM_DIR = os.path.join(os.path.dirname(__file__), 'terraform')
 tf = Terraform(working_dir=TERRAFORM_DIR)
 
 banner = """                                  
 
-  ____            _ ______              
- |  _ \          | |___  /              
- | |_) | __ _  __| |  / /_   _ _ __ ___ 
- |  _ < / _` |/ _` | / /| | | | '__/ _ \\
- | |_) | (_| | (_| |/ /_| |_| | | |  __/
- |____/ \__,_|\__,_/_____\__,_|_|  \___|
-                                        
-                                                                                                                        
-                     by Mauricio Velazco                                                      
-                     @mvelazco
+            ____            _ ______              
+            |  _ \          | |___  /              
+            | |_) | __ _  __| |  / /_   _ _ __ ___ 
+            |  _ < / _` |/ _` | / /| | | | '__/ _ \\
+            | |_) | (_| | (_| |/ /_| |_| | | |  __/
+            |____/ \__,_|\__,_/_____\__,_|_|  \___|
+                                                    
+                                                                                                                                    
+                                by Mauricio Velazco                                                      
+                                @mvelazco
 
 """
 
@@ -100,8 +102,8 @@ def get_ms_token_username_pass(tenant_id, username, password, scope):
         print (response.text)
 
 
-def create_attack_path(priv_esc_type, users, applications, domain, password):
-  
+def create_attack_path(attack_patch_config, users, applications, domain, password):
+ 
     app_owner_assignments = {}  
     user_role_assignments = {}
     app_role_assignments = {}  
@@ -119,18 +121,38 @@ def create_attack_path(priv_esc_type, users, applications, domain, password):
     user_keys = list(users.keys())
     random_user = random.choice(user_keys)
     user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
-    
-    initial_access_user = {
+
+    if attack_patch_config['method'] == "owner":
+        
+        initial_access_user = {
         "user_principal_name": user_principal_name,
         "password": password
-    }
+        }
+        
+    elif attack_patch_config['method'] == "helpdesk":
+        
+        helpdesk_admin_role_id = "729827e3-9c14-49f7-bb1b-9608f156bbb8"  # ID for "Helpdesk Administrator"
+
+        
+        second_random_user = random.choice(user_keys)
+        second_user_principal_name = f"{users[second_random_user]['user_principal_name']}@{domain}"        
+        
+        initial_access_user = {    
+            "user_principal_name": second_user_principal_name,
+            "password": password
+        }
+        
+        user_role_assignments[key]  = {
+            'user_name': second_random_user,
+            'role_definition_id': helpdesk_admin_role_id        
+    } 
     
     app_owner_assignments[key]  = {
         'app_name': random_app,            
         'user_principal_name': user_principal_name,        
     }    
     
-    if priv_esc_type == "AzureADRole":
+    if attack_patch_config['priv_esc'] == "AzureADRole":
         
         # Assign "Privileged Role Administrator" role to the application
         privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
@@ -140,7 +162,7 @@ def create_attack_path(priv_esc_type, users, applications, domain, password):
             'role_id': privileged_role_id,        
         }     
 
-    elif priv_esc_type == "GraphAPIPermission":
+    elif attack_patch_config['priv_esc'] == "GraphAPIPermission":
         
         # Assign API permission to the application
         api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"       
@@ -449,7 +471,7 @@ def build(verbose):
             
             password = config['attack_paths'][attack_path]['password']
             logging.info(f"Creating assignments for attack path '{attack_path}'")
-            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path]['priv_esc'], users, applications, domain, password)
+            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path], users, applications, domain, password)
             attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
             attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
@@ -507,19 +529,21 @@ def build(verbose):
             logging.error(stderr)
         return
 
-    logging.info("Azure AD tenant setup completed with assigned permissions and configurations.")
+    logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
          
     for index, attack_path in enumerate(config['attack_paths']):
         
-        if config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['token']:
+        if config['attack_paths'][attack_path]['enabled']:
             
-            tokens = get_ms_token_username_pass(tenant_id, user_creds[index]['user_principal_name'], user_creds[index]['password'], "https://graph.microsoft.com/.default")
-            logging.info(f"Obtaining tokens for attack path '{attack_path}'")
-            logging.info(f"User: {user_creds[index]['user_principal_name']}")
-            logging.info(f"Access Token: {tokens['access_token']}")
-            logging.info(f"Refresh Token: {tokens['refresh_token']}") 
+            logging.info(f"Initial access user for attack path '{attack_path}': {user_creds[index]['user_principal_name']}")
+            
+            if config['attack_paths'][attack_path]['token']:
+                tokens = get_ms_token_username_pass(tenant_id, user_creds[index]['user_principal_name'], user_creds[index]['password'], "https://graph.microsoft.com/.default")
+                logging.info(f"Obtaining tokens")
+                logging.info(f"Access Token: {tokens['access_token']}")
+                logging.info(f"Refresh Token: {tokens['refresh_token']}") 
+   
     
-
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def destroy(verbose):
@@ -556,8 +580,8 @@ def destroy(verbose):
         except FileNotFoundError:
             pass
 
-    logging.info("Azure AD tenant resources have been successfully destroyed")
-    logging.info("Good bye!")
+    logging.info("Azure AD tenant resources have been successfully destroyed!")
+    logging.info("Good bye.")
 
 
 if __name__ == '__main__':

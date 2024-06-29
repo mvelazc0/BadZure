@@ -89,7 +89,7 @@ resource "azuread_directory_role_assignment" "attack_path_user_role_assignments"
   for_each = var.attack_path_user_role_assignments
 
   principal_object_id = azuread_user.users[each.value.user_name].id
-  role_id             = each.value.role_id
+  role_id             = each.value.role_definition_id
 }
 
 resource "azuread_directory_role_assignment" "attack_path_application_role_assignments" {
