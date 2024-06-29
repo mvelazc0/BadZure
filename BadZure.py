@@ -90,7 +90,6 @@ def get_ms_token_username_pass(tenant_id, username, password, scope):
     }
 
     response = requests.post(token_url, data=token_data)
-    #print(response.text)
     refresh_token = response.json().get('access_token')
     access_token = response.json().get('access_token')
     
@@ -108,14 +107,13 @@ def create_attack_path(priv_esc_type, users, applications, domain, password):
     app_role_assignments = {}  
     app_api_permission_assignments = {}
     
-    # Pick a random application
+    # Pick a random application registration
     app_keys = list(applications.keys())
     random_app = random.choice(app_keys)
-    app_id = applications[random_app]['display_name']
+    #app_id = applications[random_app]['display_name']
     
     attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
     key = f"attack-path-{attack_path_id}"
-
 
     # Pick a random user
     user_keys = list(users.keys())
@@ -403,7 +401,6 @@ def load_administrative_units_from_csv(file_path):
 def update_password(users, username, new_password):
     if username in users:
         users[username]['password'] = new_password
-        #print(f"Password for {username} has been updated.")
     else:
         print(f"User {username} not found.")
                    
@@ -421,6 +418,7 @@ def build(verbose):
     os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
     
     # Load configuration
+    logging.info("Loading BadZure configuration file")
     config = load_config('badzure.yml')
     tenant_id = config['tenant']['tenant_id']
     domain = config['tenant']['domain']
@@ -438,6 +436,7 @@ def build(verbose):
     administrative_units = load_administrative_units_from_csv('Csv/a_units.csv')
 
      # Create random assignments
+    logging.info("Creating random assignments for users, groups, and administrative units.")
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments = create_random_assignments(users, groups, administrative_units, applications)
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
@@ -449,6 +448,7 @@ def build(verbose):
         if config['attack_paths'][attack_path]['enabled']:
             
             password = config['attack_paths'][attack_path]['password']
+            logging.info(f"Creating assignments for attack path '{attack_path}'")
             initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path]['priv_esc'], users, applications, domain, password)
             attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
@@ -483,40 +483,42 @@ def build(verbose):
     }
     
     # Write the Terraform variables to a file
+    logging.info(f"Creating terraform.tfvars.json")
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
 
     
     # Initialize and apply the Terraform configuration
+    logging.info(f"Calling terraform init.")
     return_code, stdout, stderr = tf.init()
     if return_code != 0:
-        click.echo(f"Error during terraform init: {stderr}")
+        logging.error(f"Terraform init failed: {stderr}")
         if verbose:
-            click.echo(stdout)
-            click.echo(stderr)
+            logging.error(stdout)
+            logging.error(stderr)
         return
 
+    logging.info(f"Calling terraform apply, this may take several minutes ...")
     return_code, stdout, stderr = tf.apply(skip_plan=True, capture_output=not verbose)
     if return_code != 0:
-        click.echo(f"Error during terraform apply: {stderr}")
+        logging.error(f"Terraform apply failed: {stderr}")
         if verbose:
-            click.echo(stdout)
-            click.echo(stderr)
+            logging.error(stdout)
+            logging.error(stderr)
         return
 
-    click.echo("Azure AD users and groups created.")
-     
-    
+    logging.info("Azure AD tenant setup completed with assigned permissions and configurations.")
+         
     for index, attack_path in enumerate(config['attack_paths']):
         
         if config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['token']:
             
-            print (index)
             tokens = get_ms_token_username_pass(tenant_id, user_creds[index]['user_principal_name'], user_creds[index]['password'], "https://graph.microsoft.com/.default")
-            logging.info(f"Obtaining tokens for {user_creds[index]['user_principal_name']} with {user_creds[index]['password']}")
-            logging.info(f"access_token: {tokens['access_token']}")
-            logging.info(f"refresh_token: {tokens['refresh_token']}") 
-
+            logging.info(f"Obtaining tokens for attack path '{attack_path}'")
+            logging.info(f"User: {user_creds[index]['user_principal_name']}")
+            logging.info(f"Access Token: {tokens['access_token']}")
+            logging.info(f"Refresh Token: {tokens['refresh_token']}") 
+    
 
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
@@ -526,32 +528,37 @@ def destroy(verbose):
     # Ensure terraform.tfvars.json exists
     tfvars_path = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
     if not os.path.exists(tfvars_path):
-        click.echo("Error: terraform.tfvars.json file not found.")
+        logging.error("Error: terraform.tfvars.json file not found.")
         return
 
     # Initialize and destroy the Terraform configuration
     return_code, stdout, stderr = tf.init()
     if return_code != 0:
-        click.echo(f"Error during terraform init: {stderr}")
+        logging.error(f"Terraform init failed: {stderr}")
         return
+    
 
+    logging.info(f"Calling terraform destroy, this may take several minutes ...")
     #return_code, stdout, stderr = tf.destroy(force=True, input=False, auto_approve=True, capture_output=verbose)
     return_code, stdout, stderr = tf.apply(skip_plan=True, destroy=True, auto_approve=True, capture_output=not verbose)
 
     if return_code != 0:
-        click.echo(f"Error during terraform destroy: {stderr}")
-        click.echo(stdout)
-        click.echo(stderr)
+        logging.error(f"Terraform apply failed: {stderr}")
+        logging.error(stdout)
+        logging.error(stderr)
         return
 
     # Remove the state files after destroying the resources
+    logging.info(f"Deleting terraform state files ")
     for file in ["terraform.tfstate", "terraform.tfstate.backup"]:
         try:
             os.remove(os.path.join(TERRAFORM_DIR, file))
         except FileNotFoundError:
             pass
 
-    click.echo("Azure AD users configuration destroyed.")
+    logging.info("Azure AD tenant resources have been successfully destroyed")
+    logging.info("Good bye!")
+
 
 if __name__ == '__main__':
     setup_logging(logging.INFO)
