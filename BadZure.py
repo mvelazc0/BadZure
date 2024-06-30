@@ -3,6 +3,7 @@ import json
 import yaml
 import click
 from python_terraform import Terraform
+from constants import ENTRA_ROLES, PRIVILEGED_ENTRA_ROLES
 import random
 import string
 import requests
@@ -98,8 +99,8 @@ def get_ms_token_username_pass(tenant_id, username, password, scope):
     if refresh_token and access_token:
         return {'access_token': access_token, 'refresh_token': refresh_token}
     else:
-        #logging.error (f'Error obtaining token. Http response: {response.status_code}')
-        print (response.text)
+        logging.error (f'Error obtaining token. Http response: {response.status_code}')
+        logging.error (response.text)
 
 
 def create_attack_path(attack_patch_config, users, applications, domain, password):
@@ -172,65 +173,8 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
             'api_permission_id': api_permission_id,
         }    
 
-
-
     return initial_access_user, app_owner_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments
 
-def create_attack_path_1(users, applications, domain, password):
-    attack_path_apps = {}
-
-    # Pick a random application
-    app_keys = list(applications.keys())
-    random_app = random.choice(app_keys)
-    app_id = applications[random_app]['display_name']
-
-    # Assign "Privileged Role Administrator" role to the application
-    privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
-
-    # Pick a random user
-    user_keys = list(users.keys())
-    random_user = random.choice(user_keys)
-    user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
-
-    assignment_key = f"{random_app}-{random_user}"
-
-    attack_path_apps[assignment_key] = {
-        'app_name': random_app,
-        'role_id': privileged_role_id,
-        'user_principal_name': user_principal_name,
-        'display_name': users[random_user]['display_name'],
-        'password': password
-    }
-
-    return attack_path_apps
-
-def create_attack_path_2(users, applications, domain, password):
-    attack_path_apps = {}
-
-    # Pick a random application
-    app_keys = list(applications.keys())
-    random_app = random.choice(app_keys)
-    app_id = applications[random_app]['display_name']
-
-    # Assign API permission to the application
-    api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"
-
-    # Pick a random user
-    user_keys = list(users.keys())
-    random_user = random.choice(user_keys)
-    user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
-
-    assignment_key = f"{random_app}-{random_user}"
-
-    attack_path_apps[assignment_key] = {
-        'app_name': random_app,
-        'api_permission_id': api_permission_id,
-        'user_principal_name': user_principal_name,
-        'display_name': users[random_user]['display_name'],
-        'password': password
-    }
-
-    return attack_path_apps
 
 def create_attack_path_3(users, applications, domain, password):
     attack_path_apps = {}
@@ -282,26 +226,6 @@ def load_config(file_path):
         #logging.error(f"Error parsing the YAML file: {e}")
         exit(1)
 
-# List of Azure AD role definition IDs and their display names
-AZURE_AD_ROLES = [
-    ("4a5d8f65-41da-4de4-8968-e035b65339cf", "Reports Reader"),
-    ("c4e39bd9-1100-46d3-8c65-fb160da0071f", "Authentication Administrator"),
-    ("88d8e3e3-8f55-4a1e-953a-9b9898b8876b", "Directory Readers"),
-    ("95e79109-95c0-4d8e-aee3-d01accf2d47b", "Guest Inviter"),
-    ("790c1fb9-7f7d-4f88-86a1-ef1f95c05c1b", "Message Center Reader"),
-    ("fdd7a751-b60b-444a-984c-02652fe8fa1c", "Groups Administrator"),
-    ("d37c8bed-0711-4417-ba38-b4abe66ce4c2", "Network Administrator")
-]
-
-AZURE_AD_APP_ROLES = [
-    ("29232cdf-9323-42fd-ade2-1d097af3e4de", "Exchange Administrator"),
-    ("5f2222b1-57c3-48ba-8ad5-d4759f1fde6f", "Security Operator"),
-    ("d37c8bed-0711-4417-ba38-b4abe66ce4c2", "Network Administrator"),
-    ("3a2c62db-5318-420d-8d74-23affee5d9d5", "Intune Administrator"),
-    ("c430b396-e693-46cc-96f3-db01bf8bb62a", "Attack Simulation Administrator"),
-    ("cf1c38e5-3621-4004-a7cb-879624dced7c", "Application Developer")
-]
-
 def create_random_assignments(users, groups, administrative_units, applications):
 
     user_group_assignments = {}
@@ -314,8 +238,8 @@ def create_random_assignments(users, groups, administrative_units, applications)
     au_keys = list(administrative_units.keys())
     app_keys = list(applications.keys())
 
-
     for user in user_keys:
+        
         if groups:
             group = random.choice(group_keys)
             assignment_key = f"{user}-{group}"
@@ -332,21 +256,23 @@ def create_random_assignments(users, groups, administrative_units, applications)
                 'administrative_unit_name': au
             }
 
-        if AZURE_AD_ROLES:
-            role = random.choice(AZURE_AD_ROLES)
-            assignment_key = f"{user}-{role[1]}"
+        if ENTRA_ROLES:
+            role_name = random.choice(list(ENTRA_ROLES.keys()))
+            role_id = ENTRA_ROLES[role_name]
+            assignment_key = f"{user}-{role_name}"
             user_role_assignments[assignment_key] = {
                 'user_name': user,
-                'role_definition_id': role[0]
+                'role_definition_id': role_id
             }
 
     for app in app_keys:
-        if AZURE_AD_APP_ROLES:
-            role = random.choice(AZURE_AD_APP_ROLES)
-            assignment_key = f"{app}-{role[1]}"
+        if ENTRA_ROLES:
+            role_name = random.choice(list(ENTRA_ROLES.keys()))
+            role_id = ENTRA_ROLES[role_name]
+            assignment_key = f"{app}-{role_name}"
             app_role_assignments[assignment_key] = {
                 'app_name': app,
-                'role_id': role[0]
+                'role_id': role_id
             }
 
     return user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments
@@ -509,7 +435,7 @@ def build(verbose):
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
 
-    
+    """
     # Initialize and apply the Terraform configuration
     logging.info(f"Calling terraform init.")
     return_code, stdout, stderr = tf.init()
@@ -520,7 +446,7 @@ def build(verbose):
             logging.error(stderr)
         return
 
-    logging.info(f"Calling terraform apply, this may take several minutes ...")
+    logging.info(f"Calling terraform apply, to create resources, this may take several minutes ...")
     return_code, stdout, stderr = tf.apply(skip_plan=True, capture_output=not verbose)
     if return_code != 0:
         logging.error(f"Terraform apply failed: {stderr}")
@@ -542,12 +468,12 @@ def build(verbose):
                 logging.info(f"Obtaining tokens")
                 logging.info(f"Access Token: {tokens['access_token']}")
                 logging.info(f"Refresh Token: {tokens['refresh_token']}") 
-   
+   """
     
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def destroy(verbose):
-    """Destroy Azure AD users"""
+
 
     # Ensure terraform.tfvars.json exists
     tfvars_path = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
