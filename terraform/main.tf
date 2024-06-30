@@ -85,6 +85,14 @@ resource "azuread_directory_role_assignment"  "app_role_assignments" {
   role_id             = each.value.role_id
 }
 
+resource "azuread_app_role_assignment" "app_api_permission_assignments" {
+  for_each = var.app_api_permission_assignments
+
+  app_role_id            = each.value.api_permission_id
+  principal_object_id    = azuread_service_principal.spns[each.value.app_name].id
+  resource_object_id     = data.azuread_service_principal.microsoft_graph.id
+}
+
 resource "azuread_directory_role_assignment" "attack_path_user_role_assignments" {
   for_each = var.attack_path_user_role_assignments
 

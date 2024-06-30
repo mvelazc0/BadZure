@@ -3,7 +3,7 @@ import json
 import yaml
 import click
 from python_terraform import Terraform
-from constants import ENTRA_ROLES, PRIVILEGED_ENTRA_ROLES
+from constants import ENTRA_ROLES, PRIVILEGED_ENTRA_ROLES, GRAPH_API_PERMISSIONS
 import random
 import string
 import requests
@@ -232,22 +232,30 @@ def create_random_assignments(users, groups, administrative_units, applications)
     user_au_assignments = {}
     user_role_assignments = {}
     app_role_assignments = {}
+    app_api_permission_assignments={}
 
     user_keys = list(users.keys())
     group_keys = list(groups.keys())
     au_keys = list(administrative_units.keys())
     app_keys = list(applications.keys())
 
-    for user in user_keys:
-        
+    # Calculate subset size as one-third of the total users
+    user_subset_size = max(1, len(user_keys) // 3)
+ 
+    # Randomly select a subset of users for group assignments   
+    group_assigned_users = random.sample(user_keys, user_subset_size)
+    for user in group_assigned_users:
         if groups:
             group = random.choice(group_keys)
             assignment_key = f"{user}-{group}"
             user_group_assignments[assignment_key] = {
                 'user_name': user,
                 'group_name': group
-            }
-
+            }    
+            
+    # Randomly select a subset of users for administrative unit assignments
+    au_assigned_users = random.sample(user_keys, user_subset_size)
+    for user in au_assigned_users:
         if administrative_units:
             au = random.choice(au_keys)
             assignment_key = f"{user}-{au}"
@@ -256,6 +264,9 @@ def create_random_assignments(users, groups, administrative_units, applications)
                 'administrative_unit_name': au
             }
 
+    # Randomly select a subset of users for role assignments
+    role_assigned_users = random.sample(user_keys, user_subset_size)
+    for user in role_assigned_users:
         if ENTRA_ROLES:
             role_name = random.choice(list(ENTRA_ROLES.keys()))
             role_id = ENTRA_ROLES[role_name]
@@ -265,7 +276,11 @@ def create_random_assignments(users, groups, administrative_units, applications)
                 'role_definition_id': role_id
             }
 
-    for app in app_keys:
+    app_subset_size = max(1, len(app_keys) // 2)
+    role_assigned_apps = random.sample(app_keys, app_subset_size)
+
+
+    for app in role_assigned_apps:
         if ENTRA_ROLES:
             role_name = random.choice(list(ENTRA_ROLES.keys()))
             role_id = ENTRA_ROLES[role_name]
@@ -275,8 +290,19 @@ def create_random_assignments(users, groups, administrative_units, applications)
                 'role_id': role_id
             }
 
-    return user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments
 
+    api_assigned_apps = random.sample(app_keys, app_subset_size)
+    for app in api_assigned_apps:
+        if GRAPH_API_PERMISSIONS:
+            api_name = random.choice(list(GRAPH_API_PERMISSIONS.keys()))
+            api_permission_id = GRAPH_API_PERMISSIONS[api_name]['id']
+            assignment_key = f"{app}-{api_name}"
+            app_api_permission_assignments[assignment_key] = {
+                'app_name': app,
+                'api_permission_id': api_permission_id,
+            }
+
+    return user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments
 
 
 def generate_random_password(length=15):
@@ -385,11 +411,11 @@ def build(verbose):
 
      # Create random assignments
     logging.info("Creating random assignments for users, groups, and administrative units.")
-    user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments = create_random_assignments(users, groups, administrative_units, applications)
+    user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments = create_random_assignments(users, groups, administrative_units, applications)
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
     
-    user_creds = []
+    user_creds = {}
   
     for attack_path in config['attack_paths']:
         
@@ -402,7 +428,7 @@ def build(verbose):
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
             attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
-            user_creds.append(initial_access)
+            user_creds[attack_path] = initial_access
             update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
                                
    
@@ -424,6 +450,7 @@ def build(verbose):
         'user_au_assignments': user_au_assignments,
         'user_role_assignments': user_role_assignments,
         'app_role_assignments': app_role_assignments,
+        'app_api_permission_assignments' : app_api_permission_assignments,
         'attack_path_application_owner_assignments' : attack_path_application_owner_assignments,
         'attack_path_user_role_assignments' : attack_path_user_role_assignments,
         'attack_path_application_role_assignments' : attack_path_app_role_assignments,
@@ -434,8 +461,7 @@ def build(verbose):
     logging.info(f"Creating terraform.tfvars.json")
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
-
-    """
+ 
     # Initialize and apply the Terraform configuration
     logging.info(f"Calling terraform init.")
     return_code, stdout, stderr = tf.init()
@@ -456,19 +482,19 @@ def build(verbose):
         return
 
     logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
-         
-    for index, attack_path in enumerate(config['attack_paths']):
+    
+    for attack_path in config['attack_paths']:
         
         if config['attack_paths'][attack_path]['enabled']:
             
-            logging.info(f"Initial access user for attack path '{attack_path}': {user_creds[index]['user_principal_name']}")
+            logging.info(f"Initial access user for attack path '{attack_path}': {user_creds[attack_path]['user_principal_name']}")
             
             if config['attack_paths'][attack_path]['token']:
-                tokens = get_ms_token_username_pass(tenant_id, user_creds[index]['user_principal_name'], user_creds[index]['password'], "https://graph.microsoft.com/.default")
+                tokens = get_ms_token_username_pass(tenant_id, user_creds[attack_path]['user_principal_name'], user_creds[attack_path]['password'], "https://graph.microsoft.com/.default")
                 logging.info(f"Obtaining tokens")
                 logging.info(f"Access Token: {tokens['access_token']}")
                 logging.info(f"Refresh Token: {tokens['refresh_token']}") 
-   """
+            
     
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
@@ -498,6 +524,8 @@ def destroy(verbose):
         logging.error(stderr)
         return
 
+    logging.info("Azure AD tenant resources have been successfully destroyed!")
+
     # Remove the state files after destroying the resources
     logging.info(f"Deleting terraform state files ")
     for file in ["terraform.tfstate", "terraform.tfstate.backup"]:
@@ -506,7 +534,6 @@ def destroy(verbose):
         except FileNotFoundError:
             pass
 
-    logging.info("Azure AD tenant resources have been successfully destroyed!")
     logging.info("Good bye.")
 
 

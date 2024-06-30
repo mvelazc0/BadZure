@@ -75,6 +75,14 @@ variable "app_role_assignments" {
   }))
 }
 
+variable "app_api_permission_assignments" {
+  description = "A map of application to API permission assingments"
+  default = {}
+  type = map(object({
+    app_name            = string
+    api_permission_id   = string
+  }))
+}
 
 variable "attack_path_user_role_assignments" {
   description = "A map of user role assignments in an attack path"
