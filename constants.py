@@ -89,7 +89,7 @@ ENTRA_ROLES = {
     "Search Editor":   "8835291a-918c-4fd7-a9ce-faa49f0cf7d9",
     "Viva Goals Administrator":   "92b086b3-e367-4ef2-b869-1de128fb986e",
     "Customer LockBox Access Approver":   "5c4f9dcd-47dc-4cf7-8c9a-9e4207cbfc91",
-    "Restricted Guest User":   "2af84b1e-32c8-42b7-82bc-daa82404023b",
+    #"Restricted Guest User":   "2af84b1e-32c8-42b7-82bc-daa82404023b", # removing implicit roles to avoid errors
     "Azure AD Joined Device Local Administrator":   "9f06204d-73c1-4d4c-880a-6edb90606fd8",
     "B2C IEF Policy Administrator":   "3edaf663-341e-4475-9f94-5c398ef6c070",
     "Teams Telephony Administrator":   "aa38014f-0993-46e9-9b45-30501a20909d",
