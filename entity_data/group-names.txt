@@ -1,0 +1,302 @@
+Marketing
+Finance
+IT
+HR Team
+Sales Team
+Product Development
+Project Alpha
+Project Beta
+Admin Users
+Vpn Users
+Engineering
+Customer Support
+Legal
+Operations
+Compliance
+Data Science
+Business Intelligence
+Executive Team
+Corporate Strategy
+Procurement
+Quality Assurance
+Research and Development
+Field Operations
+Internal Audit
+Public Relations
+Investor Relations
+Event Management
+Training and Development
+Recruiting Team
+Payroll
+Benefits Administration
+Employee Relations
+Risk Management
+Sustainability
+Facilities Management
+Manufacturing
+Distribution
+Logistics
+Warehousing
+Supply Chain
+Production
+Product Management
+UX Design
+Software Development
+Network Security
+Systems Administration
+Cloud Infrastructure
+DevOps
+Technical Support
+Application Development
+Database Management
+IT Helpdesk
+IT Operations
+IT Security
+IT Governance
+Enterprise Architecture
+Business Analysis
+Project Management
+Product Marketing
+Field Marketing
+Digital Marketing
+Content Marketing
+Brand Management
+Corporate Communications
+Social Media
+Market Research
+Customer Experience
+Customer Success
+Partner Management
+Channel Sales
+Direct Sales
+Sales Operations
+Account Management
+Sales Engineering
+Pre-Sales
+Post-Sales
+Inside Sales
+Outside Sales
+Sales Enablement
+Sales Training
+Solution Engineering
+Solution Architecture
+Professional Services
+Customer Training
+Customer Onboarding
+Customer Implementation
+Customer Retention
+Customer Feedback
+Customer Advocacy
+Product Support
+Field Support
+Technical Account Management
+User Experience
+User Research
+User Testing
+Quality Engineering
+Test Automation
+Release Management
+Configuration Management
+Service Delivery
+Service Management
+Incident Management
+Problem Management
+Change Management
+Asset Management
+Configuration Management
+Vendor Management
+Contract Management
+Procurement Operations
+Strategic Sourcing
+Supplier Relationship Management
+Purchasing
+Inventory Management
+Materials Management
+Fleet Management
+Warehouse Operations
+Transportation Management
+Order Fulfillment
+Demand Planning
+Production Planning
+Production Control
+Quality Control
+Process Improvement
+Lean Manufacturing
+Six Sigma
+Continuous Improvement
+Safety Management
+Environmental Health and Safety
+Regulatory Compliance
+Corporate Governance
+Ethics and Compliance
+Internal Controls
+Financial Reporting
+Financial Planning
+Financial Analysis
+Treasury
+Tax
+Audit
+Controllership
+General Accounting
+Cost Accounting
+Budgeting
+Forecasting
+Mergers and Acquisitions
+Investor Relations
+Corporate Development
+Strategy and Planning
+Business Development
+Corporate Social Responsibility
+Community Relations
+Employee Engagement
+Talent Management
+Leadership Development
+Organizational Development
+Learning and Development
+Compensation and Benefits
+Employee Health and Wellness
+Diversity and Inclusion
+Workforce Planning
+Succession Planning
+Performance Management
+Employee Recognition
+Employee Training
+Talent Acquisition
+Talent Retention
+Labor Relations
+Industrial Relations
+Union Relations
+Employee Safety
+Employee Wellbeing
+HR Operations
+HR Compliance
+HR Information Systems
+HR Analytics
+HR Strategy
+Executive Search
+Campus Recruitment
+Employer Branding
+Employee Surveys
+Exit Interviews
+Retention Strategies
+Employee Referral Programs
+Remote Work
+Flexible Work Arrangements
+Work-Life Balance
+Telecommuting
+Virtual Teams
+Remote Collaboration
+Hybrid Work Models
+IT Service Management
+Enterprise Applications
+Collaboration Tools
+Messaging and Communication
+Unified Communications
+Telephony
+Video Conferencing
+Web Conferencing
+Mobile Device Management
+Endpoint Security
+Identity and Access Management
+Single Sign-On
+Multi-Factor Authentication
+Directory Services
+User Provisioning
+Access Control
+Security Operations
+Security Engineering
+Cybersecurity
+Information Security
+Data Protection
+Data Privacy
+Security Awareness
+Threat Intelligence
+Incident Response
+Forensics
+Vulnerability Management
+Penetration Testing
+Security Compliance
+Security Architecture
+Application Security
+Network Security
+Cloud Security
+Endpoint Protection
+Mobile Security
+Security Analytics
+Security Information and Event Management
+Threat Hunting
+Security Monitoring
+Security Operations Center
+Security Orchestration and Automation
+Security Incident Management
+Data Governance
+Data Quality
+Data Integration
+Data Warehousing
+Data Lakes
+Big Data
+Data Analytics
+Data Visualization
+Business Intelligence
+Data Science
+Machine Learning
+Artificial Intelligence
+Data Engineering
+Data Architecture
+Data Modeling
+Data Operations
+Data Management
+Master Data Management
+Metadata Management
+Data Stewardship
+Data Strategy
+Data Transformation
+Data Migration
+Data Consolidation
+Data Enrichment
+Data Lineage
+Data Cataloging
+Data Privacy
+Data Compliance
+Data Security
+Data Access
+Data Sharing
+Data Governance Council
+Data Governance Office
+Data Governance Framework
+Data Governance Policy
+Data Governance Strategy
+Data Governance Implementation
+Data Governance Maturity
+Data Governance Metrics
+Data Governance Standards
+Data Governance Processes
+Data Governance Roles
+Data Governance Responsibilities
+Data Governance Communication
+Data Governance Education
+Data Governance Training
+Data Governance GitHub Status
+Data Governance GitHub API
+Data Governance GitHub CLI
+Data Governance GitHub Desktop
+Data Governance GitHub Actions
+Data Governance GitHub Discussions
+Data Governance GitHub Codespaces
+Data Governance GitHub Packages
+Data Governance GitHub Insights
+Data Governance GitHub Security
+Data Governance GitHub Copilot
+Data Governance GitHub Classroom
+Data Governance GitHub Enterprise
+Data Governance GitHub Education
+Data Governance GitHub Marketplace
+Data Governance GitHub Learning Lab
+Data Governance GitHub Explore
+Data Governance GitHub Docs
+Data Governance GitHub Blog
+Data Governance GitHub Community
+Data Governance GitHub Support
+Data Governance GitHub Status
+Data Governance GitHub API
+Data Governance GitHub CLI
