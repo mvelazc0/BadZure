@@ -36,6 +36,7 @@ banner = """
 extra = {'include_timestamp': False}
 
 def setup_logging(level, include_timestamp=True):
+
     custom_formats = {
         logging.INFO: "{timestamp}[+] %(message)s",
         logging.ERROR: "{timestamp}[!] %(message)s",
@@ -63,6 +64,41 @@ def setup_logging(level, include_timestamp=True):
     console_handler.setFormatter(CustomFormatter())
     root_logger.addHandler(console_handler)
     root_logger.setLevel(level)
+    
+
+def parse_terraform_output(output):
+    # Parse the Terraform state output and extract the essential information
+    resources = []
+
+    try:
+        state = json.loads(output)
+        for module in state.get('values', {}).get('root_module', {}).get('resources', []):
+            resource_type = module.get('type')
+            resource_name = module.get('name')
+            if resource_type == 'azuread_domains' or resource_type == 'azuread_administrative_unit_member' or resource_type == 'azuread_group_member' or resource_type == 'azuread_directory_role_assignment':
+                #print(module.get('values', {}))                         
+                continue
+            if resource_type == 'azuread_user':
+                key_attr = module.get('values', {}).get('user_principal_name')
+            elif resource_type == 'azuread_group':
+                key_attr = module.get('values', {}).get('display_name')
+            elif resource_type == 'azuread_application_registration':
+                key_attr = module.get('values', {}).get('display_name')
+            elif resource_type == 'azuread_administrative_unit':
+                key_attr = module.get('values', {}).get('display_name')          
+            elif resource_type == 'azuread_service_principal':
+                key_attr = module.get('values', {}).get('id')
+                #print(module.get('values', {}))                         
+            else:
+                key_attr = "N/A"
+
+            #resources.append(f"Resource Type: {resource_type}, Name: {resource_name}, Key Attribute: {key_attr}")
+            resources.append(f"Resource Type: {resource_type}, Identifier: {key_attr}")
+
+    except json.JSONDecodeError:
+        logging.error("Failed to parse Terraform state output")
+    
+    return resources    
 
 def get_ms_token_username_pass(tenant_id, username, password, scope):
 
@@ -504,7 +540,7 @@ def show(verbose):
     logging.info(f"Calling terraform show to display the current state ...")
 
     # Execute the terraform show command
-    return_code, stdout, stderr = tf.show(capture_output=not verbose)
+    return_code, stdout, stderr = tf.show(json=True, capture_output=not verbose)
 
     if return_code != 0:
         logging.error(f"Terraform show failed: {stderr}")
@@ -515,7 +551,10 @@ def show(verbose):
     if verbose:
         print(stdout)
     else:
-        logging.info(stdout)
+        resources = parse_terraform_output(stdout)
+        for resource in resources:
+            logging.info(resource)
+        #logging.info(stdout)
 
     logging.info("Current state of Azure AD tenant resources displayed successfully.")
     
