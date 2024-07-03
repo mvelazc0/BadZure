@@ -157,25 +157,25 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
     user_keys = list(users.keys())
     random_user = random.choice(user_keys)
     user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
+    password = users[random_user]['password']
 
-    if attack_patch_config['method'] == "owner":
+    if attack_patch_config['scenario'] == "direct":
         
         initial_access_user = {
         "user_principal_name": user_principal_name,
         "password": password
         }
         
-    elif attack_patch_config['method'] == "helpdesk":
+    elif attack_patch_config['scenario'] == "helpdesk":
         
         helpdesk_admin_role_id = "729827e3-9c14-49f7-bb1b-9608f156bbb8"  # ID for "Helpdesk Administrator"
-
-        
         second_random_user = random.choice(user_keys)
         second_user_principal_name = f"{users[second_random_user]['user_principal_name']}@{domain}"        
-        
+        second_user_password = users[second_random_user]['password']
+
         initial_access_user = {    
             "user_principal_name": second_user_principal_name,
-            "password": password
+            "password": second_user_password
         }
         
         user_role_assignments[key]  = {
@@ -187,8 +187,9 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
         'app_name': random_app,            
         'user_principal_name': user_principal_name,        
     }    
+
     
-    if attack_patch_config['priv_esc'] == "AzureADRole":
+    if attack_patch_config['method'] == "AzureADRole":
         
         # Assign "Privileged Role Administrator" role to the application
         privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
@@ -198,7 +199,7 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
             'role_id': privileged_role_id,        
         }     
 
-    elif attack_patch_config['priv_esc'] == "GraphAPIPermission":
+    elif attack_patch_config['method'] == "GraphAPIPermission":
         
         # Assign API permission to the application
         api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"       
@@ -240,6 +241,7 @@ def create_random_assignments(users, groups, administrative_units, applications)
     user_subset_size = max(1, len(user_keys) // 3)
  
     # Randomly select a subset of users for group assignments   
+    logging.info("Creating random user to group assignments")
     group_assigned_users = random.sample(user_keys, user_subset_size)
     for user in group_assigned_users:
         if groups:
@@ -251,6 +253,7 @@ def create_random_assignments(users, groups, administrative_units, applications)
             }    
             
     # Randomly select a subset of users for administrative unit assignments
+    logging.info("Creating random user to administrative unit assignments")
     au_assigned_users = random.sample(user_keys, user_subset_size)
     for user in au_assigned_users:
         if administrative_units:
@@ -262,6 +265,7 @@ def create_random_assignments(users, groups, administrative_units, applications)
             }
 
     # Randomly select a subset of users for role assignments
+    logging.info("Creating random azure ad role assignments to users")
     role_assigned_users = random.sample(user_keys, user_subset_size)
     for user in role_assigned_users:
         if ENTRA_ROLES:
@@ -276,7 +280,7 @@ def create_random_assignments(users, groups, administrative_units, applications)
     app_subset_size = max(1, len(app_keys) // 2)
     role_assigned_apps = random.sample(app_keys, app_subset_size)
 
-
+    logging.info("Creating random azure ad role assignments to applications")
     for app in role_assigned_apps:
         if ENTRA_ROLES:
             role_name = random.choice(list(ENTRA_ROLES.keys()))
@@ -288,6 +292,7 @@ def create_random_assignments(users, groups, administrative_units, applications)
             }
 
 
+    logging.info("Creating random Graph api permission assignments to applications")
     api_assigned_apps = random.sample(app_keys, app_subset_size)
     for app in api_assigned_apps:
         if GRAPH_API_PERMISSIONS:
@@ -392,11 +397,13 @@ def generate_administrative_units_details(file_path, number_of_aunits):
     
     return aunits
 
+"""
 def update_password(users, username, new_password):
     if username in users:
         users[username]['password'] = new_password
     else:
         print(f"User {username} not found.")
+"""
                    
 @click.group()
 def cli():
@@ -411,7 +418,7 @@ def build(verbose):
     
     # Load configuration
     logging.info("Loading BadZure configuration file")
-    config = load_config('badzure.yml')
+    config = load_config('local.yml')
     tenant_id = config['tenant']['tenant_id']
     domain = config['tenant']['domain']
     
@@ -422,19 +429,23 @@ def build(verbose):
     
 
     # Generate random users
+    logging.info(f"Generating {max_users} random users")
     users = generate_user_details('entity_data/first-names.txt', 'entity_data/last-names.txt', max_users)
 
     # Generate random groups
+    logging.info(f"Generating {max_groups} random groups")
     groups = generate_group_details('entity_data/group-names.txt', max_groups)
 
     # Generate random application registrations
+    logging.info(f"Generating {max_apps} random application registrations/service principals")
     applications = generate_app_details('entity_data/app-prefixes.txt', 'entity_data/app-core-names.txt','entity_data/app-sufixes.txt', max_apps)
 
     # Generate random administratuve units
+    logging.info(f"Generating {max_aunits} random administrative units")
     administrative_units = generate_administrative_units_details('entity_data/administrative-units.txt', max_aunits)
 
      # Create random assignments
-    logging.info("Creating random assignments for groups, administrative units, azure ad roles and graph api permissions")
+    #logging.info("Creating random assignments for groups, administrative units, azure ad roles and graph api permissions")
     
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments = create_random_assignments(users, groups, administrative_units, applications)
     
@@ -445,16 +456,16 @@ def build(verbose):
     for attack_path in config['attack_paths']:
         
         if config['attack_paths'][attack_path]['enabled']:
-            
-            password = config['attack_paths'][attack_path]['password']
+                        
+            #password = config['attack_paths'][attack_path]['password']
             logging.info(f"Creating assignments for attack path '{attack_path}'")
-            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path], users, applications, domain, password)
+            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path], users, applications, domain, "test")
             attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
             attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
             user_creds[attack_path] = initial_access
-            update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
+            #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
                                
    
     # Prepare Terraform variables
@@ -486,7 +497,8 @@ def build(verbose):
     logging.info(f"Creating terraform.tfvars.json")
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
- 
+
+        
     # Initialize and apply the Terraform configuration
     logging.info(f"Calling terraform init.")
     return_code, stdout, stderr = tf.init()
@@ -507,18 +519,35 @@ def build(verbose):
         return
 
     logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
-    
+    logging.info("Attack Path Details")
+
     for attack_path in config['attack_paths']:
         
         if config['attack_paths'][attack_path]['enabled']:
+            logging.info(f"*** {attack_path} ***")
+            logging.info(f"Initial access user: {user_creds[attack_path]['user_principal_name']}")
             
-            logging.info(f"Initial access user for attack path '{attack_path}': {user_creds[attack_path]['user_principal_name']}")
-            
-            if config['attack_paths'][attack_path]['token']:
+            if config['attack_paths'][attack_path]['initial_acess'] == "password":
+                logging.info(f"Password: {user_creds[attack_path]['password']}")
+                
+            elif config['attack_paths'][attack_path]['initial_acess'] == "token":
+                logging.info(f"Obtaining tokens...")
+                #logging.info(f"Will use {user_creds[attack_path]['user_principal_name']} and {user_creds[attack_path]['password']}")
                 tokens = get_ms_token_username_pass(tenant_id, user_creds[attack_path]['user_principal_name'], user_creds[attack_path]['password'], "https://graph.microsoft.com/.default")
-                logging.info(f"Obtaining tokens")
-                logging.info(f"Access Token: {tokens['access_token']}")
-                logging.info(f"Refresh Token: {tokens['refresh_token']}") 
+                with open("tokens.txt", "a") as file:
+                    file.write(f"Attack Path : {attack_path}\n")
+                    file.write(f"User : {user_creds[attack_path]['user_principal_name']}\n")
+                    file.write(f"Access Token: {tokens['access_token']}\n")
+                    file.write(f"Refresh Token: {tokens['refresh_token']}\n")
+                logging.info(f"Tokens saved in tokens.txt!.")
+                
+                #logging.info(f"Access Token: {tokens['access_token']}")
+                #logging.info(f"Refresh Token: {tokens['refresh_token']}")                
+
+              
+    logging.info("Good bye.")
+    
+    #logging.info(f"Password: {user_creds[attack_path]['password']}")
               
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")

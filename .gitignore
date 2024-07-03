@@ -133,4 +133,4 @@ __pycache__/
 *.tfvars.json
 
 # Ignore config file
-badzure.yml
+local.yml
