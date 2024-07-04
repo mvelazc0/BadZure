@@ -5,9 +5,9 @@
 
 BadZure is a Python tool that leverages Terraform to orchestrate the setup of Azure Active Directory tenants, populating them with diverse entities while also introducing common security misconfigurations to create vulnerable tenants with multiple attack paths.
 
-Specifically, BadZure automates the process of creating multiple entities such as: users, groups, application registrations, service principals, and administrative units. To simulate common security misconfigurations in real environments, it randomly assigns Azure AD roles, Graph permissions, and application ownership privileges to randomly picked security principals, enabling the creation of unique attack paths. In line with the 'Assume Breach' principle, BadZure provides users with two methods of initial access to the vulnerable tenants it creates, thereby simulating account takeover scenarios.
+BadZure automates the process of creating multiple entities such as: users, groups, application registrations, service principals, and administrative units. To simulate common security misconfigurations in real environments, it randomly assigns Azure AD roles, Graph permissions, and application ownership privileges to randomly picked security principals, enabling the creation of unique attack paths. In line with the 'Assume Breach' principle, BadZure provides users with two methods of initial access to the vulnerable tenants it creates, thereby simulating account takeover scenarios.
 
-The key advantage of BadZure lies in its ability to rapidly populate and purge existing Azure AD tenants with randomly generated vulnerable configurations and pre-configured initial access, facilitating continuous and iterative attack simulation (red team) and detection development (blue team) experimentation. It is designed for security practitioners with an interest in exploring and understanding Azure AD security. 
+The key advantage of BadZure lies in its ability to rapidly populate and purge existing Azure AD tenants with randomly generated vulnerable configurations and pre-configured initial access, facilitating continuous and iterative attack simulation and detection development experimentation. It is designed for security practitioners with an interest in exploring and understanding Azure AD security. 
 
 ## Goals / Use Cases
 
@@ -15,7 +15,7 @@ BadZure was initialy written to host the [Azure AD Battle School: Hands-on Attac
 
 An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
-* Experiment with common Azure AD attack vectors and tools (for ideas => [AzureAD Attack and Defense Playbook](https://github.com/Cloud-Architekt/AzureAD-Attack-Defense))
+* Experiment with common Azure AD attack vectors and tools
 * Quickly stand up misconfigured Azure AD lab tenants.
 * Obtain attack telemetry to build, test and enhance detection controls
 * Execute purple team exercises in a safe setting
@@ -26,14 +26,21 @@ An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
 ### Initial Access
 
-BadZure facilitates initial access by simulating account takover vectors such as password attacks and token theft. It achieves this through the assignment of a password (randomly generated or user-defined) or by supplying principal JWT access tokens. To support testing strategies such as password spraying, BadZure also automatically generates a 'users.txt' file containing the usernames of the created accounts. The credentials or tokens, made available in the output, enable users to step into the shoes of an attacker who is targeting an Azure AD tenant.
+BadZure simulates initial access by employing common account takeover techniques, including password attacks and token theft. This is achieved through two primary methods:
 
-BadZure facilitates initial access by simulating account takeover vectors such as password attacks and token theft. It achieves this through the assignment of a password (randomly generated or user-defined) or by supplying principal JWT access tokens. To support testing strategies such as password spraying, BadZure also automatically generates a 'users.txt' file containing the usernames of the created accounts. The credentials or tokens, made available in the output, enable users to step into the shoes of an attacker who is targeting an Azure AD tenant.
+#### Password-Based Access
 
+When configured to use passwords, BadZure assigns randomly generated passwords to key user accounts that are part of the attack paths. These passwords are provided to BadZure users to simulate password-based attacks, such as brute force or password spraying. Additionally, BadZure automatically generates a users.txt file containing the usernames of all created accounts, facilitating testing strategies like password spraying.
+
+#### Token-Based Access
+
+For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through phishing or other means. Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
+
+By providing both passwords and tokens, BadZure enables security practitioners to effectively simulate initial access scenarios and explore various attack vectors against their Azure AD tenants.
 
 ### Privilege Escalation
 
-BadZure crafts three privilege escalation attack vectors by simulating service principal abuse scenarios. It achieves this by intentionally introducing misconfigurations caused by Azure AD roles, Graph permissions and application ownerships. A BloodHound-generated graph, showcasing the attack paths BadZure creates, is shown below.
+BadZure simulates privilege escalation by introducing misconfigurations within Azure AD roles, Graph API permissions, and application ownerships. These misconfigurations include assigning high-privilege roles to service principals or users, granting extensive Graph API permissions to applications, and configuring users as owners of privileged applications. Using distinct variations of the mentioned methods, BadZure is able to create multiple attack paths within the same tenant.
 
 ![](img/attack_paths.png)
 
