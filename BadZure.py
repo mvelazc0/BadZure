@@ -519,10 +519,10 @@ def build(verbose):
             logging.info(f"*** {attack_path} ***")
             logging.info(f"Initial access user: {user_creds[attack_path]['user_principal_name']}")
             
-            if config['attack_paths'][attack_path]['initial_acess'] == "password":
+            if config['attack_paths'][attack_path]['initial_access'] == "password":
                 logging.info(f"Password: {user_creds[attack_path]['password']}")
                 
-            elif config['attack_paths'][attack_path]['initial_acess'] == "token":
+            elif config['attack_paths'][attack_path]['initial_access'] == "token":
                 logging.info(f"Obtaining tokens...")
                 #logging.info(f"Will use {user_creds[attack_path]['user_principal_name']} and {user_creds[attack_path]['password']}")
                 tokens = get_ms_token_username_pass(tenant_id, user_creds[attack_path]['user_principal_name'], user_creds[attack_path]['password'], "https://graph.microsoft.com/.default")
