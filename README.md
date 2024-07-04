@@ -67,11 +67,6 @@ A BloodHound-generated graph, showcasing the attack paths BadZure creates, is sh
 
 **Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it only requires an [Azure AD Free license](https://azure.microsoft.com/en-us/free/).
 
-### Create a new Global Administrator
-
-[Assign Azure AD roles to users](https://learn.microsoft.com/en-us/azure/active-directory/roles/manage-roles-portal)
-
-
 ### Clone Repository
 
 ````shell
@@ -95,7 +90,7 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 ```
-### Login to Azure
+### Login to Azure as a Global Administrator
 
 ```shell
 az login
