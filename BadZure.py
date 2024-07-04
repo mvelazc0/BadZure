@@ -396,14 +396,6 @@ def generate_administrative_units_details(file_path, number_of_aunits):
         }
     
     return aunits
-
-"""
-def update_password(users, username, new_password):
-    if username in users:
-        users[username]['password'] = new_password
-    else:
-        print(f"User {username} not found.")
-"""
                    
 @click.group()
 def cli():
