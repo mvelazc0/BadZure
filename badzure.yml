@@ -12,7 +12,7 @@ attack_paths:
 
   attack_path_1:
     enabled: true
-    initial_acess: password 
+    initial_access: password 
     scenario : direct
     privilege_escalation: ServicePrincipalAbuse
     method: AzureADRole
@@ -20,7 +20,7 @@ attack_paths:
 
   attack_path_2:
     enabled: true
-    initial_acess: token
+    initial_access: token
     scenario : helpdesk
     privilege_escalation: ServicePrincipalAbuse
     method: GraphAPIPermission
@@ -28,7 +28,7 @@ attack_paths:
 
   attack_path_3:
     enabled: true
-    initial_acess: token
+    initial_access: token
     scenario : helpdesk
     privilege_escalation: ServicePrincipalAbuse
     method: GraphAPIPermission
