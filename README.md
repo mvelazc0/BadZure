@@ -1,6 +1,10 @@
 # BadZure
 [![Open_Threat_Research Community](https://img.shields.io/badge/Open_Threat_Research-Community-brightgreen.svg)](https://twitter.com/OTR_Community)
 
+<div align="center">
+    <img src="img/BadZure.png" alt="BadZure logo">
+</div>
+<br>
 
 BadZure is a Python tool that leverages Terraform to orchestrate the setup of Azure Active Directory tenants, populating them with diverse entities while also introducing common security misconfigurations to create vulnerable tenants with multiple attack paths.
 
