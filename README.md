@@ -128,15 +128,20 @@ tenant:
   applications: 10
   administrative_units: 10
 
-attack_paths:
   attack_path_1:
     enabled: true
-    scenario: "direct"
-    method: "AzureADRole"
+    initial_access: password 
+    privilege_escalation: ServicePrincipalAbuse
+    method: AzureADRole
+    entra_role : random
+
   attack_path_2:
     enabled: true
-    scenario: "helpdesk"
-    method: "GraphAPIPermission"
+    initial_access: token
+    privilege_escalation: ServicePrincipalAbuse
+    method: GraphAPIPermission
+    app_role : random 
+
 ```
 
 For more details on the configuration options, please refer to the [Wiki](https://github.com/mvelazc0/BadZure/wiki/YAML-Configuration-Guide)

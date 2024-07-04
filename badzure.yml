@@ -24,7 +24,7 @@ attack_paths:
     scenario : helpdesk
     privilege_escalation: ServicePrincipalAbuse
     method: GraphAPIPermission
-    app_role :     
+    app_role : random 
 
   attack_path_3:
     enabled: true
