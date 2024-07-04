@@ -2,12 +2,11 @@
 [![Open_Threat_Research Community](https://img.shields.io/badge/Open_Threat_Research-Community-brightgreen.svg)](https://twitter.com/OTR_Community)
 
 
-
 BadZure is a Python tool that leverages Terraform to orchestrate the setup of Azure Active Directory tenants, populating them with diverse entities while also introducing common security misconfigurations to create vulnerable tenants with multiple attack paths.
 
 BadZure automates the process of creating multiple entities such as: users, groups, application registrations, service principals, and administrative units. To simulate common security misconfigurations in real environments, it randomly assigns Azure AD roles, Graph permissions, and application ownership privileges to randomly picked security principals, enabling the creation of unique attack paths. In line with the 'Assume Breach' principle, BadZure provides users with two methods of initial access to the vulnerable tenants it creates, thereby simulating account takeover scenarios.
 
-The key advantage of BadZure lies in its ability to rapidly populate and purge existing Azure AD tenants with randomly generated vulnerable configurations and pre-configured initial access, facilitating continuous and iterative attack simulation and detection development experimentation. It is designed for security practitioners with an interest in exploring and understanding Azure AD security. 
+The key advantage of BadZure lies in its ability to rapidly populate and purge Azure AD tenants with randomly generated vulnerable configurations and pre-configured initial access, facilitating continuous and iterative attack simulation and detection development experimentation. It is designed for security practitioners with an interest in exploring and understanding Azure AD security. 
 
 ## Goals / Use Cases
 
@@ -42,6 +41,8 @@ By providing both passwords and tokens, BadZure enables security practitioners t
 
 BadZure simulates privilege escalation by introducing misconfigurations within Azure AD roles, Graph API permissions, and application ownerships. These misconfigurations include assigning high-privilege roles to service principals or users, granting extensive Graph API permissions to applications, and configuring users as owners of privileged applications. Using distinct variations of the mentioned methods, BadZure is able to create multiple attack paths within the same tenant.
 
+A BloodHound-generated graph, showcasing the attack paths BadZure creates, is shown below.
+
 ![](img/attack_paths.png)
 
 ## Demo
@@ -50,6 +51,11 @@ BadZure simulates privilege escalation by introducing misconfigurations within A
 
 
 ## Quick Start Guide
+
+### Requirements
+
+- **Azure CLI**: Follow the instructions [here](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) to install Azure CLI.
+- **Terraform**: Follow the instructions [here](https://learn.hashicorp.com/tutorials/terraform/install-cli) to install Terraform.
 
 ### Create an Azure AD Tenant 
 
@@ -85,6 +91,11 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 ```
+### Login to Azure
+
+```shell
+az login
+````
 
 ### Create and destroy vulnerable tenants
 
@@ -92,13 +103,13 @@ pip install -r requirements.txt
 # Display the help menu
 python badzure.py --help
 
-# Populate a tenant and configure all attack paths with verbose logging
-python badzure.py build --verbose
+# Populate a tenant and configure all attack paths
+python badzure.py build
 
-# Show the created resources in Azure AD tenant
-python badzure.py show --verbose
+# Show the created resources in Azure AD tenant 
+python badzure.py show
 
-# Destroy all created identities
+# Destroy all created identities with verbose logging
 python badzure.py destroy --verbose
 
 ````
@@ -129,7 +140,7 @@ attack_paths:
     method: "GraphAPIPermission"
 ```
 
-For more details on the configuration options, please refer to the [Wiki](https://github.com/mvelazc0/BadZure/wiki/)
+For more details on the configuration options, please refer to the [Wiki](https://github.com/mvelazc0/BadZure/wiki/YAML-Configuration-Guide)
 
 ## Author
 
