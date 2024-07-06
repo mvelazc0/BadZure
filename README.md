@@ -29,7 +29,7 @@ An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
 ### Initial Access
 
-BadZure simulates initial access by employing common account takeover techniques, including password attacks and token theft. This is achieved through two primary methods described below.
+BadZure simulates initial access by employing common account takeover techniques, including password attacks and token theft. By providing both passwords and tokens, BadZure enables security practitioners to effectively simulate initial access scenarios and explore various attack vectors against Azure AD tenants.
 
 #### Password-Based Access
 
@@ -39,7 +39,6 @@ When configured to use passwords, BadZure assigns randomly generated passwords t
 
 For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), malware or other means. Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
 
-By providing both passwords and tokens, BadZure enables security practitioners to effectively simulate initial access scenarios and explore various attack vectors against their Azure AD tenants.
 
 ### Privilege Escalation
 

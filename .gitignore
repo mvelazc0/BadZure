@@ -134,3 +134,9 @@ __pycache__/
 
 # Ignore config file
 local.yml
+
+# Ignore users file
+users.txt
+
+# Ignore tokens file
+tokens.txt

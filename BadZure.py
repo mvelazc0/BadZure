@@ -100,6 +100,11 @@ def parse_terraform_output(output):
     
     return resources    
 
+def write_users_to_file(users, domain, file_path):
+    with open(file_path, 'w') as file:
+        for user in users.values():
+            file.write(f"{user['user_principal_name']}@{domain}\n")
+
 def get_ms_token_username_pass(tenant_id, username, password, scope):
 
     # https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth-ropc
@@ -507,7 +512,7 @@ def build(config, verbose):
         json.dump(tf_vars, f, indent=4)
 
 
-    """
+
     # Initialize and apply the Terraform configuration
     logging.info(f"Calling terraform init.")
     return_code, stdout, stderr = tf.init()
@@ -528,6 +533,8 @@ def build(config, verbose):
         return
 
     logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
+    write_users_to_file(users, domain, 'users.txt')
+    logging.info("Created users.txt file.")
     logging.info("Attack Path Details")
 
     for attack_path in config['attack_paths']:
@@ -549,11 +556,7 @@ def build(config, verbose):
                     file.write(f"Access Token: {tokens['access_token']}\n")
                     file.write(f"Refresh Token: {tokens['refresh_token']}\n")
                 logging.info(f"Tokens saved in tokens.txt!.")
-                
-                #logging.info(f"Access Token: {tokens['access_token']}")
-                #logging.info(f"Refresh Token: {tokens['refresh_token']}")                
-
-   """                  
+                  
     logging.info("Good bye.")
                   
 @cli.command()
