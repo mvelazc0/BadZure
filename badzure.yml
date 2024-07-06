@@ -24,12 +24,12 @@ attack_paths:
     scenario : helpdesk
     privilege_escalation: ServicePrincipalAbuse
     method: GraphAPIPermission
-    app_role : random 
+    app_role : random
 
   attack_path_3:
-    enabled: true
+    enabled: false
     initial_access: token
     scenario : helpdesk
     privilege_escalation: ServicePrincipalAbuse
     method: GraphAPIPermission
-    app_role :    
+    app_role : 810c84a8-4a9e-49e6-bf7d-12d183f40d01 # Mail.Read Application Permission

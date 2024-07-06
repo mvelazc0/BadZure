@@ -1,5 +1,16 @@
 # https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/permissions-reference
 
+# Roles used by BadZure for attack paths
+
+HIGH_PRIVILEGED_ENTRA_ROLES = {
+
+    "Privileged Role Administrator":   "e8611ab8-c189-46e8-94e1-60213ab1f814",    
+    "Privileged Authentication Administrator":   "7be44c8a-adaf-4e2a-84d6-ab2649e08a13",    
+    "Global Administrator":   "62e90394-69f5-4237-9190-012177145e10",    
+}
+
+# Roles tagged by Microsoft as privileged
+
 PRIVILEGED_ENTRA_ROLES = {
 
     "Application Administrator":   "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3",
@@ -15,7 +26,7 @@ PRIVILEGED_ENTRA_ROLES = {
     "Directory Writers":   "9360feb5-f418-4baa-8175-e2a00bac4301",
     "Domain Name Administrator":   "8329153b-31d0-4727-b945-745eb3bc5f31",
     "External Identity Provider Administrator":   "be2f45a1-457d-42af-a067-6ec1fa63bc45",
-    "Global Administrator":   "62e90394-69f5-4237-9190-012177145e10",
+#    "Global Administrator":   "62e90394-69f5-4237-9190-012177145e10",
     "Global Reader":   "f2ef992c-3afb-46b9-b7cf-a126ee74c451",
     "Helpdesk Administrator":   "729827e3-9c14-49f7-bb1b-9608f156bbb8",
     "Hybrid Identity Administrator":   "8ac3fc64-6eca-42ea-9e69-59f4c7b60eb2",
@@ -24,8 +35,8 @@ PRIVILEGED_ENTRA_ROLES = {
     "Partner Tier1 Support":   "4ba39ca4-527c-499a-b93d-d9b492c50246",
     "Partner Tier2 Support":   "e00e864a-17c5-4a4b-9c06-f5b95a8d5bd8",
     "Password Administrator":   "966707d0-3269-4727-9be2-8c3a10f19b9d",
-    "Privileged Authentication Administrator":   "7be44c8a-adaf-4e2a-84d6-ab2649e08a13",
-    "Privileged Role Administrator":   "e8611ab8-c189-46e8-94e1-60213ab1f814",
+#    "Privileged Authentication Administrator":   "7be44c8a-adaf-4e2a-84d6-ab2649e08a13",
+#    "Privileged Role Administrator":   "e8611ab8-c189-46e8-94e1-60213ab1f814",
     "Security Administrator":   "194ae4cb-b126-40b2-bd5b-6091b380977d",
     "Security Operator":   "5f2222b1-57c3-48ba-8ad5-d4759f1fde6f",
     "Security Reader":   "5d6b6bb7-de71-4623-b4af-96380a352509",
@@ -117,6 +128,28 @@ ENTRA_ROLES = {
     "Windows Update Deployment Administrator":   "32696413-001a-46ae-978c-ce0f6b3620d2",
     "Exchange Recipient Administrator":   "31392ffb-586c-42d1-9346-e59415a2cc4e",
     "Cloud App Security Administrator":   "892c5842-a9a6-463a-8041-72aa08ca3cf6"
+}
+
+HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS = {
+
+    "RoleManagement.ReadWrite.Directory": {
+        "allowedMemberTypes": ["Application"],
+        "id": "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8",
+        "origin": "Application",
+    },    
+
+    "AppRoleAssignment.ReadWrite.All": {
+        "allowedMemberTypes": ["Application"],
+        "id": "06b708a9-e830-4db3-a914-8e69da51d44f",
+        "origin": "Application",
+    },
+
+    "RoleManagement.ReadWrite.Directory": {
+        "allowedMemberTypes": ["Application"],
+        "id": "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8",
+        "origin": "Application",
+    }
+    
 }
 
 GRAPH_API_PERMISSIONS = {

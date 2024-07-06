@@ -3,7 +3,7 @@ import json
 import yaml
 import click
 from python_terraform import Terraform
-from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS
+from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS, HIGH_PRIVILEGED_ENTRA_ROLES, HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS
 import random
 import string
 import requests
@@ -191,8 +191,16 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
     
     if attack_patch_config['method'] == "AzureADRole":
         
+        
+        if attack_patch_config['entra_role'] != 'random':
+            
+            privileged_role_id = attack_patch_config['entra_role']
+        
+        else:
+            privileged_role_id = random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))
+            
         # Assign "Privileged Role Administrator" role to the application
-        privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
+        #privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
         
         app_role_assignments[key]  = {
             'app_name': random_app,
@@ -201,8 +209,15 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
 
     elif attack_patch_config['method'] == "GraphAPIPermission":
         
+        if attack_patch_config['app_role'] != 'random':
+            
+            api_permission_id = attack_patch_config['app_role']
+        
+        else:
+            api_permission_id = random.choice([permission["id"] for permission in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()])
+        
         # Assign API permission to the application
-        api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"       
+        #api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"       
         
         app_api_permission_assignments[key]  = {
             'app_name': random_app,
@@ -402,15 +417,16 @@ def cli():
     pass
 
 @cli.command()
+@click.option('--config', type=click.Path(exists=True), default='badzure.yml', help="Path to the configuration YAML file")
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
-def build(verbose):
+def build(config, verbose):
     """Create resources and attack paths"""
     azure_config_dir = os.path.expanduser('~/.azure')
     os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
     
     # Load configuration
-    logging.info("Loading BadZure configuration file")
-    config = load_config('local.yml')
+    logging.info(f"Loading BadZure configuration from {config}")
+    config = load_config(config)
     tenant_id = config['tenant']['tenant_id']
     domain = config['tenant']['domain']
     
@@ -490,7 +506,8 @@ def build(verbose):
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
 
-        
+
+    """
     # Initialize and apply the Terraform configuration
     logging.info(f"Calling terraform init.")
     return_code, stdout, stderr = tf.init()
@@ -536,11 +553,9 @@ def build(verbose):
                 #logging.info(f"Access Token: {tokens['access_token']}")
                 #logging.info(f"Refresh Token: {tokens['refresh_token']}")                
 
-              
+   """                  
     logging.info("Good bye.")
-    
-    #logging.info(f"Password: {user_creds[attack_path]['password']}")
-              
+                  
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def show(verbose):
