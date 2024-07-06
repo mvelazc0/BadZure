@@ -44,7 +44,7 @@ For token-based access, BadZure generates JWT access tokens for specified princi
 
 BadZure simulates privilege escalation by introducing misconfigurations within Azure AD roles, Graph API permissions, and application ownerships. These misconfigurations include assigning high-privilege roles to service principals or users, granting extensive Graph API permissions to applications, and configuring users as owners of privileged applications. Using distinct variations of the mentioned methods, BadZure is able to create multiple attack paths within the same tenant.
 
-A BloodHound-generated graph, showcasing the attack paths BadZure creates, is shown below.
+A BloodHound-generated graph, showcasing the attack paths BadZure can create, is shown below.
 
 ![](img/attack_paths.png)
 
