@@ -3,7 +3,7 @@ import json
 import yaml
 import click
 from python_terraform import Terraform
-from constants import ENTRA_ROLES, PRIVILEGED_ENTRA_ROLES, GRAPH_API_PERMISSIONS
+from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS
 import random
 import string
 import requests
@@ -404,7 +404,7 @@ def cli():
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def build(verbose):
-    """Set up Azure AD tenant"""
+    """Create resources and attack paths"""
     azure_config_dir = os.path.expanduser('~/.azure')
     os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
     
@@ -544,7 +544,7 @@ def build(verbose):
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def show(verbose):
-    """Show the created resources in Azure AD tenant"""
+    """Show all the created resources in the tenant"""
 
     # Ensure terraform.tfvars.json exists
     tfvars_path = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
@@ -582,7 +582,7 @@ def show(verbose):
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def destroy(verbose):
-    """Destroy created resources in Azure AD tenant"""
+    """Destroy all created resources in the tenant"""
 
     # Ensure terraform.tfvars.json exists
     tfvars_path = os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json')
