@@ -33,16 +33,16 @@ BadZure simulates initial access by employing common account takeover techniques
 
 #### Password-Based Access
 
-When configured to use passwords, BadZure assigns randomly generated passwords to key user accounts that are part of the attack paths. These passwords are provided to BadZure users to simulate password-based attacks, such as credential stuffing or password spraying. Additionally, BadZure automatically generates a users.txt file containing the usernames of all created accounts, facilitating testing strategies like password spraying.
+When configured to use passwords, BadZure assigns randomly generated passwords to key user accounts that are part of the attack paths. These passwords are provided to BadZure users to simulate password-based attacks, such as [credential stuffing](https://owasp.org/www-community/attacks/Credential_stuffing) or [password spraying](https://owasp.org/www-community/attacks/Password_Spraying_Attack). Additionally, BadZure automatically generates a users.txt file containing the usernames of all created accounts, facilitating testing strategies like password spraying.
 
 #### Token-Based Access
 
-For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), malware or other means. Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
+For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), [endpoint malware](https://mrd0x.com/stealing-tokens-from-office-applications/) or other means. Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
 
 
 ### Privilege Escalation
 
-BadZure simulates privilege escalation by introducing misconfigurations within Azure AD roles, Graph API permissions, and application ownerships. These misconfigurations include assigning high-privilege roles to service principals or users, granting extensive Graph API permissions to applications, and configuring users as owners of privileged applications. Using distinct variations of the mentioned methods, BadZure is able to create multiple attack paths within the same tenant.
+BadZure simulates privilege escalation by introducing misconfigurations within Azure AD roles, Graph API permissions, and application ownerships. These misconfigurations include assigning high-privilege roles to service principals or users, granting extensive Graph API permissions to applications, and configuring users as owners of privileged applications. These vulnerabilities can be exploited to create multiple attack paths, allowing attackers to gain elevated privileges within an Azure AD tenant.
 
 A BloodHound-generated graph, showcasing the attack paths BadZure can create, is shown below.
 
