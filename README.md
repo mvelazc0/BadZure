@@ -117,7 +117,7 @@ python badzure.py destroy --verbose
 
 ## YAML Configuration File
 
-The badzure.yml file is used to configure the setup of the Azure AD tenant. This file allows users to specify details such as the number of users, groups, applications, administrative units, and attack paths to be created.
+BadZure leverages a configuration file used to configure the setup of the Azure AD tenant. This file allows users to specify details such as the number of users, groups, applications, administrative units, and attack paths to be created.
 
 ### Example Configuration
 
