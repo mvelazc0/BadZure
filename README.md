@@ -37,7 +37,7 @@ When configured to use passwords, BadZure assigns randomly generated passwords t
 
 #### Token-Based Access
 
-For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), [endpoint malware](https://mrd0x.com/stealing-tokens-from-office-applications/) or other means. Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
+For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), [endpoint malware](https://mrd0x.com/stealing-tokens-from-office-applications/) or [device code phishing](https://aadinternals.com/post/phishing/). Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
 
 
 ### Privilege Escalation
