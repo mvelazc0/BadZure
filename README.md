@@ -50,7 +50,7 @@ A BloodHound-generated graph, showcasing the attack paths BadZure can create, is
 
 ## Demo
 
-[![BadZure](https://img.youtube.com/vi/7IdyU7tQgww/0.jpg)](https://www.youtube.com/watch?v=7IdyU7tQgww)
+[![BadZure](https://img.youtube.com/vi/IzurUrOsvsQ/0.jpg)](https://www.youtube.com/watch?v=IzurUrOsvsQt=746s)
 
 
 ## Quick Start Guide
