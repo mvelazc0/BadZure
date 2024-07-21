@@ -2,7 +2,7 @@
 [![Open_Threat_Research Community](https://img.shields.io/badge/Open_Threat_Research-Community-brightgreen.svg)](https://twitter.com/OTR_Community)
 
 <div align="center">
-    <img src="img/BadZure.png" alt="BadZure logo" style="width: 25%; height: 25%;">>
+    <img src="img/BadZure.png" alt="BadZure logo" style="width: 35%; height: 35%;">
 </div>
 <br>
 
