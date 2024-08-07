@@ -1,0 +1,35 @@
+tenant:
+
+  tenant_id: 00000000-0000-0000-0000-000000000000
+  domain: contoso.onmicrosoft.com
+
+  users: 30
+  applications: 15
+  groups: 10
+  administrative_units: 10
+
+attack_paths:
+
+  attack_path_1:
+    enabled: true
+    initial_access: password 
+    scenario : direct
+    privilege_escalation: ServicePrincipalAbuse
+    method: AzureADRole
+    entra_role : random
+
+  attack_path_2:
+    enabled: true
+    initial_access: token
+    scenario : helpdesk
+    privilege_escalation: ServicePrincipalAbuse
+    method: GraphAPIPermission
+    app_role : random
+
+  attack_path_3:
+    enabled: false
+    initial_access: token
+    scenario : helpdesk
+    privilege_escalation: ServicePrincipalAbuse
+    method: GraphAPIPermission
+    app_role : 810c84a8-4a9e-49e6-bf7d-12d183f40d01 # Mail.Read Application Permission
