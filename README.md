@@ -129,6 +129,8 @@ tenant:
   applications: 10
   administrative_units: 10
 
+attack_paths:
+
   attack_path_1:
     enabled: true
     initial_access: password 
