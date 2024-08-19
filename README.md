@@ -10,7 +10,7 @@ BadZure is a Python tool that utilizes Terraform to automate the setup of Azure 
 
 BadZure automates the creation of various entities, including users, groups, application registrations, service principals, and administrative units. To simulate common security misconfigurations in real environments, it randomly assigns Azure AD roles, Graph permissions, and application ownership privileges to selected security principals, enabling the creation of unique attack paths. Adhering to the 'Assume Breach' principle, BadZure offers users two methods of initial access to the vulnerable tenants it creates, thereby simulating account takeover scenarios.
 
-The key advantage of BadZure is its ability to quickly populate and purge Azure AD tenants with randomly generated vulnerable configurations and pre-configured initial access, facilitating continuous and iterative attack simulation and detection development experimentation. It is designed for security practitioners interested in exploring and understanding Azure AD security.
+The key advantage of BadZure is its ability to quickly populate and purge Azure AD tenants with randomly generated vulnerable configurations and pre-configured initial access, facilitating continuous and iterative Azure AD adversary simulation and detection development experimentation. It is designed for security practitioners interested in exploring and understanding Azure AD security.
 
 ## Goals / Use Cases
 
