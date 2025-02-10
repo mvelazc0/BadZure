@@ -416,7 +416,40 @@ def generate_administrative_units_details(file_path, number_of_aunits):
         }
     
     return aunits
-                   
+
+def generate_resource_groups_details(file_path, number_of_rgs):
+    
+    rgs = {}
+    
+    rg_names = read_lines_from_file(file_path)
+    random_rgs = random.sample(rg_names, number_of_rgs)
+    
+    for rg in random_rgs:
+        rgs[rg] = {
+            'name': rg,
+            'location': "East US"
+        }
+
+    return rgs
+
+def generate_keyvaults_details(file_path, number_of_kvs, resource_groups):
+    
+    kvs = {}
+
+    aunit_names = read_lines_from_file(file_path)
+        
+    random_rg = random.sample(resource_groups)
+    selected_kvs = random.sample(aunit_names, number_of_kvs)
+    
+    for kv in selected_kvs:
+        kvs[kv] = {
+            'name': kv,
+            'location': "East US",
+            'resource_group_name': random_rg
+        }
+    
+    return kvs
+              
 @click.group()
 def cli():
     pass
@@ -433,13 +466,16 @@ def build(config, verbose):
     logging.info(f"Loading BadZure configuration from {config}")
     config = load_config(config)
     tenant_id = config['tenant']['tenant_id']
+    subscription_id =  config['tenant']['subscription_id']
     domain = config['tenant']['domain']
     
     max_users = config['tenant']['users']
     max_groups = config['tenant']['groups']
     max_apps =  config['tenant']['applications']
-    max_aunits =  config['tenant']['administrative_units']
-    
+    max_aunits =  config['tenant']['administrative_units']    
+    #max_kvs =  config['tenant']['key_vaults']
+    max_rgroups = config['tenant']['resource_groups']
+
 
     # Generate random users
     logging.info(f"Generating {max_users} random users")
@@ -456,6 +492,14 @@ def build(config, verbose):
     # Generate random administratuve units
     logging.info(f"Generating {max_aunits} random administrative units")
     administrative_units = generate_administrative_units_details('entity_data/administrative-units.txt', max_aunits)
+
+    # Generate random resource groups
+    logging.info(f"Generating {max_rgroups} resource groups")
+    resource_groups  = generate_resource_groups_details('entity_data/resource-groups.txt', max_rgroups)    
+    
+    # Generate random key vaults
+    #logging.info(f"Generating {max_kvs} key vaults")
+    #key_vaults = generate_keyvault_details('entity_data/administrative-units.txt', max_kvs)    
 
      # Create random assignments
     #logging.info("Creating random assignments for groups, administrative units, azure ad roles and graph api permissions")
@@ -503,15 +547,16 @@ def build(config, verbose):
         'attack_path_application_owner_assignments' : attack_path_application_owner_assignments,
         'attack_path_user_role_assignments' : attack_path_user_role_assignments,
         'attack_path_application_role_assignments' : attack_path_app_role_assignments,
-        'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments
+        'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments,
+        
+        'subscription_id': subscription_id, 
+        'resource_groups': resource_groups
     }
     
     # Write the Terraform variables to a file
     logging.info(f"Creating terraform.tfvars.json")
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
-
-
 
     # Initialize and apply the Terraform configuration
     logging.info(f"Calling terraform init.")

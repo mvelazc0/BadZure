@@ -119,3 +119,15 @@ variable "attack_path_application_owner_assignments" {
     user_principal_name = string
   }))
 }
+
+variable "subscription_id" {
+  description = "The subscription ID to use"
+  type        = string
+}
+
+variable "resource_groups" {
+  type = map(object({
+    name     = string
+    location = string
+  }))
+}

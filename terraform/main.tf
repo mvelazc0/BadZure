@@ -4,11 +4,21 @@ terraform {
       source  = "hashicorp/azuread"
       version = "2.50.0"
     }
+    azurerm = {
+      source  = "hashicorp/azurerm"
+      version = "4.18.0" 
+    }    
   }
 }
 
 provider "azuread" {
   tenant_id = var.tenant_id
+}
+
+provider "azurerm" {
+  features {}
+
+  subscription_id = var.subscription_id
 }
 
 data "azuread_domains" "example" {
@@ -27,7 +37,6 @@ resource "azuread_user" "users" {
   display_name        = each.value.display_name
   mail_nickname       = each.value.mail_nickname
   password            = each.value.password
-
 }
 
 resource "azuread_group" "groups" {
@@ -49,7 +58,6 @@ resource "azuread_service_principal" "spns" {
 
   client_id = azuread_application_registration.spns[each.key].client_id
 }
-
 
 resource "azuread_administrative_unit" "aunits" {
   for_each = var.administrative_units
@@ -120,4 +128,11 @@ resource "azuread_application_owner" "attack_path_application_owner_assignments"
 
   application_id    = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
   owner_object_id   = azuread_user.users[replace(each.value.user_principal_name, "@${var.domain}", "")].object_id
+}
+
+resource "azurerm_resource_group" "rgroups" {
+  for_each = var.resource_groups
+
+  name     = each.value.name
+  location = each.value.location
 }
