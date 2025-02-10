@@ -432,20 +432,20 @@ def generate_resource_groups_details(file_path, number_of_rgs):
 
     return rgs
 
-def generate_keyvaults_details(file_path, number_of_kvs, resource_groups):
+def generate_keyvault_details(file_path, number_of_kvs, resource_groups):
     
     kvs = {}
 
     aunit_names = read_lines_from_file(file_path)
-        
-    random_rg = random.sample(resource_groups)
+    random_rg = random.choice(list(resource_groups.keys()))
     selected_kvs = random.sample(aunit_names, number_of_kvs)
     
     for kv in selected_kvs:
         kvs[kv] = {
             'name': kv,
             'location': "East US",
-            'resource_group_name': random_rg
+            'resource_group_name': random_rg,
+            'sku_name' : "standard"
         }
     
     return kvs
@@ -473,7 +473,7 @@ def build(config, verbose):
     max_groups = config['tenant']['groups']
     max_apps =  config['tenant']['applications']
     max_aunits =  config['tenant']['administrative_units']    
-    #max_kvs =  config['tenant']['key_vaults']
+    max_kvs =  config['tenant']['key_vaults']
     max_rgroups = config['tenant']['resource_groups']
 
 
@@ -498,8 +498,8 @@ def build(config, verbose):
     resource_groups  = generate_resource_groups_details('entity_data/resource-groups.txt', max_rgroups)    
     
     # Generate random key vaults
-    #logging.info(f"Generating {max_kvs} key vaults")
-    #key_vaults = generate_keyvault_details('entity_data/administrative-units.txt', max_kvs)    
+    logging.info(f"Generating {max_kvs} key vaults")
+    key_vaults = generate_keyvault_details('entity_data/keyvaults.txt', max_kvs, resource_groups)    
 
      # Create random assignments
     #logging.info("Creating random assignments for groups, administrative units, azure ad roles and graph api permissions")
@@ -550,7 +550,8 @@ def build(config, verbose):
         'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments,
         
         'subscription_id': subscription_id, 
-        'resource_groups': resource_groups
+        'resource_groups': resource_groups,
+        'key_vaults': key_vaults
     }
     
     # Write the Terraform variables to a file

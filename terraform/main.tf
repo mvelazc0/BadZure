@@ -136,3 +136,13 @@ resource "azurerm_resource_group" "rgroups" {
   name     = each.value.name
   location = each.value.location
 }
+
+resource "azurerm_key_vault" "kvaults" {
+  for_each = var.key_vaults
+
+  name     = each.value.name
+  location = each.value.location
+  resource_group_name = each.value.resource_group_name
+  sku_name = each.value.sku_name
+  tenant_id = var.tenant_id
+}
