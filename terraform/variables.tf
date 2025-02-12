@@ -110,7 +110,6 @@ variable "attack_path_application_api_permission_assignments" {
   }))
 }
 
-
 variable "attack_path_application_owner_assignments" {
   description = "A map of application owner assignments used in an attack path"
   default = {}
@@ -139,5 +138,12 @@ variable "key_vaults" {
     location = string
     resource_group_name = string
     sku_name = string
+  }))
+}
+
+variable "attack_path_app_secret_assignments" {
+  type = map(object({
+    app_name   = string
+    key_vault  = string
   }))
 }

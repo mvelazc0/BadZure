@@ -21,7 +21,7 @@ Dev-Environment-KV
 Infra-Automation-KV
 CloudAdmin-Keys-KV
 CoreApp-Secrets-KV
-R&D-Innovation-KV
+RND-Innovation-KV
 Analytics-Data-KV
 Corporate-Mgmt-KV
 Client-Data-Vault

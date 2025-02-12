@@ -145,4 +145,32 @@ resource "azurerm_key_vault" "kvaults" {
   resource_group_name = each.value.resource_group_name
   sku_name = each.value.sku_name
   tenant_id = var.tenant_id
+  enable_rbac_authorization = true
+
+  depends_on = [azurerm_resource_group.rgroups]
+
+}
+
+resource "azuread_application_password" "attack_path_secrets" {
+  for_each        = var.attack_path_app_secret_assignments
+
+  application_id  = azuread_application_registration.spns[each.value.app_name].id
+  display_name    = "BadZureClientSecret"
+  end_date_relative = "8760h" # 1 year
+
+  depends_on = [azuread_application_registration.spns]
+
+}
+
+resource "azurerm_key_vault_secret" "attack_path_secrets" {
+  for_each     = var.attack_path_app_secret_assignments
+
+  name         = "client-secret-${each.value.app_name}"
+  value        = azuread_application_password.attack_path_secrets[each.key].value
+  key_vault_id = azurerm_key_vault.kvaults[each.value.key_vault].id
+
+  depends_on   = [
+    azurerm_key_vault.kvaults,
+    azuread_application_password.attack_path_secrets
+  ]  
 }

@@ -143,6 +143,29 @@ def get_ms_token_username_pass(tenant_id, username, password, scope):
         logging.error (f'Error obtaining token. Http response: {response.status_code}')
         logging.error (response.text)
 
+def create_kv_attack_path(applications, keyvaults):
+
+    attack_path_app_secret_assignments = {}
+
+
+    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    key = f"attack-path-{attack_path_id}"
+    
+    # Pick a random application registration
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)    
+
+    # Pick a random keyvault
+    kv_keys = list(keyvaults.keys())
+    random_kv = random.choice(kv_keys)    
+
+    attack_path_app_secret_assignments[key] = {
+        "app_name": random_app,
+        "key_vault": random_kv
+    }
+
+    return attack_path_app_secret_assignments
+
 def create_attack_path(attack_patch_config, users, applications, domain, password):
  
     app_owner_assignments = {}  
@@ -439,12 +462,13 @@ def generate_keyvault_details(file_path, number_of_kvs, resource_groups):
     aunit_names = read_lines_from_file(file_path)
     random_rg = random.choice(list(resource_groups.keys()))
     selected_kvs = random.sample(aunit_names, number_of_kvs)
-    
+
     for kv in selected_kvs:
-        kvs[kv] = {
-            'name': kv,
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+        kvs[kv +"-"+ random_suffix] = {
+            'name': kv +"-"+ random_suffix,
             'location': "East US",
-            'resource_group_name': random_rg,
+            'resource_group_name': random_rg ,
             'sku_name' : "standard"
         }
     
@@ -508,11 +532,13 @@ def build(config, verbose):
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
     
+    attack_path_app_secret_assignments = {}
+    
     user_creds = {}
   
     for attack_path in config['attack_paths']:
         
-        if config['attack_paths'][attack_path]['enabled']:
+        if config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='ServicePrincipalAbuse':
                         
             #password = config['attack_paths'][attack_path]['password']
             logging.info(f"Creating assignments for attack path '{attack_path}'")
@@ -523,8 +549,13 @@ def build(config, verbose):
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
             user_creds[attack_path] = initial_access
             #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
-                               
-   
+            
+        elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='KeyVaultAbuse':
+            
+            
+            attack_path_app_secret_assignments = create_kv_attack_path(applications, key_vaults)
+            print (attack_path_app_secret_assignments)
+
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
     group_vars = {group['display_name']: group for group in groups.values()}
@@ -551,7 +582,8 @@ def build(config, verbose):
         
         'subscription_id': subscription_id, 
         'resource_groups': resource_groups,
-        'key_vaults': key_vaults
+        'key_vaults': key_vaults,
+        'attack_path_app_secret_assignments': attack_path_app_secret_assignments
     }
     
     # Write the Terraform variables to a file
@@ -582,7 +614,7 @@ def build(config, verbose):
     write_users_to_file(users, domain, 'users.txt')
     logging.info("Created users.txt file.")
     logging.info("Attack Path Details")
-
+    """
     for attack_path in config['attack_paths']:
         
         if config['attack_paths'][attack_path]['enabled']:
@@ -602,7 +634,7 @@ def build(config, verbose):
                     file.write(f"Access Token: {tokens['access_token']}\n")
                     file.write(f"Refresh Token: {tokens['refresh_token']}\n")
                 logging.info(f"Tokens saved in tokens.txt!.")
-                  
+    """                  
     logging.info("Good bye.")
                   
 @cli.command()
