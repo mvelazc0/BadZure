@@ -134,7 +134,7 @@ def get_ms_token_username_pass(tenant_id, username, password, scope):
     }
 
     response = requests.post(token_url, data=token_data)
-    refresh_token = response.json().get('access_token')
+    refresh_token = response.json().get('refresh_token')
     access_token = response.json().get('access_token')
     
     if refresh_token and access_token:
