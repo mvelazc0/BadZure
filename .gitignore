@@ -140,3 +140,8 @@ users.txt
 
 # Ignore tokens file
 tokens.txt
+
+# Ignore all .pem, .key and .pfx files
+*.pem
+*.key
+*.pfx

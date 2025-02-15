@@ -186,3 +186,75 @@ resource "azurerm_storage_account" "sas" {
 
   depends_on = [azurerm_resource_group.rgroups]
 }
+
+resource "azuread_application_certificate" "attack_path_certs" {
+  for_each          = var.attack_path_app_cert_assignments
+
+  application_id    = azuread_application_registration.spns[each.value.app_name].id
+  type              = "AsymmetricX509Cert"
+  value             = file(each.value.certificate_path)  # Read certificate file
+  #end_date          = timeadd(timestamp(), "8760h")  # calculates 1 year from now in UTC
+  end_date          = "2025-05-01T01:02:03Z"
+
+}
+
+resource "azurerm_storage_container" "attack_path_containers" {
+  for_each            = var.attack_path_app_cert_assignments
+
+  name                = "cert-container"
+  storage_account_name = azurerm_storage_account.sas[each.value.storage_account].name
+  container_access_type = "private"
+
+  depends_on = [azurerm_storage_account.sas]
+}
+
+/*
+resource "azurerm_storage_blob" "attack_path_certs" {
+  for_each            = var.attack_path_app_cert_assignments
+
+  name                = "app-cert-${each.value.app_name}.pem"
+  storage_account_name = azurerm_storage_account.sas[each.value.storage_account].name
+  storage_container_name = azurerm_storage_container.attack_path_containers[each.key].name
+  type                = "Block"
+  source              = each.value.private_key_path  # Upload generated cert)
+
+  depends_on = [
+    azurerm_storage_container.attack_path_containers,
+    azuread_application_certificate.attack_path_certs
+  ]
+}
+*/
+
+
+# Upload the private key (.key)
+resource "azurerm_storage_blob" "attack_path_private_key" {
+  for_each               = var.attack_path_app_cert_assignments
+
+  name                   = "${each.value.app_name}-private-key.key"
+  storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
+  storage_container_name = azurerm_storage_container.attack_path_containers[each.key].name
+  type                   = "Block"
+  source                 = each.value.private_key_path  # Uploads the .key file
+
+  depends_on = [
+    azurerm_storage_container.attack_path_containers,
+    azuread_application_certificate.attack_path_certs
+  ]
+}
+
+# Upload the certificate (.pem)
+resource "azurerm_storage_blob" "attack_path_certificate" {
+  for_each               = var.attack_path_app_cert_assignments
+
+  name                   = "${each.value.app_name}-certificate.pem"
+  storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
+  storage_container_name = azurerm_storage_container.attack_path_containers[each.key].name
+  type                   = "Block"
+  source                 = each.value.certificate_path  # Uploads the .pem file
+
+  depends_on = [
+    azurerm_storage_container.attack_path_containers,
+    azuread_application_certificate.attack_path_certs
+  ]
+}
+

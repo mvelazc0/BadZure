@@ -4,11 +4,13 @@ import yaml
 import click
 from python_terraform import Terraform
 from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS, HIGH_PRIVILEGED_ENTRA_ROLES, HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS
+from src.crypto import generate_certificate_and_key
 import random
 import string
 import requests
 import time
 import logging
+import base64
 
 # Ensure AZURE_CONFIG_DIR is set the Azure CLI config directory
 os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
@@ -164,6 +166,33 @@ def create_kv_attack_path(applications, keyvaults):
     }
 
     return attack_path_app_secret_assignments
+
+def create_sa_attack_path(applications, storage_accounts):
+
+    attack_path_app_cert_assignments = {}
+
+    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    key = f"attack-path-{attack_path_id}"
+    
+    # Pick a random application registration
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)    
+
+    # Pick a random keyvault
+    sa_keys = list(storage_accounts.keys())
+    random_sa = random.choice(sa_keys)  
+    
+    # Generate a self-signed certificate
+    cert_path, key_path = generate_certificate_and_key(random_app)
+
+
+    attack_path_app_cert_assignments [key] = {
+        "app_name": random_app,
+        "storage_account": random_sa,
+        'certificate_path': cert_path,
+        'private_key_path': key_path
+    }
+    return attack_path_app_cert_assignments
 
 def create_attack_path(attack_patch_config, users, applications, domain, password):
  
@@ -473,7 +502,6 @@ def generate_keyvault_details(file_path, number_of_kvs, resource_groups):
     
     return kvs
 
-
 def generate_storage_account_details(file_path, number_of_sas, resource_groups):
     
     sas = {}
@@ -560,7 +588,7 @@ def build(config, verbose):
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
     
-    attack_path_app_secret_assignments = {}
+    attack_path_app_secret_assignments, attack_path_app_cert_assignments = {}, {}
     
     user_creds = {}
   
@@ -579,10 +607,12 @@ def build(config, verbose):
             #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
             
         elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='KeyVaultAbuse':
-            
-            
+                        
             attack_path_app_secret_assignments = create_kv_attack_path(applications, key_vaults)
-            print (attack_path_app_secret_assignments)
+            
+        elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='StorageAccountAbuse':
+
+            attack_path_app_cert_assignments = create_sa_attack_path(applications, storage_accounts)
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -613,6 +643,7 @@ def build(config, verbose):
         'key_vaults': key_vaults,
         'attack_path_app_secret_assignments': attack_path_app_secret_assignments,
         'storage_accounts': storage_accounts,
+        'attack_path_app_cert_assignments': attack_path_app_cert_assignments
     }
     
     # Write the Terraform variables to a file

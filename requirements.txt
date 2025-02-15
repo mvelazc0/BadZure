@@ -2,3 +2,4 @@ requests
 pyyaml
 click
 python-terraform
+cryptography

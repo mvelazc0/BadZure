@@ -157,3 +157,12 @@ variable "storage_accounts" {
     account_replication_type = string
   }))
 }
+
+variable "attack_path_app_cert_assignments" {
+  type = map(object({
+    app_name           = string
+    storage_account    = string
+    certificate_path   = string
+    private_key_path   = string
+  }))
+}
