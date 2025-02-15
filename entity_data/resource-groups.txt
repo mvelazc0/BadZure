@@ -21,7 +21,7 @@ Dev-Test-Environment-RG
 Infra-Automation-RG
 CloudAdmin-Resources-RG
 CoreApp-Services-RG
-R&D-Innovation-RG
+RND-Innovation-RG
 Analytics-Data-RG
 Corporate-IT-RG
 Client-Services-RG

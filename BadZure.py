@@ -147,7 +147,6 @@ def create_kv_attack_path(applications, keyvaults):
 
     attack_path_app_secret_assignments = {}
 
-
     attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
     key = f"attack-path-{attack_path_id}"
     
@@ -473,6 +472,29 @@ def generate_keyvault_details(file_path, number_of_kvs, resource_groups):
         }
     
     return kvs
+
+
+def generate_storage_account_details(file_path, number_of_sas, resource_groups):
+    
+    sas = {}
+    sa_names = read_lines_from_file(file_path)  
+    selected_sas = random.sample(sa_names, number_of_sas)  
+
+    for sa in selected_sas:
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=3))
+        unique_sa_name = f"{sa}{random_suffix}" 
+        random_rg = random.choice(list(resource_groups.keys())) 
+
+        sas[unique_sa_name] = {
+            'name': unique_sa_name.lower(),
+            'location': "East US",
+            'resource_group_name': random_rg,
+            'account_tier': "Standard",
+            'account_replication_type': "LRS"
+        }
+
+    return sas
+
               
 @click.group()
 def cli():
@@ -497,8 +519,10 @@ def build(config, verbose):
     max_groups = config['tenant']['groups']
     max_apps =  config['tenant']['applications']
     max_aunits =  config['tenant']['administrative_units']    
+    
+    max_rgroups = config['tenant']['resource_groups']    
     max_kvs =  config['tenant']['key_vaults']
-    max_rgroups = config['tenant']['resource_groups']
+    max_sas =  config['tenant']['storage_accounts']
 
 
     # Generate random users
@@ -524,6 +548,10 @@ def build(config, verbose):
     # Generate random key vaults
     logging.info(f"Generating {max_kvs} key vaults")
     key_vaults = generate_keyvault_details('entity_data/keyvaults.txt', max_kvs, resource_groups)    
+
+    # Generate storage accounts
+    logging.info(f"Generating {max_sas} storage accounts")
+    storage_accounts = generate_storage_account_details('entity_data/storage-accounts.txt', max_sas, resource_groups)       
 
      # Create random assignments
     #logging.info("Creating random assignments for groups, administrative units, azure ad roles and graph api permissions")
@@ -583,7 +611,8 @@ def build(config, verbose):
         'subscription_id': subscription_id, 
         'resource_groups': resource_groups,
         'key_vaults': key_vaults,
-        'attack_path_app_secret_assignments': attack_path_app_secret_assignments
+        'attack_path_app_secret_assignments': attack_path_app_secret_assignments,
+        'storage_accounts': storage_accounts,
     }
     
     # Write the Terraform variables to a file

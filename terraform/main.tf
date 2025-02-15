@@ -174,3 +174,15 @@ resource "azurerm_key_vault_secret" "attack_path_secrets" {
     azuread_application_password.attack_path_secrets
   ]  
 }
+
+resource "azurerm_storage_account" "sas" {
+  for_each = var.storage_accounts
+
+  name                     = each.value.name
+  location                 = each.value.location
+  resource_group_name      = each.value.resource_group_name
+  account_tier             = each.value.account_tier
+  account_replication_type = each.value.account_replication_type
+
+  depends_on = [azurerm_resource_group.rgroups]
+}

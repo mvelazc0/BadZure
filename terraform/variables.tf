@@ -147,3 +147,13 @@ variable "attack_path_app_secret_assignments" {
     key_vault  = string
   }))
 }
+
+variable "storage_accounts" {
+  type = map(object({
+    name                  = string
+    location              = string
+    resource_group_name   = string
+    account_tier          = string
+    account_replication_type = string
+  }))
+}
