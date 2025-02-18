@@ -25,7 +25,6 @@ data "azuread_domains" "example" {
   only_initial = true
 }
 
-
 data "azuread_service_principal" "microsoft_graph" {
   display_name = "Microsoft Graph"
 }
@@ -258,3 +257,156 @@ resource "azurerm_storage_blob" "attack_path_certificate" {
   ]
 }
 
+resource "azurerm_linux_virtual_machine" "linux_vms" {
+  for_each            = { for k, v in var.virtual_machines : k => v if v.os_type == "Linux" }
+
+  name                            = each.value.name
+  location                        = each.value.location
+  resource_group_name             = each.value.resource_group_name
+  size                            = each.value.vm_size
+  disable_password_authentication = false  
+  admin_username                  = each.value.admin_username
+  admin_password                  = each.value.admin_password
+  
+  network_interface_ids = [azurerm_network_interface.vm_nics[each.key].id]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "Canonical"
+    offer     = "UbuntuServer"
+    sku       = "18.04-LTS"
+    version   = "latest"
+  }
+
+  depends_on = [azurerm_network_interface.vm_nics]
+}
+
+resource "azurerm_windows_virtual_machine" "windows_vms" {
+  for_each            = { for k, v in var.virtual_machines : k => v if v.os_type == "Windows" }
+
+  name                = each.value.name
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  size                = each.value.vm_size
+  admin_username      = each.value.admin_username
+  admin_password      = each.value.admin_password
+
+  network_interface_ids = [azurerm_network_interface.vm_nics[each.key].id]
+
+  os_disk {
+    caching              = "ReadWrite"
+    storage_account_type = "Standard_LRS"
+  }
+
+  source_image_reference {
+    publisher = "MicrosoftWindowsServer"
+    offer     = "WindowsServer"
+    sku       = "2019-Datacenter"
+    version   = "latest"
+  }
+
+  depends_on = [azurerm_network_interface.vm_nics]
+}
+
+resource "azurerm_public_ip" "vm_public_ips" {
+  for_each            = var.virtual_machines
+
+  name                = "${each.key}-public-ip"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  allocation_method   = "Static"
+
+  depends_on = [azurerm_resource_group.rgroups] 
+}
+
+
+resource "azurerm_network_interface" "vm_nics" {
+  for_each = var.virtual_machines
+
+  name                = "${each.value.name}-nic"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+
+  ip_configuration {
+    name                          = "internal"
+    subnet_id                     = azurerm_subnet.vm_subnets[each.key].id 
+    private_ip_address_allocation = "Dynamic"
+    public_ip_address_id          = azurerm_public_ip.vm_public_ips[each.key].id  
+
+  }
+
+  depends_on = [
+      azurerm_subnet.vm_subnets,
+      azurerm_public_ip.vm_public_ips
+      ]
+}
+
+resource "azurerm_virtual_network" "vm_vnets" {
+  for_each            = { for k, v in var.virtual_machines : k => v }
+
+  name                = "${each.value.resource_group_name}-vnet"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  address_space       = ["10.0.0.0/16"]
+
+  depends_on = [azurerm_resource_group.rgroups]  # 
+
+}
+
+resource "azurerm_subnet" "vm_subnets" {
+  for_each            = var.virtual_machines
+
+  name                 = "${each.value.name}-subnet"
+  resource_group_name  = each.value.resource_group_name
+  virtual_network_name = azurerm_virtual_network.vm_vnets[each.key].name
+  address_prefixes     = ["10.0.1.0/24"]
+
+  depends_on           = [azurerm_virtual_network.vm_vnets]
+}
+
+resource "azurerm_network_security_group" "vm_nsg" {
+  for_each = var.virtual_machines
+
+  name                = "${each.key}-nsg"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+
+  security_rule {
+    name                       = "Allow-RDP"
+    priority                   = 1000
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "3389"
+    source_address_prefix      = var.public_ip 
+    destination_address_prefix = "*"
+  }
+
+  security_rule {
+    name                       = "Allow-SSH"
+    priority                   = 1001
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "22"
+    source_address_prefix      = var.public_ip
+    destination_address_prefix = "*"
+  }
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
+resource "azurerm_network_interface_security_group_association" "vm_nic_nsg" {
+  for_each = var.virtual_machines
+
+  network_interface_id      = azurerm_network_interface.vm_nics[each.key].id
+  network_security_group_id = azurerm_network_security_group.vm_nsg[each.key].id
+
+  depends_on = [azurerm_network_interface.vm_nics]
+}

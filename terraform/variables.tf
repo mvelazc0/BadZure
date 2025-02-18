@@ -13,6 +13,11 @@ variable "domain" {
   type        = string
 }
 
+variable "public_ip" {
+  description = "The public IP address of the machine running the tool"
+  type        = string
+}
+
 variable "users" {
   type = map(object({
     user_principal_name = string
@@ -164,5 +169,17 @@ variable "attack_path_app_cert_assignments" {
     storage_account    = string
     certificate_path   = string
     private_key_path   = string
+  }))
+}
+
+variable "virtual_machines" {
+  type = map(object({
+    name                  = string
+    location              = string
+    resource_group_name   = string
+    vm_size               = string
+    admin_username        = string
+    admin_password        = string
+    os_type               = string # "Windows" or "Linux"
   }))
 }

@@ -5,6 +5,7 @@ import click
 from python_terraform import Terraform
 from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS, HIGH_PRIVILEGED_ENTRA_ROLES, HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS
 from src.crypto import generate_certificate_and_key
+import src.utils as utils
 import random
 import string
 import requests
@@ -106,44 +107,7 @@ def write_users_to_file(users, domain, file_path):
     with open(file_path, 'w') as file:
         for user in users.values():
             file.write(f"{user['user_principal_name']}@{domain}\n")
-
-def get_ms_token_username_pass(tenant_id, username, password, scope):
-
-    # https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth-ropc
-
-    #logging.info("Using resource owner password OAuth flow to obtain a token")
-
-    token_url = f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'
-
-    full_scope = f'{scope} offline_access'
-
-    token_data = {
-
-        'client_id': '1950a258-227b-4e31-a9cf-717495945fc2', # Microsoft Azure PowerShell
-        #'client_id': '00b41c95-dab0-4487-9791-b9d2c32c80f2',  # Office 365 Management. Works to read emails Graph and EWS.
-        #'client_id': 'd3590ed6-52b3-4102-aeff-aad2292ab01c',  # Microsoft Office. Also works to read emails Graph and EWS.
-        #'client_id': '00000002-0000-0ff1-ce00-000000000000', # Office 365 Exchange Online
-        #'client_id': '00000006-0000-0ff1-ce00-000000000000', # Microsoft Office 365 Portal
-        #'client_id': 'fb78d390-0c51-40cd-8e17-fdbfab77341b', # Microsoft Exchange REST API Based Powershell
-        # 'client_id': '00000003-0000-0000-c000-000000000000', # Microsoft Graph
-        #'client_id': 'de8bc8b5-d9f9-48b1-a8ad-b748da725064', # Graph Explorer
-        #'client_id': '14d82eec-204b-4c2f-b7e8-296a70dab67e', # Microsoft Graph Command Line Tools	
-
-        'grant_type': 'password',
-        'username': username,
-        'password': password,
-        'scope': full_scope
-    }
-
-    response = requests.post(token_url, data=token_data)
-    refresh_token = response.json().get('refresh_token')
-    access_token = response.json().get('access_token')
-    
-    if refresh_token and access_token:
-        return {'access_token': access_token, 'refresh_token': refresh_token}
-    else:
-        logging.error (f'Error obtaining token. Http response: {response.status_code}')
-        logging.error (response.text)
+            
 
 def create_kv_attack_path(applications, keyvaults):
 
@@ -523,6 +487,33 @@ def generate_storage_account_details(file_path, number_of_sas, resource_groups):
 
     return sas
 
+def generate_vm_details(file_path, number_of_vms, resource_groups):
+    """
+    Generate random virtual machine details (Linux & Windows) and assign them to random resource groups.
+    """
+    vms = {}
+
+    vm_names = read_lines_from_file(file_path)
+    selected_vms = random.sample(vm_names, number_of_vms)
+
+    for vm in selected_vms:
+        random_rg = random.choice(list(resource_groups.keys()))
+        #os_type = random.choice(["Linux", "Windows"])
+        os_type = "Linux"
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+        vm_name = f"{vm}-{random_suffix}"
+
+        vms[vm_name] = {
+            "name": vm_name,
+            "location": "East US",
+            "resource_group_name": random_rg,
+            "vm_size": "Standard_D2s_v3",
+            "admin_username": "badzureadmin",
+            "admin_password": generate_random_password(12),
+            "os_type": os_type
+        }
+
+    return vms
               
 @click.group()
 def cli():
@@ -551,7 +542,9 @@ def build(config, verbose):
     max_rgroups = config['tenant']['resource_groups']    
     max_kvs =  config['tenant']['key_vaults']
     max_sas =  config['tenant']['storage_accounts']
+    max_vms =  config['tenant']['virtual_machines']
 
+    public_ip = utils.get_public_ip()
 
     # Generate random users
     logging.info(f"Generating {max_users} random users")
@@ -580,8 +573,12 @@ def build(config, verbose):
     # Generate storage accounts
     logging.info(f"Generating {max_sas} storage accounts")
     storage_accounts = generate_storage_account_details('entity_data/storage-accounts.txt', max_sas, resource_groups)       
+    
+    # Generate virtual machines
+    logging.info(f"Generating {max_vms} storage accounts")
+    virtual_machines = generate_vm_details('entity_data/virtual-machines.txt', max_vms, resource_groups)       
 
-     # Create random assignments
+     # Create random assignments     
     #logging.info("Creating random assignments for groups, administrative units, azure ad roles and graph api permissions")
     
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments = create_random_assignments(users, groups, administrative_units, applications)
@@ -623,6 +620,7 @@ def build(config, verbose):
     tf_vars = {
         'tenant_id': tenant_id,
         'domain': domain,
+        'public_ip' : public_ip,
         'users': user_vars,
         'azure_config_dir': azure_config_dir,
         'groups': group_vars,
@@ -643,7 +641,8 @@ def build(config, verbose):
         'key_vaults': key_vaults,
         'attack_path_app_secret_assignments': attack_path_app_secret_assignments,
         'storage_accounts': storage_accounts,
-        'attack_path_app_cert_assignments': attack_path_app_cert_assignments
+        'attack_path_app_cert_assignments': attack_path_app_cert_assignments,
+        'virtual_machines': virtual_machines
     }
     
     # Write the Terraform variables to a file
