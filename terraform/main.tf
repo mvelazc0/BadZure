@@ -151,7 +151,7 @@ resource "azurerm_key_vault" "kvaults" {
 }
 
 resource "azuread_application_password" "attack_path_kv_secrets" {
-  for_each        = var.attack_path_kv_mi_abuse_assignments
+  for_each        = var.attack_path_kv_abuse_assignments
 
   application_id  = azuread_application_registration.spns[each.value.app_name].id
   display_name    = "BadZureClientSecret"
@@ -162,7 +162,7 @@ resource "azuread_application_password" "attack_path_kv_secrets" {
 }
 
 resource "azurerm_key_vault_secret" "attack_path_kv_secrets" {
-  for_each     = var.attack_path_kv_mi_abuse_assignments
+  for_each     = var.attack_path_kv_abuse_assignments
 
   name         = "client-secret-${each.value.app_name}"
   value        = azuread_application_password.attack_path_kv_secrets[each.key].value
@@ -417,17 +417,25 @@ resource "azurerm_role_assignment" "attack_path_storage_mi_access" {
   depends_on = [azurerm_storage_account.sas, azurerm_linux_virtual_machine.linux_vms, azurerm_windows_virtual_machine.windows_vms]
 }
 
-resource "azurerm_role_assignment" "attack_path_kv_mi_access" {
-  for_each = var.attack_path_kv_mi_abuse_assignments
+resource "azurerm_role_assignment" "attack_path_kv_access" {
+  for_each = var.attack_path_kv_abuse_assignments
 
   scope                = azurerm_key_vault.kvaults[each.value.key_vault].id
   role_definition_name = "Key Vault Contributor"
 
   principal_id = (
+    each.value.principal_type == "user" ? 
+      azuread_user.users[each.value.principal_name].id :
+    each.value.principal_type == "service_principal" ? 
+      azuread_service_principal.spns[each.value.principal_name].id :
     contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ? 
-    azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id : 
-    azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
+      azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id :
+      azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
   )
 
-  depends_on = [azurerm_key_vault.kvaults, azurerm_linux_virtual_machine.linux_vms, azurerm_windows_virtual_machine.windows_vms]
+  depends_on = [
+    azurerm_key_vault.kvaults, 
+    azurerm_linux_virtual_machine.linux_vms, 
+    azurerm_windows_virtual_machine.windows_vms
+  ]
 }

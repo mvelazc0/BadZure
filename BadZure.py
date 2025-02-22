@@ -109,53 +109,40 @@ def write_users_to_file(users, domain, file_path):
             file.write(f"{user['user_principal_name']}@{domain}\n")
             
 
-def create_kv_attack_path(applications, keyvaults):
+def create_kv_attack_path_flexible(principal_type, applications, keyvaults, users, service_principals, virtual_machines):
 
-    attack_path_app_secret_assignments = {}
+    attack_path_kv_abuse_assignments = {}
 
-    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
     key = f"attack-path-{attack_path_id}"
-    
-    # Pick a random application registration
+
+    # Pick a random application
     app_keys = list(applications.keys())
-    random_app = random.choice(app_keys)    
+    random_app = random.choice(app_keys)
 
-    # Pick a random keyvault
+    # Pick a random Key Vault
     kv_keys = list(keyvaults.keys())
-    random_kv = random.choice(kv_keys)    
+    random_kv = random.choice(kv_keys)
 
-    attack_path_app_secret_assignments[key] = {
-        "app_name": random_app,
-        "key_vault": random_kv
-    }
+    if principal_type == "user":
+        principal_keys = list(users.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "service_principal":
+        principal_keys = list(service_principals.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "managed_identity":
+        principal_keys = list(virtual_machines.keys())
+        random_principal = random.choice(principal_keys)
 
-    return attack_path_app_secret_assignments
-
-def create_kv_mi_attack_path(applications, keyvaults, virtual_machines):
-
-    attack_path_kv_mi_abuse_assignments = {}
-
-    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    key = f"attack-path-{attack_path_id}"
-    
-    # Pick a random application registration
-    app_keys = list(applications.keys())
-    random_app = random.choice(app_keys)    
-
-    # Pick a random keyvault
-    kv_keys = list(keyvaults.keys())
-    random_kv = random.choice(kv_keys)    
-    
-    vm_keys = list(virtual_machines.keys())
-    random_vm = random.choice(vm_keys)    
-
-    attack_path_kv_mi_abuse_assignments[key] = {
-        "app_name": random_app,
+    attack_path_kv_abuse_assignments[key] = {
         "key_vault": random_kv,
-        "virtual_machine": random_vm,        
+        "principal_type": principal_type,
+        "principal_name": random_principal,  # Can be user, service principal, or VM
+        "virtual_machine": random_principal if principal_type == "managed_identity" else None,
+        "app_name": random_app 
     }
 
-    return attack_path_kv_mi_abuse_assignments
+    return attack_path_kv_abuse_assignments
 
 def create_sa_attack_path(applications, storage_accounts):
 
@@ -640,30 +627,33 @@ def build(config, verbose):
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
     
-    attack_path_app_secret_assignments, attack_path_app_cert_assignments, attack_path_storage_mi_abuse_assignments, attack_path_kv_mi_abuse_assignments = {}, {}, {}, {}
+    attack_path_app_cert_assignments, attack_path_storage_mi_abuse_assignments = {}, {}
+    
+    attack_path_kv_abuse_assignments = {}
     
     user_creds = {}
   
-    for attack_path in config['attack_paths']:
+    for attack_path_name, attack_path_data in config['attack_paths'].items():
         
-        if config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='ServicePrincipalAbuse':
+        if attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='ServicePrincipalAbuse':
                         
             #password = config['attack_paths'][attack_path]['password']
-            logging.info(f"Creating assignments for attack path '{attack_path}'")
-            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path], users, applications, domain, "test")
+            logging.info(f"Creating assignments for attack path '{attack_path_name}'")
+            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(attack_path_data, users, applications, domain, "test")
             attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
             attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
-            user_creds[attack_path] = initial_access
+            user_creds[attack_path_name] = initial_access
             #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
             
-        elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='KeyVaultAbuse':
+        #elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='KeyVaultAbuse':
+        elif attack_path_data['enabled'] and attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
                         
-            #attack_path_app_secret_assignments = create_kv_attack_path(applications, key_vaults)
-            attack_path_kv_mi_abuse_assignments = create_kv_mi_attack_path(applications, key_vaults, virtual_machines)
+            principal_type = attack_path_data['principal_type']
+            attack_path_kv_abuse_assignments = create_kv_attack_path_flexible(principal_type, applications, key_vaults, users, applications, virtual_machines)
             
-        elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='StorageAccountAbuse':
+        elif attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='StorageAccountAbuse':
 
             #attack_path_app_cert_assignments = create_sa_attack_path_vm(applications, storage_accounts, virtual_machines)
             attack_path_storage_mi_abuse_assignments = create_storage_mi_attack_path(applications, storage_accounts, virtual_machines)
@@ -675,34 +665,42 @@ def build(config, verbose):
     administrative_unit_vars = {au['display_name']: au for au in administrative_units.values()}
 
     tf_vars = {
+        
+        # Environment
         'tenant_id': tenant_id,
         'domain': domain,
         'public_ip' : public_ip,
+        'subscription_id': subscription_id, 
+        
+        # Entities
         'users': user_vars,
         'azure_config_dir': azure_config_dir,
         'groups': group_vars,
         'applications': application_vars,
         'administrative_units': administrative_unit_vars,
+        
+        # ARM Resources
+        'resource_groups': resource_groups,
+        'key_vaults': key_vaults,
+        'storage_accounts': storage_accounts,
+        'virtual_machines': virtual_machines,        
+        
+        # Assignments
         'user_group_assignments': user_group_assignments,
         'user_au_assignments': user_au_assignments,
         'user_role_assignments': user_role_assignments,
         'app_role_assignments': app_role_assignments,
         'app_api_permission_assignments' : app_api_permission_assignments,
+        
+        # Attack Paths
         'attack_path_application_owner_assignments' : attack_path_application_owner_assignments,
         'attack_path_user_role_assignments' : attack_path_user_role_assignments,
         'attack_path_application_role_assignments' : attack_path_app_role_assignments,
         'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments,
         
-        'subscription_id': subscription_id, 
-        'resource_groups': resource_groups,
-        'key_vaults': key_vaults,
-        'attack_path_app_secret_assignments': attack_path_app_secret_assignments,
-        'storage_accounts': storage_accounts,
         'attack_path_app_cert_assignments': attack_path_app_cert_assignments,
-        'virtual_machines': virtual_machines,
-        
         'attack_path_storage_mi_abuse_assignments': attack_path_storage_mi_abuse_assignments,
-        'attack_path_kv_mi_abuse_assignments': attack_path_kv_mi_abuse_assignments
+        'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments
     }
     
     # Write the Terraform variables to a file
