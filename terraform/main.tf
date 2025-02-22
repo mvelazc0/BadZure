@@ -150,8 +150,8 @@ resource "azurerm_key_vault" "kvaults" {
 
 }
 
-resource "azuread_application_password" "attack_path_secrets" {
-  for_each        = var.attack_path_app_secret_assignments
+resource "azuread_application_password" "attack_path_kv_secrets" {
+  for_each        = var.attack_path_kv_mi_abuse_assignments
 
   application_id  = azuread_application_registration.spns[each.value.app_name].id
   display_name    = "BadZureClientSecret"
@@ -161,16 +161,16 @@ resource "azuread_application_password" "attack_path_secrets" {
 
 }
 
-resource "azurerm_key_vault_secret" "attack_path_secrets" {
-  for_each     = var.attack_path_app_secret_assignments
+resource "azurerm_key_vault_secret" "attack_path_kv_secrets" {
+  for_each     = var.attack_path_kv_mi_abuse_assignments
 
   name         = "client-secret-${each.value.app_name}"
-  value        = azuread_application_password.attack_path_secrets[each.key].value
+  value        = azuread_application_password.attack_path_kv_secrets[each.key].value
   key_vault_id = azurerm_key_vault.kvaults[each.value.key_vault].id
 
   depends_on   = [
     azurerm_key_vault.kvaults,
-    azuread_application_password.attack_path_secrets
+    azuread_application_password.attack_path_kv_secrets
   ]  
 }
 
@@ -186,7 +186,7 @@ resource "azurerm_storage_account" "sas" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
-resource "azuread_application_certificate" "attack_path_certs" {
+resource "azuread_application_certificate" "attack_path_storage_certificates" {
   for_each          = var.attack_path_storage_mi_abuse_assignments
 
   application_id    = azuread_application_registration.spns[each.value.app_name].id
@@ -197,7 +197,7 @@ resource "azuread_application_certificate" "attack_path_certs" {
 
 }
 
-resource "azurerm_storage_container" "attack_path_containers" {
+resource "azurerm_storage_container" "attack_path_storage_containers" {
   for_each            = var.attack_path_storage_mi_abuse_assignments
 
   name                = "cert-container"
@@ -208,34 +208,34 @@ resource "azurerm_storage_container" "attack_path_containers" {
 }
 
 # Upload the private key (.key)
-resource "azurerm_storage_blob" "attack_path_private_key" {
+resource "azurerm_storage_blob" "attack_path_storage_key_upload" {
   for_each               = var.attack_path_storage_mi_abuse_assignments
 
   name                   = "${each.value.app_name}-private-key.key"
   storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
-  storage_container_name = azurerm_storage_container.attack_path_containers[each.key].name
+  storage_container_name = azurerm_storage_container.attack_path_storage_containers[each.key].name
   type                   = "Block"
   source                 = each.value.private_key_path  # Uploads the .key file
 
   depends_on = [
-    azurerm_storage_container.attack_path_containers,
-    azuread_application_certificate.attack_path_certs
+    azurerm_storage_container.attack_path_storage_containers,
+    azuread_application_certificate.attack_path_storage_certificates
   ]
 }
 
 # Upload the certificate (.pem)
-resource "azurerm_storage_blob" "attack_path_certificate" {
+resource "azurerm_storage_blob" "attack_path_storage_pem_upload" {
   for_each               = var.attack_path_storage_mi_abuse_assignments
 
   name                   = "${each.value.app_name}-certificate.pem"
   storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
-  storage_container_name = azurerm_storage_container.attack_path_containers[each.key].name
+  storage_container_name = azurerm_storage_container.attack_path_storage_containers[each.key].name
   type                   = "Block"
   source                 = each.value.certificate_path  # Uploads the .pem file
 
   depends_on = [
-    azurerm_storage_container.attack_path_containers,
-    azuread_application_certificate.attack_path_certs
+    azurerm_storage_container.attack_path_storage_containers,
+    azuread_application_certificate.attack_path_storage_certificates
   ]
 }
 
@@ -402,7 +402,7 @@ resource "azurerm_network_interface_security_group_association" "vm_nic_nsg" {
   depends_on = [azurerm_network_interface.vm_nics]
 }
 
-resource "azurerm_role_assignment" "attack_path_vm_storage_access" {
+resource "azurerm_role_assignment" "attack_path_storage_mi_access" {
   for_each = var.attack_path_storage_mi_abuse_assignments
 
   scope                = azurerm_storage_account.sas[each.value.storage_account].id
@@ -415,4 +415,19 @@ resource "azurerm_role_assignment" "attack_path_vm_storage_access" {
   )
 
   depends_on = [azurerm_storage_account.sas, azurerm_linux_virtual_machine.linux_vms, azurerm_windows_virtual_machine.windows_vms]
+}
+
+resource "azurerm_role_assignment" "attack_path_kv_mi_access" {
+  for_each = var.attack_path_kv_mi_abuse_assignments
+
+  scope                = azurerm_key_vault.kvaults[each.value.key_vault].id
+  role_definition_name = "Key Vault Contributor"
+
+  principal_id = (
+    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ? 
+    azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id : 
+    azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
+  )
+
+  depends_on = [azurerm_key_vault.kvaults, azurerm_linux_virtual_machine.linux_vms, azurerm_windows_virtual_machine.windows_vms]
 }

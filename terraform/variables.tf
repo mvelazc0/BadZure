@@ -188,8 +188,17 @@ variable "attack_path_storage_mi_abuse_assignments" {
   type = map(object({
     app_name          = string
     storage_account   = string
-    virtual_machine   = string  # New VM selection
+    virtual_machine   = string 
     certificate_path  = string
     private_key_path  = string    
+  }))
+}
+
+variable "attack_path_kv_mi_abuse_assignments" {
+  type = map(object({
+    app_name          = string
+    key_vault         = string
+    virtual_machine   = string  
+
   }))
 }

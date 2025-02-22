@@ -640,7 +640,7 @@ def build(config, verbose):
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
     
-    attack_path_app_secret_assignments, attack_path_app_cert_assignments, attack_path_storage_mi_abuse_assignments = {}, {}, {}
+    attack_path_app_secret_assignments, attack_path_app_cert_assignments, attack_path_storage_mi_abuse_assignments, attack_path_kv_mi_abuse_assignments = {}, {}, {}, {}
     
     user_creds = {}
   
@@ -660,7 +660,8 @@ def build(config, verbose):
             
         elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='KeyVaultAbuse':
                         
-            attack_path_app_secret_assignments = create_kv_attack_path(applications, key_vaults)
+            #attack_path_app_secret_assignments = create_kv_attack_path(applications, key_vaults)
+            attack_path_kv_mi_abuse_assignments = create_kv_mi_attack_path(applications, key_vaults, virtual_machines)
             
         elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='StorageAccountAbuse':
 
@@ -700,7 +701,8 @@ def build(config, verbose):
         'attack_path_app_cert_assignments': attack_path_app_cert_assignments,
         'virtual_machines': virtual_machines,
         
-        'attack_path_storage_mi_abuse_assignments': attack_path_storage_mi_abuse_assignments
+        'attack_path_storage_mi_abuse_assignments': attack_path_storage_mi_abuse_assignments,
+        'attack_path_kv_mi_abuse_assignments': attack_path_kv_mi_abuse_assignments
     }
     
     # Write the Terraform variables to a file
