@@ -131,6 +131,32 @@ def create_kv_attack_path(applications, keyvaults):
 
     return attack_path_app_secret_assignments
 
+def create_kv_mi_attack_path(applications, keyvaults, virtual_machines):
+
+    attack_path_kv_mi_abuse_assignments = {}
+
+    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    key = f"attack-path-{attack_path_id}"
+    
+    # Pick a random application registration
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)    
+
+    # Pick a random keyvault
+    kv_keys = list(keyvaults.keys())
+    random_kv = random.choice(kv_keys)    
+    
+    vm_keys = list(virtual_machines.keys())
+    random_vm = random.choice(vm_keys)    
+
+    attack_path_kv_mi_abuse_assignments[key] = {
+        "app_name": random_app,
+        "key_vault": random_kv,
+        "virtual_machine": random_vm,        
+    }
+
+    return attack_path_kv_mi_abuse_assignments
+
 def create_sa_attack_path(applications, storage_accounts):
 
     attack_path_app_cert_assignments = {}
@@ -157,6 +183,35 @@ def create_sa_attack_path(applications, storage_accounts):
         'private_key_path': key_path
     }
     return attack_path_app_cert_assignments
+
+def create_storage_mi_attack_path(applications, storage_accounts, virtual_machines):
+
+    attack_path_storage_mi_abuse_assignments = {}
+
+    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    key = f"attack-path-{attack_path_id}"    
+
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)    
+
+    sa_keys = list(storage_accounts.keys())
+    random_sa = random.choice(sa_keys)    
+
+    vm_keys = list(virtual_machines.keys())
+    random_vm = random.choice(vm_keys)
+
+    # Generate a self-signed certificate
+    cert_path, key_path = generate_certificate_and_key(random_app)
+
+    attack_path_storage_mi_abuse_assignments[key] = {
+        "app_name": random_app,
+        "storage_account": random_sa,
+        "virtual_machine": random_vm,
+        'certificate_path': cert_path,
+        'private_key_path': key_path,
+    }
+
+    return attack_path_storage_mi_abuse_assignments
 
 def create_attack_path(attack_patch_config, users, applications, domain, password):
  
@@ -585,7 +640,7 @@ def build(config, verbose):
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
     
-    attack_path_app_secret_assignments, attack_path_app_cert_assignments = {}, {}
+    attack_path_app_secret_assignments, attack_path_app_cert_assignments, attack_path_storage_mi_abuse_assignments = {}, {}, {}
     
     user_creds = {}
   
@@ -609,7 +664,8 @@ def build(config, verbose):
             
         elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='StorageAccountAbuse':
 
-            attack_path_app_cert_assignments = create_sa_attack_path(applications, storage_accounts)
+            #attack_path_app_cert_assignments = create_sa_attack_path_vm(applications, storage_accounts, virtual_machines)
+            attack_path_storage_mi_abuse_assignments = create_storage_mi_attack_path(applications, storage_accounts, virtual_machines)
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -642,7 +698,9 @@ def build(config, verbose):
         'attack_path_app_secret_assignments': attack_path_app_secret_assignments,
         'storage_accounts': storage_accounts,
         'attack_path_app_cert_assignments': attack_path_app_cert_assignments,
-        'virtual_machines': virtual_machines
+        'virtual_machines': virtual_machines,
+        
+        'attack_path_storage_mi_abuse_assignments': attack_path_storage_mi_abuse_assignments
     }
     
     # Write the Terraform variables to a file

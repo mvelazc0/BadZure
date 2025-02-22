@@ -183,3 +183,13 @@ variable "virtual_machines" {
     os_type               = string # "Windows" or "Linux"
   }))
 }
+
+variable "attack_path_storage_mi_abuse_assignments" {
+  type = map(object({
+    app_name          = string
+    storage_account   = string
+    virtual_machine   = string  # New VM selection
+    certificate_path  = string
+    private_key_path  = string    
+  }))
+}
