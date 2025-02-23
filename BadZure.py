@@ -185,62 +185,6 @@ def create_storage_attack_path_flexible(principal_type, applications, storage_ac
 
     return attack_path_storage_abuse_assignments
 
-def create_sa_attack_path(applications, storage_accounts):
-
-    attack_path_app_cert_assignments = {}
-
-    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    key = f"attack-path-{attack_path_id}"
-    
-    # Pick a random application registration
-    app_keys = list(applications.keys())
-    random_app = random.choice(app_keys)    
-
-    # Pick a random keyvault
-    sa_keys = list(storage_accounts.keys())
-    random_sa = random.choice(sa_keys)  
-    
-    # Generate a self-signed certificate
-    cert_path, key_path = generate_certificate_and_key(random_app)
-
-
-    attack_path_app_cert_assignments [key] = {
-        "app_name": random_app,
-        "storage_account": random_sa,
-        'certificate_path': cert_path,
-        'private_key_path': key_path
-    }
-    return attack_path_app_cert_assignments
-
-def create_storage_mi_attack_path(applications, storage_accounts, virtual_machines):
-
-    attack_path_storage_mi_abuse_assignments = {}
-
-    attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    key = f"attack-path-{attack_path_id}"    
-
-    app_keys = list(applications.keys())
-    random_app = random.choice(app_keys)    
-
-    sa_keys = list(storage_accounts.keys())
-    random_sa = random.choice(sa_keys)    
-
-    vm_keys = list(virtual_machines.keys())
-    random_vm = random.choice(vm_keys)
-
-    # Generate a self-signed certificate
-    cert_path, key_path = generate_certificate_and_key(random_app)
-
-    attack_path_storage_mi_abuse_assignments[key] = {
-        "app_name": random_app,
-        "storage_account": random_sa,
-        "virtual_machine": random_vm,
-        'certificate_path': cert_path,
-        'private_key_path': key_path,
-    }
-
-    return attack_path_storage_mi_abuse_assignments
-
 def create_attack_path(attack_patch_config, users, applications, domain, password):
  
     app_owner_assignments = {}  
