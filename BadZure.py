@@ -144,6 +144,47 @@ def create_kv_attack_path_flexible(principal_type, applications, keyvaults, user
 
     return attack_path_kv_abuse_assignments
 
+def create_storage_attack_path_flexible(principal_type, applications, storage_accounts, users, service_principals, virtual_machines):
+
+    attack_path_storage_abuse_assignments = {}
+
+    attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
+    key = f"attack-path-{attack_path_id}"
+
+    # Pick a random application
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)
+
+    # Pick a random Storage Account
+    sa_keys = list(storage_accounts.keys())
+    random_sa = random.choice(sa_keys)
+    
+    # Generate a self-signed certificate
+    cert_path, key_path = generate_certificate_and_key(random_app)
+
+    if principal_type == "user":
+        principal_keys = list(users.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "service_principal":
+        principal_keys = list(service_principals.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "managed_identity":
+        principal_keys = list(virtual_machines.keys())
+        random_principal = random.choice(principal_keys)
+
+    attack_path_storage_abuse_assignments[key] = {
+        
+        "app_name": random_app ,        
+        "storage_account": random_sa,
+        "principal_type": principal_type,
+        "principal_name": random_principal,  # Can be user, service principal, or VM
+        "virtual_machine": random_principal if principal_type == "managed_identity" else None,
+        'certificate_path': cert_path,
+        'private_key_path': key_path        
+    }
+
+    return attack_path_storage_abuse_assignments
+
 def create_sa_attack_path(applications, storage_accounts):
 
     attack_path_app_cert_assignments = {}
@@ -626,10 +667,8 @@ def build(config, verbose):
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments = create_random_assignments(users, groups, administrative_units, applications)
     
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
-    
-    attack_path_app_cert_assignments, attack_path_storage_mi_abuse_assignments = {}, {}
-    
-    attack_path_kv_abuse_assignments = {}
+        
+    attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments = {}, {}
     
     user_creds = {}
   
@@ -647,7 +686,6 @@ def build(config, verbose):
             user_creds[attack_path_name] = initial_access
             #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
             
-        #elif config['attack_paths'][attack_path]['enabled'] and config['attack_paths'][attack_path]['privilege_escalation']=='KeyVaultAbuse':
         elif attack_path_data['enabled'] and attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
                         
             principal_type = attack_path_data['principal_type']
@@ -655,8 +693,8 @@ def build(config, verbose):
             
         elif attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='StorageAccountAbuse':
 
-            #attack_path_app_cert_assignments = create_sa_attack_path_vm(applications, storage_accounts, virtual_machines)
-            attack_path_storage_mi_abuse_assignments = create_storage_mi_attack_path(applications, storage_accounts, virtual_machines)
+            principal_type = attack_path_data['principal_type']
+            attack_path_storage_abuse_assignments = create_storage_attack_path_flexible(principal_type, applications, storage_accounts, users, applications, virtual_machines)
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -698,9 +736,8 @@ def build(config, verbose):
         'attack_path_application_role_assignments' : attack_path_app_role_assignments,
         'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments,
         
-        'attack_path_app_cert_assignments': attack_path_app_cert_assignments,
-        'attack_path_storage_mi_abuse_assignments': attack_path_storage_mi_abuse_assignments,
-        'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments
+        'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
+        'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments
     }
     
     # Write the Terraform variables to a file

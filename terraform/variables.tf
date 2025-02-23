@@ -156,15 +156,6 @@ variable "storage_accounts" {
   }))
 }
 
-variable "attack_path_app_cert_assignments" {
-  type = map(object({
-    app_name           = string
-    storage_account    = string
-    certificate_path   = string
-    private_key_path   = string
-  }))
-}
-
 variable "virtual_machines" {
   type = map(object({
     name                  = string
@@ -177,16 +168,6 @@ variable "virtual_machines" {
   }))
 }
 
-variable "attack_path_storage_mi_abuse_assignments" {
-  type = map(object({
-    app_name          = string
-    storage_account   = string
-    virtual_machine   = string 
-    certificate_path  = string
-    private_key_path  = string    
-  }))
-}
-
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
     key_vault      = string
@@ -195,5 +176,17 @@ variable "attack_path_kv_abuse_assignments" {
     virtual_machine = string # Optional for managed identity
     app_name         = string  # The application to which a secret will be added
 
+  }))
+}
+
+variable "attack_path_storage_abuse_assignments" {
+  type = map(object({
+    app_name          = string
+    certificate_path  = string
+    private_key_path  = string        
+    storage_account   = string
+    principal_type    = string  # Options: "user", "service_principal", "managed_identity"
+    principal_name    = string  # Name of the principal
+    virtual_machine   = string 
   }))
 }

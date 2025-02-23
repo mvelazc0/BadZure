@@ -187,7 +187,7 @@ resource "azurerm_storage_account" "sas" {
 }
 
 resource "azuread_application_certificate" "attack_path_storage_certificates" {
-  for_each          = var.attack_path_storage_mi_abuse_assignments
+  for_each          = var.attack_path_storage_abuse_assignments
 
   application_id    = azuread_application_registration.spns[each.value.app_name].id
   type              = "AsymmetricX509Cert"
@@ -198,7 +198,7 @@ resource "azuread_application_certificate" "attack_path_storage_certificates" {
 }
 
 resource "azurerm_storage_container" "attack_path_storage_containers" {
-  for_each            = var.attack_path_storage_mi_abuse_assignments
+  for_each            = var.attack_path_storage_abuse_assignments
 
   name                = "cert-container"
   storage_account_name = azurerm_storage_account.sas[each.value.storage_account].name
@@ -209,7 +209,7 @@ resource "azurerm_storage_container" "attack_path_storage_containers" {
 
 # Upload the private key (.key)
 resource "azurerm_storage_blob" "attack_path_storage_key_upload" {
-  for_each               = var.attack_path_storage_mi_abuse_assignments
+  for_each               = var.attack_path_storage_abuse_assignments
 
   name                   = "${each.value.app_name}-private-key.key"
   storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
@@ -225,7 +225,7 @@ resource "azurerm_storage_blob" "attack_path_storage_key_upload" {
 
 # Upload the certificate (.pem)
 resource "azurerm_storage_blob" "attack_path_storage_pem_upload" {
-  for_each               = var.attack_path_storage_mi_abuse_assignments
+  for_each               = var.attack_path_storage_abuse_assignments
 
   name                   = "${each.value.app_name}-certificate.pem"
   storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
@@ -402,21 +402,6 @@ resource "azurerm_network_interface_security_group_association" "vm_nic_nsg" {
   depends_on = [azurerm_network_interface.vm_nics]
 }
 
-resource "azurerm_role_assignment" "attack_path_storage_mi_access" {
-  for_each = var.attack_path_storage_mi_abuse_assignments
-
-  scope                = azurerm_storage_account.sas[each.value.storage_account].id
-  role_definition_name = "Storage Blob Data Reader"
-
-  principal_id = (
-    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ? 
-    azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id : 
-    azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
-  )
-
-  depends_on = [azurerm_storage_account.sas, azurerm_linux_virtual_machine.linux_vms, azurerm_windows_virtual_machine.windows_vms]
-}
-
 resource "azurerm_role_assignment" "attack_path_kv_access" {
   for_each = var.attack_path_kv_abuse_assignments
 
@@ -435,6 +420,29 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
 
   depends_on = [
     azurerm_key_vault.kvaults, 
+    azurerm_linux_virtual_machine.linux_vms, 
+    azurerm_windows_virtual_machine.windows_vms
+  ]
+}
+
+resource "azurerm_role_assignment" "attack_path_storage_access" {
+  for_each = var.attack_path_storage_abuse_assignments
+
+  scope                = azurerm_storage_account.sas[each.value.storage_account].id
+  role_definition_name = "Storage Blob Data Reader"
+
+  principal_id = (
+    each.value.principal_type == "user" ? 
+      azuread_user.users[each.value.principal_name].id :
+    each.value.principal_type == "service_principal" ? 
+      azuread_service_principal.spns[each.value.principal_name].id :
+    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ? 
+      azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id :
+      azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
+  )
+
+  depends_on = [
+    azurerm_storage_account.sas, 
     azurerm_linux_virtual_machine.linux_vms, 
     azurerm_windows_virtual_machine.windows_vms
   ]
