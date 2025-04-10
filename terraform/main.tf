@@ -115,12 +115,21 @@ resource "azuread_directory_role_assignment" "attack_path_application_role_assig
 }
 
 resource "azuread_app_role_assignment" "attack_path_application_api_permission_assignments" {
-  for_each = var.attack_path_application_api_permission_assignments
+  for_each = merge([
+    for assignment_key, assignment in var.attack_path_application_api_permission_assignments : {
+      for permission_id in assignment.api_permission_ids :
+      "${assignment_key}-${permission_id}" => {
+        app_name          = assignment.app_name
+        api_permission_id = permission_id
+      }
+    }
+  ]...)
 
-  app_role_id            = each.value.api_permission_id
-  principal_object_id    = azuread_service_principal.spns[each.value.app_name].id
-  resource_object_id     = data.azuread_service_principal.microsoft_graph.id
+  app_role_id         = each.value.api_permission_id
+  principal_object_id = azuread_service_principal.spns[each.value.app_name].id
+  resource_object_id  = data.azuread_service_principal.microsoft_graph.id
 }
+
 
 resource "azuread_application_owner" "attack_path_application_owner_assignments" {
   for_each = var.attack_path_application_owner_assignments

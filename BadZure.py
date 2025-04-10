@@ -256,19 +256,18 @@ def create_sp_attack_path(attack_patch_config, users, applications, domain, pass
 
     elif attack_patch_config['method'] == "GraphAPIPermission":
         
-        if attack_patch_config['app_role'] != 'random':
-            
-            api_permission_id = attack_patch_config['app_role']
-        
+        if isinstance(attack_patch_config['app_role'], list):
+            api_permission_ids = attack_patch_config['app_role']
+        elif attack_patch_config['app_role'] != 'random':
+            api_permission_ids = [attack_patch_config['app_role']]
         else:
-            api_permission_id = random.choice([permission["id"] for permission in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()])
+            api_permission_ids = [random.choice(
+                [perm["id"] for perm in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()]
+            )]
         
-        # Assign API permission to the application
-        #api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"       
-        
-        app_api_permission_assignments[key]  = {
+        app_api_permission_assignments[key] = {
             'app_name': random_app,
-            'api_permission_id': api_permission_id,
+            'api_permission_ids': api_permission_ids,
         }    
 
     return initial_access_user, app_owner_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments

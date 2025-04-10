@@ -111,7 +111,7 @@ variable "attack_path_application_api_permission_assignments" {
   default = {}
   type = map(object({
     app_name            = string
-    api_permission_id   = string
+    api_permission_ids  = list(string)
   }))
 }
 
