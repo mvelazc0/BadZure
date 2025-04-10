@@ -185,7 +185,8 @@ def create_storage_attack_path_flexible(principal_type, applications, storage_ac
 
     return attack_path_storage_abuse_assignments
 
-def create_attack_path(attack_patch_config, users, applications, domain, password):
+
+def create_sp_attack_path(attack_patch_config, users, applications, domain, password):
  
     app_owner_assignments = {}  
     user_role_assignments = {}
@@ -238,7 +239,6 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
     
     if attack_patch_config['method'] == "AzureADRole":
         
-        
         if attack_patch_config['entra_role'] != 'random':
             
             privileged_role_id = attack_patch_config['entra_role']
@@ -283,7 +283,7 @@ def load_config(file_path):
         #logging.error(f"Configuration file not found at: {file_path}")
         exit(1)
     except yaml.YAMLError as e:
-        #logging.error(f"Error parsing the YAML file: {e}")
+        logging.error(f"Error parsing the YAML file: {e}")
         exit(1)
 
 def create_random_assignments(users, groups, administrative_units, applications):
@@ -478,11 +478,11 @@ def generate_keyvault_details(file_path, number_of_kvs, resource_groups):
     
     kvs = {}
 
-    aunit_names = read_lines_from_file(file_path)
-    random_rg = random.choice(list(resource_groups.keys()))
-    selected_kvs = random.sample(aunit_names, number_of_kvs)
+    kv_names = read_lines_from_file(file_path)
+    selected_kvs = random.sample(kv_names, number_of_kvs)
 
     for kv in selected_kvs:
+        random_rg = random.choice(list(resource_groups.keys()))
         random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
         kvs[kv +"-"+ random_suffix] = {
             'name': kv +"-"+ random_suffix,
@@ -622,7 +622,7 @@ def build(config, verbose):
                         
             #password = config['attack_paths'][attack_path]['password']
             logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(attack_path_data, users, applications, domain, "test")
+            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_sp_attack_path(attack_path_data, users, applications, domain, "test")
             attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
             attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
