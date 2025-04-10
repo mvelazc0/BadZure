@@ -102,7 +102,7 @@ variable "attack_path_application_role_assignments" {
   default = {}
   type = map(object({
     app_name = string
-    role_id  = string
+    role_ids = list(string)
   }))
 }
 

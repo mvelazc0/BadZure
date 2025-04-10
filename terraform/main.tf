@@ -108,7 +108,15 @@ resource "azuread_directory_role_assignment" "attack_path_user_role_assignments"
 }
 
 resource "azuread_directory_role_assignment" "attack_path_application_role_assignments" {
-  for_each = var.attack_path_application_role_assignments
+  for_each = merge([
+    for assignment_key, assignment in var.attack_path_application_role_assignments : {
+      for role_id in assignment.role_ids :
+      "${assignment_key}-${role_id}" => {
+        app_name = assignment.app_name
+        role_id  = role_id
+      }
+    }
+  ]...)
 
   principal_object_id = azuread_service_principal.spns[each.value.app_name].id
   role_id             = each.value.role_id

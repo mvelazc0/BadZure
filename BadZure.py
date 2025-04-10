@@ -238,21 +238,18 @@ def create_sp_attack_path(attack_patch_config, users, applications, domain, pass
 
     
     if attack_patch_config['method'] == "AzureADRole":
-        
-        if attack_patch_config['entra_role'] != 'random':
-            
-            privileged_role_id = attack_patch_config['entra_role']
-        
+    
+        if isinstance(attack_patch_config['entra_role'], list):
+            role_ids = attack_patch_config['entra_role']
+        elif attack_patch_config['entra_role'] == 'random':
+            role_ids = [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
         else:
-            privileged_role_id = random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))
-            
-        # Assign "Privileged Role Administrator" role to the application
-        #privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
-        
-        app_role_assignments[key]  = {
+            role_ids = [attack_patch_config['entra_role']]
+
+        app_role_assignments[key] = {
             'app_name': random_app,
-            'role_id': privileged_role_id,        
-        }     
+            'role_ids': role_ids
+        }
 
     elif attack_patch_config['method'] == "GraphAPIPermission":
         
@@ -609,7 +606,7 @@ def build(config, verbose):
     
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments = create_random_assignments(users, groups, administrative_units, applications)
     
-    attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
+    attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_application_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
         
     attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments = {}, {}
     
@@ -624,7 +621,7 @@ def build(config, verbose):
             initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_sp_attack_path(attack_path_data, users, applications, domain, "test")
             attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
-            attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
+            attack_path_application_role_assignments = {**attack_path_application_role_assignments, **ap_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
             user_creds[attack_path_name] = initial_access
             #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
@@ -676,7 +673,7 @@ def build(config, verbose):
         # Attack Paths
         'attack_path_application_owner_assignments' : attack_path_application_owner_assignments,
         'attack_path_user_role_assignments' : attack_path_user_role_assignments,
-        'attack_path_application_role_assignments' : attack_path_app_role_assignments,
+        'attack_path_application_role_assignments' : attack_path_application_role_assignments,
         'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments,
         
         'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
