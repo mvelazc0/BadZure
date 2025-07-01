@@ -465,7 +465,7 @@ def generate_resource_groups_details(file_path, number_of_rgs):
     for rg in random_rgs:
         rgs[rg] = {
             'name': rg,
-            'location': "East US"
+            'location': "West US"
         }
 
     return rgs
@@ -482,7 +482,7 @@ def generate_keyvault_details(file_path, number_of_kvs, resource_groups):
         random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
         kvs[kv +"-"+ random_suffix] = {
             'name': kv +"-"+ random_suffix,
-            'location': "East US",
+            'location': "West US",
             'resource_group_name': random_rg ,
             'sku_name' : "standard"
         }
@@ -502,7 +502,7 @@ def generate_storage_account_details(file_path, number_of_sas, resource_groups):
 
         sas[unique_sa_name] = {
             'name': unique_sa_name.lower(),
-            'location': "East US",
+            'location': "West US",
             'resource_group_name': random_rg,
             'account_tier': "Standard",
             'account_replication_type': "LRS"
@@ -528,7 +528,7 @@ def generate_vm_details(file_path, number_of_vms, resource_groups):
 
         vms[vm_name] = {
             "name": vm_name,
-            "location": "East US",
+            "location": "West US",
             "resource_group_name": random_rg,
             "vm_size": "Standard_D2s_v3",
             "admin_username": "badzureadmin",
