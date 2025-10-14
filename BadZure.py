@@ -178,9 +178,11 @@ def create_kv_attack_path_flexible(attack_patch_config, applications, keyvaults,
 
     return attack_path_kv_abuse_assignments, app_role_assignments, app_api_permission_assignments
 
-def create_storage_attack_path_flexible(principal_type, applications, storage_accounts, users, service_principals, virtual_machines):
+def create_storage_attack_path_flexible(attack_patch_config, applications, storage_accounts, users, service_principals, virtual_machines):
 
     attack_path_storage_abuse_assignments = {}
+    app_role_assignments = {}
+    app_api_permission_assignments = {}
 
     attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
     key = f"attack-path-{attack_path_id}"
@@ -192,6 +194,8 @@ def create_storage_attack_path_flexible(principal_type, applications, storage_ac
     # Pick a random Storage Account
     sa_keys = list(storage_accounts.keys())
     random_sa = random.choice(sa_keys)
+    
+    principal_type = attack_patch_config['principal_type']
     
     # Generate a self-signed certificate
     cert_path, key_path = generate_certificate_and_key(random_app)
@@ -208,16 +212,46 @@ def create_storage_attack_path_flexible(principal_type, applications, storage_ac
 
     attack_path_storage_abuse_assignments[key] = {
         
-        "app_name": random_app ,        
+        "app_name": random_app ,
         "storage_account": random_sa,
         "principal_type": principal_type,
         "principal_name": random_principal,  # Can be user, service principal, or VM
         "virtual_machine": random_principal if principal_type == "managed_identity" else None,
         'certificate_path': cert_path,
-        'private_key_path': key_path        
+        'private_key_path': key_path
     }
 
-    return attack_path_storage_abuse_assignments
+    if attack_patch_config['method'] == "AzureADRole":
+    
+        if isinstance(attack_patch_config['entra_role'], list):
+            role_ids = attack_patch_config['entra_role']
+        elif attack_patch_config['entra_role'] == 'random':
+            role_ids = [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
+        else:
+            role_ids = [attack_patch_config['entra_role']]
+
+        app_role_assignments[key] = {
+            'app_name': random_app,
+            'role_ids': role_ids
+        }
+
+    elif attack_patch_config['method'] == "GraphAPIPermission":
+        
+        if isinstance(attack_patch_config['app_role'], list):
+            api_permission_ids = attack_patch_config['app_role']
+        elif attack_patch_config['app_role'] != 'random':
+            api_permission_ids = [attack_patch_config['app_role']]
+        else:
+            api_permission_ids = [random.choice(
+                [perm["id"] for perm in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()]
+            )]
+        
+        app_api_permission_assignments[key] = {
+            'app_name': random_app,
+            'api_permission_ids': api_permission_ids,
+        }
+
+    return attack_path_storage_abuse_assignments, app_role_assignments, app_api_permission_assignments
 
 
 def create_sp_attack_path(attack_patch_config, users, applications, domain, password):
@@ -668,8 +702,9 @@ def build(config, verbose):
             
         elif attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='StorageAccountAbuse':
 
-            principal_type = attack_path_data['principal_type']
-            attack_path_storage_abuse_assignments = create_storage_attack_path_flexible(principal_type, applications, storage_accounts, users, applications, virtual_machines)
+            attack_path_storage_abuse_assignments, sa_app_role_assignments, sa_app_api_permission_assignments = create_storage_attack_path_flexible(attack_path_data, applications, storage_accounts, users, applications, virtual_machines)
+            attack_path_application_role_assignments = {**attack_path_application_role_assignments, **sa_app_role_assignments}
+            attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **sa_app_api_permission_assignments}
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
