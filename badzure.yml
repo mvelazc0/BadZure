@@ -1,28 +1,44 @@
 tenant:
+  tenant_id: 3d1aa531-a601-4caf-998b-6ae650da6eb0
+  subscription_id: 379728ca-2448-49bd-82cd-4910d1a52d65
+  domain: purplelabz.onmicrosoft.com
 
-  tenant_id: 00000000-0000-0000-0000-000000000000
-  domain: contoso.onmicrosoft.com
+  users: 5
+  applications: 5
+  groups: 2
+  administrative_units: 2
 
-  users: 30
-  applications: 15
-  groups: 10
-  administrative_units: 10
+  resource_groups: 5
+  key_vaults: 2
+  storage_accounts: 0
+  virtual_machines: 0
 
 attack_paths:
 
-  attack_path_1:
-    enabled: true
+  attack_path_0:
+    enabled: false
     initial_access: password 
-    scenario : direct
+    scenario: direct
     privilege_escalation: ServicePrincipalAbuse
-    method: AzureADRole
-    entra_role : random
+    method: GraphAPIPermission
+    app_role: 810c84a8-4a9e-49e6-bf7d-12d183f40d01 #Mail.Read Application
+
+  attack_path_1:
+    enabled: false
+    initial_access: password 
+    scenario: direct
+    privilege_escalation: ServicePrincipalAbuse
+    method: GraphAPIPermission
+    app_role: 
+      - 810c84a8-4a9e-49e6-bf7d-12d183f40d01 #Mail.Read Application
+      - df021288-bdef-4463-88db-98f22de89214 #User.Read Application
 
   attack_path_2:
-    enabled: true
+    enabled: False
     initial_access: token
     scenario : helpdesk
-    privilege_escalation: ServicePrincipalAbuse
+    privilege_escalation: KeyVaultAbuse
+    principal_type: managed_identity
     method: GraphAPIPermission
     app_role : random
 
@@ -33,3 +49,26 @@ attack_paths:
     privilege_escalation: ServicePrincipalAbuse
     method: GraphAPIPermission
     app_role : 810c84a8-4a9e-49e6-bf7d-12d183f40d01 # Mail.Read Application Permission
+
+  attack_path_4:
+    enabled: false
+    initial_access: password 
+    scenario : direct
+    privilege_escalation: ServicePrincipalAbuse
+    method: AzureADRole
+    entra_role: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
+
+  attack_path_5:
+    enabled: false
+    initial_access: password 
+    privilege_escalation: StorageAccountAbuse
+    principal_type: user
+
+  attack_path_6:
+    enabled: True
+    initial_access: token
+    scenario : helpdesk
+    privilege_escalation: KeyVaultAbuse
+    principal_type: user
+    method: GraphAPIPermission
+    app_role : random    

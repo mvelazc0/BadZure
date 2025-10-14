@@ -109,9 +109,11 @@ def write_users_to_file(users, domain, file_path):
             file.write(f"{user['user_principal_name']}@{domain}\n")
             
 
-def create_kv_attack_path_flexible(principal_type, applications, keyvaults, users, service_principals, virtual_machines):
+def create_kv_attack_path_flexible(attack_patch_config, applications, keyvaults, users, service_principals, virtual_machines):
 
     attack_path_kv_abuse_assignments = {}
+    app_role_assignments = {}  
+    app_api_permission_assignments = {}
 
     attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
     key = f"attack-path-{attack_path_id}"
@@ -123,6 +125,8 @@ def create_kv_attack_path_flexible(principal_type, applications, keyvaults, user
     # Pick a random Key Vault
     kv_keys = list(keyvaults.keys())
     random_kv = random.choice(kv_keys)
+    
+    principal_type = attack_patch_config['principal_type']
 
     if principal_type == "user":
         principal_keys = list(users.keys())
@@ -141,8 +145,38 @@ def create_kv_attack_path_flexible(principal_type, applications, keyvaults, user
         "virtual_machine": random_principal if principal_type == "managed_identity" else None,
         "app_name": random_app 
     }
+    
+    if attack_patch_config['method'] == "AzureADRole":
+    
+        if isinstance(attack_patch_config['entra_role'], list):
+            role_ids = attack_patch_config['entra_role']
+        elif attack_patch_config['entra_role'] == 'random':
+            role_ids = [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
+        else:
+            role_ids = [attack_patch_config['entra_role']]
 
-    return attack_path_kv_abuse_assignments
+        app_role_assignments[key] = {
+            'app_name': random_app,
+            'role_ids': role_ids
+        }
+
+    elif attack_patch_config['method'] == "GraphAPIPermission":
+        
+        if isinstance(attack_patch_config['app_role'], list):
+            api_permission_ids = attack_patch_config['app_role']
+        elif attack_patch_config['app_role'] != 'random':
+            api_permission_ids = [attack_patch_config['app_role']]
+        else:
+            api_permission_ids = [random.choice(
+                [perm["id"] for perm in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()]
+            )]
+        
+        app_api_permission_assignments[key] = {
+            'app_name': random_app,
+            'api_permission_ids': api_permission_ids,
+        }    
+
+    return attack_path_kv_abuse_assignments, app_role_assignments, app_api_permission_assignments
 
 def create_storage_attack_path_flexible(principal_type, applications, storage_accounts, users, service_principals, virtual_machines):
 
@@ -628,8 +662,9 @@ def build(config, verbose):
             
         elif attack_path_data['enabled'] and attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
                         
-            principal_type = attack_path_data['principal_type']
-            attack_path_kv_abuse_assignments = create_kv_attack_path_flexible(principal_type, applications, key_vaults, users, applications, virtual_machines)
+            attack_path_kv_abuse_assignments, kv_app_role_assignments, kv_app_api_permission_assignments = create_kv_attack_path_flexible(attack_path_data, applications, key_vaults, users, applications, virtual_machines)
+            attack_path_application_role_assignments = {**attack_path_application_role_assignments, **kv_app_role_assignments}
+            attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **kv_app_api_permission_assignments}
             
         elif attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='StorageAccountAbuse':
 
