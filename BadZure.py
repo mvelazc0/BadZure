@@ -4,11 +4,14 @@ import yaml
 import click
 from python_terraform import Terraform
 from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS, HIGH_PRIVILEGED_ENTRA_ROLES, HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS
+from src.crypto import generate_certificate_and_key
+import src.utils as utils
 import random
 import string
 import requests
 import time
 import logging
+import base64
 
 # Ensure AZURE_CONFIG_DIR is set the Azure CLI config directory
 os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
@@ -104,46 +107,154 @@ def write_users_to_file(users, domain, file_path):
     with open(file_path, 'w') as file:
         for user in users.values():
             file.write(f"{user['user_principal_name']}@{domain}\n")
+            
 
-def get_ms_token_username_pass(tenant_id, username, password, scope):
+def create_kv_attack_path_flexible(attack_patch_config, applications, keyvaults, users, service_principals, virtual_machines):
 
-    # https://learn.microsoft.com/en-us/entra/identity-platform/v2-oauth-ropc
+    attack_path_kv_abuse_assignments = {}
+    app_role_assignments = {}  
+    app_api_permission_assignments = {}
 
-    #logging.info("Using resource owner password OAuth flow to obtain a token")
+    attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
+    key = f"attack-path-{attack_path_id}"
 
-    token_url = f'https://login.microsoftonline.com/{tenant_id}/oauth2/v2.0/token'
+    # Pick a random application
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)
 
-    full_scope = f'{scope} offline_access'
+    # Pick a random Key Vault
+    kv_keys = list(keyvaults.keys())
+    random_kv = random.choice(kv_keys)
+    
+    principal_type = attack_patch_config['principal_type']
 
-    token_data = {
+    if principal_type == "user":
+        principal_keys = list(users.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "service_principal":
+        principal_keys = list(service_principals.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "managed_identity":
+        principal_keys = list(virtual_machines.keys())
+        random_principal = random.choice(principal_keys)
 
-        'client_id': '1950a258-227b-4e31-a9cf-717495945fc2', # Microsoft Azure PowerShell
-        #'client_id': '00b41c95-dab0-4487-9791-b9d2c32c80f2',  # Office 365 Management. Works to read emails Graph and EWS.
-        #'client_id': 'd3590ed6-52b3-4102-aeff-aad2292ab01c',  # Microsoft Office. Also works to read emails Graph and EWS.
-        #'client_id': '00000002-0000-0ff1-ce00-000000000000', # Office 365 Exchange Online
-        #'client_id': '00000006-0000-0ff1-ce00-000000000000', # Microsoft Office 365 Portal
-        #'client_id': 'fb78d390-0c51-40cd-8e17-fdbfab77341b', # Microsoft Exchange REST API Based Powershell
-        # 'client_id': '00000003-0000-0000-c000-000000000000', # Microsoft Graph
-        #'client_id': 'de8bc8b5-d9f9-48b1-a8ad-b748da725064', # Graph Explorer
-        #'client_id': '14d82eec-204b-4c2f-b7e8-296a70dab67e', # Microsoft Graph Command Line Tools	
+    attack_path_kv_abuse_assignments[key] = {
+        "key_vault": random_kv,
+        "principal_type": principal_type,
+        "principal_name": random_principal,  # Can be user, service principal, or VM
+        "virtual_machine": random_principal if principal_type == "managed_identity" else None,
+        "app_name": random_app 
+    }
+    
+    if attack_patch_config['method'] == "AzureADRole":
+    
+        if isinstance(attack_patch_config['entra_role'], list):
+            role_ids = attack_patch_config['entra_role']
+        elif attack_patch_config['entra_role'] == 'random':
+            role_ids = [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
+        else:
+            role_ids = [attack_patch_config['entra_role']]
 
-        'grant_type': 'password',
-        'username': username,
-        'password': password,
-        'scope': full_scope
+        app_role_assignments[key] = {
+            'app_name': random_app,
+            'role_ids': role_ids
+        }
+
+    elif attack_patch_config['method'] == "GraphAPIPermission":
+        
+        if isinstance(attack_patch_config['app_role'], list):
+            api_permission_ids = attack_patch_config['app_role']
+        elif attack_patch_config['app_role'] != 'random':
+            api_permission_ids = [attack_patch_config['app_role']]
+        else:
+            api_permission_ids = [random.choice(
+                [perm["id"] for perm in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()]
+            )]
+        
+        app_api_permission_assignments[key] = {
+            'app_name': random_app,
+            'api_permission_ids': api_permission_ids,
+        }    
+
+    return attack_path_kv_abuse_assignments, app_role_assignments, app_api_permission_assignments
+
+def create_storage_attack_path_flexible(attack_patch_config, applications, storage_accounts, users, service_principals, virtual_machines):
+
+    attack_path_storage_abuse_assignments = {}
+    app_role_assignments = {}
+    app_api_permission_assignments = {}
+
+    attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
+    key = f"attack-path-{attack_path_id}"
+
+    # Pick a random application
+    app_keys = list(applications.keys())
+    random_app = random.choice(app_keys)
+
+    # Pick a random Storage Account
+    sa_keys = list(storage_accounts.keys())
+    random_sa = random.choice(sa_keys)
+    
+    principal_type = attack_patch_config['principal_type']
+    
+    # Generate a self-signed certificate
+    cert_path, key_path = generate_certificate_and_key(random_app)
+
+    if principal_type == "user":
+        principal_keys = list(users.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "service_principal":
+        principal_keys = list(service_principals.keys())
+        random_principal = random.choice(principal_keys)
+    elif principal_type == "managed_identity":
+        principal_keys = list(virtual_machines.keys())
+        random_principal = random.choice(principal_keys)
+
+    attack_path_storage_abuse_assignments[key] = {
+        
+        "app_name": random_app ,
+        "storage_account": random_sa,
+        "principal_type": principal_type,
+        "principal_name": random_principal,  # Can be user, service principal, or VM
+        "virtual_machine": random_principal if principal_type == "managed_identity" else None,
+        'certificate_path': cert_path,
+        'private_key_path': key_path
     }
 
-    response = requests.post(token_url, data=token_data)
-    refresh_token = response.json().get('refresh_token')
-    access_token = response.json().get('access_token')
+    if attack_patch_config['method'] == "AzureADRole":
     
-    if refresh_token and access_token:
-        return {'access_token': access_token, 'refresh_token': refresh_token}
-    else:
-        logging.error (f'Error obtaining token. Http response: {response.status_code}')
-        logging.error (response.text)
+        if isinstance(attack_patch_config['entra_role'], list):
+            role_ids = attack_patch_config['entra_role']
+        elif attack_patch_config['entra_role'] == 'random':
+            role_ids = [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
+        else:
+            role_ids = [attack_patch_config['entra_role']]
 
-def create_attack_path(attack_patch_config, users, applications, domain, password):
+        app_role_assignments[key] = {
+            'app_name': random_app,
+            'role_ids': role_ids
+        }
+
+    elif attack_patch_config['method'] == "GraphAPIPermission":
+        
+        if isinstance(attack_patch_config['app_role'], list):
+            api_permission_ids = attack_patch_config['app_role']
+        elif attack_patch_config['app_role'] != 'random':
+            api_permission_ids = [attack_patch_config['app_role']]
+        else:
+            api_permission_ids = [random.choice(
+                [perm["id"] for perm in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()]
+            )]
+        
+        app_api_permission_assignments[key] = {
+            'app_name': random_app,
+            'api_permission_ids': api_permission_ids,
+        }
+
+    return attack_path_storage_abuse_assignments, app_role_assignments, app_api_permission_assignments
+
+
+def create_sp_attack_path(attack_patch_config, users, applications, domain, password):
  
     app_owner_assignments = {}  
     user_role_assignments = {}
@@ -195,38 +306,33 @@ def create_attack_path(attack_patch_config, users, applications, domain, passwor
 
     
     if attack_patch_config['method'] == "AzureADRole":
-        
-        
-        if attack_patch_config['entra_role'] != 'random':
-            
-            privileged_role_id = attack_patch_config['entra_role']
-        
+    
+        if isinstance(attack_patch_config['entra_role'], list):
+            role_ids = attack_patch_config['entra_role']
+        elif attack_patch_config['entra_role'] == 'random':
+            role_ids = [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
         else:
-            privileged_role_id = random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))
-            
-        # Assign "Privileged Role Administrator" role to the application
-        #privileged_role_id = "e8611ab8-c189-46e8-94e1-60213ab1f814"  # ID for "Privileged Role Administrator"
-        
-        app_role_assignments[key]  = {
+            role_ids = [attack_patch_config['entra_role']]
+
+        app_role_assignments[key] = {
             'app_name': random_app,
-            'role_id': privileged_role_id,        
-        }     
+            'role_ids': role_ids
+        }
 
     elif attack_patch_config['method'] == "GraphAPIPermission":
         
-        if attack_patch_config['app_role'] != 'random':
-            
-            api_permission_id = attack_patch_config['app_role']
-        
+        if isinstance(attack_patch_config['app_role'], list):
+            api_permission_ids = attack_patch_config['app_role']
+        elif attack_patch_config['app_role'] != 'random':
+            api_permission_ids = [attack_patch_config['app_role']]
         else:
-            api_permission_id = random.choice([permission["id"] for permission in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()])
+            api_permission_ids = [random.choice(
+                [perm["id"] for perm in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()]
+            )]
         
-        # Assign API permission to the application
-        #api_permission_id = "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"  # ID for "RoleManagement.ReadWrite.Directory"       
-        
-        app_api_permission_assignments[key]  = {
+        app_api_permission_assignments[key] = {
             'app_name': random_app,
-            'api_permission_id': api_permission_id,
+            'api_permission_ids': api_permission_ids,
         }    
 
     return initial_access_user, app_owner_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments
@@ -241,7 +347,7 @@ def load_config(file_path):
         #logging.error(f"Configuration file not found at: {file_path}")
         exit(1)
     except yaml.YAMLError as e:
-        #logging.error(f"Error parsing the YAML file: {e}")
+        logging.error(f"Error parsing the YAML file: {e}")
         exit(1)
 
 def create_random_assignments(users, groups, administrative_units, applications):
@@ -416,7 +522,90 @@ def generate_administrative_units_details(file_path, number_of_aunits):
         }
     
     return aunits
-                   
+
+def generate_resource_groups_details(file_path, number_of_rgs):
+    
+    rgs = {}
+    
+    rg_names = read_lines_from_file(file_path)
+    random_rgs = random.sample(rg_names, number_of_rgs)
+    
+    for rg in random_rgs:
+        rgs[rg] = {
+            'name': rg,
+            'location': "West US"
+        }
+
+    return rgs
+
+def generate_keyvault_details(file_path, number_of_kvs, resource_groups):
+    
+    kvs = {}
+
+    kv_names = read_lines_from_file(file_path)
+    selected_kvs = random.sample(kv_names, number_of_kvs)
+
+    for kv in selected_kvs:
+        random_rg = random.choice(list(resource_groups.keys()))
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+        kvs[kv +"-"+ random_suffix] = {
+            'name': kv +"-"+ random_suffix,
+            'location': "West US",
+            'resource_group_name': random_rg ,
+            'sku_name' : "standard"
+        }
+    
+    return kvs
+
+def generate_storage_account_details(file_path, number_of_sas, resource_groups):
+    
+    sas = {}
+    sa_names = read_lines_from_file(file_path)  
+    selected_sas = random.sample(sa_names, number_of_sas)  
+
+    for sa in selected_sas:
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=3))
+        unique_sa_name = f"{sa}{random_suffix}" 
+        random_rg = random.choice(list(resource_groups.keys())) 
+
+        sas[unique_sa_name] = {
+            'name': unique_sa_name.lower(),
+            'location': "West US",
+            'resource_group_name': random_rg,
+            'account_tier': "Standard",
+            'account_replication_type': "LRS"
+        }
+
+    return sas
+
+def generate_vm_details(file_path, number_of_vms, resource_groups):
+    """
+    Generate random virtual machine details (Linux & Windows) and assign them to random resource groups.
+    """
+    vms = {}
+
+    vm_names = read_lines_from_file(file_path)
+    selected_vms = random.sample(vm_names, number_of_vms)
+
+    for vm in selected_vms:
+        random_rg = random.choice(list(resource_groups.keys()))
+        #os_type = random.choice(["Linux", "Windows"])
+        os_type = "Linux"
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+        vm_name = f"{vm}-{random_suffix}"
+
+        vms[vm_name] = {
+            "name": vm_name,
+            "location": "West US",
+            "resource_group_name": random_rg,
+            "vm_size": "Standard_D2s_v3",
+            "admin_username": "badzureadmin",
+            "admin_password": generate_random_password(12),
+            "os_type": os_type
+        }
+
+    return vms
+              
 @click.group()
 def cli():
     pass
@@ -433,13 +622,20 @@ def build(config, verbose):
     logging.info(f"Loading BadZure configuration from {config}")
     config = load_config(config)
     tenant_id = config['tenant']['tenant_id']
+    subscription_id =  config['tenant']['subscription_id']
     domain = config['tenant']['domain']
     
     max_users = config['tenant']['users']
     max_groups = config['tenant']['groups']
     max_apps =  config['tenant']['applications']
-    max_aunits =  config['tenant']['administrative_units']
+    max_aunits =  config['tenant']['administrative_units']    
     
+    max_rgroups = config['tenant']['resource_groups']    
+    max_kvs =  config['tenant']['key_vaults']
+    max_sas =  config['tenant']['storage_accounts']
+    max_vms =  config['tenant']['virtual_machines']
+
+    public_ip = utils.get_public_ip()
 
     # Generate random users
     logging.info(f"Generating {max_users} random users")
@@ -457,30 +653,59 @@ def build(config, verbose):
     logging.info(f"Generating {max_aunits} random administrative units")
     administrative_units = generate_administrative_units_details('entity_data/administrative-units.txt', max_aunits)
 
-     # Create random assignments
+    # Generate random resource groups
+    logging.info(f"Generating {max_rgroups} resource groups")
+    resource_groups  = generate_resource_groups_details('entity_data/resource-groups.txt', max_rgroups)    
+    
+    # Generate random key vaults
+    logging.info(f"Generating {max_kvs} key vaults")
+    key_vaults = generate_keyvault_details('entity_data/keyvaults.txt', max_kvs, resource_groups)    
+
+    # Generate storage accounts
+    logging.info(f"Generating {max_sas} storage accounts")
+    storage_accounts = generate_storage_account_details('entity_data/storage-accounts.txt', max_sas, resource_groups)       
+    
+    # Generate virtual machines
+    logging.info(f"Generating {max_vms} storage accounts")
+    virtual_machines = generate_vm_details('entity_data/virtual-machines.txt', max_vms, resource_groups)       
+
+     # Create random assignments     
     #logging.info("Creating random assignments for groups, administrative units, azure ad roles and graph api permissions")
     
     user_group_assignments, user_au_assignments, user_role_assignments, app_role_assignments, app_api_permission_assignments = create_random_assignments(users, groups, administrative_units, applications)
     
-    attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_app_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
+    attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_application_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
+        
+    attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments = {}, {}
     
     user_creds = {}
   
-    for attack_path in config['attack_paths']:
+    for attack_path_name, attack_path_data in config['attack_paths'].items():
         
-        if config['attack_paths'][attack_path]['enabled']:
+        if attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='ServicePrincipalAbuse':
                         
             #password = config['attack_paths'][attack_path]['password']
-            logging.info(f"Creating assignments for attack path '{attack_path}'")
-            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_attack_path(config['attack_paths'][attack_path], users, applications, domain, "test")
+            logging.info(f"Creating assignments for attack path '{attack_path_name}'")
+            initial_access, ap_app_owner_assignments, ap_user_role_assignments, ap_app_role_assignments, ap_app_api_permission_assignments = create_sp_attack_path(attack_path_data, users, applications, domain, "test")
             attack_path_application_owner_assignments = {**attack_path_application_owner_assignments, **ap_app_owner_assignments}
             attack_path_user_role_assignments = {**attack_path_user_role_assignments, **ap_user_role_assignments}
-            attack_path_app_role_assignments = {**attack_path_app_role_assignments, **ap_app_role_assignments}
+            attack_path_application_role_assignments = {**attack_path_application_role_assignments, **ap_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
-            user_creds[attack_path] = initial_access
+            user_creds[attack_path_name] = initial_access
             #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
-                               
-   
+            
+        elif attack_path_data['enabled'] and attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
+                        
+            attack_path_kv_abuse_assignments, kv_app_role_assignments, kv_app_api_permission_assignments = create_kv_attack_path_flexible(attack_path_data, applications, key_vaults, users, applications, virtual_machines)
+            attack_path_application_role_assignments = {**attack_path_application_role_assignments, **kv_app_role_assignments}
+            attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **kv_app_api_permission_assignments}
+            
+        elif attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='StorageAccountAbuse':
+
+            attack_path_storage_abuse_assignments, sa_app_role_assignments, sa_app_api_permission_assignments = create_storage_attack_path_flexible(attack_path_data, applications, storage_accounts, users, applications, virtual_machines)
+            attack_path_application_role_assignments = {**attack_path_application_role_assignments, **sa_app_role_assignments}
+            attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **sa_app_api_permission_assignments}
+
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
     group_vars = {group['display_name']: group for group in groups.values()}
@@ -488,30 +713,47 @@ def build(config, verbose):
     administrative_unit_vars = {au['display_name']: au for au in administrative_units.values()}
 
     tf_vars = {
+        
+        # Environment
         'tenant_id': tenant_id,
         'domain': domain,
+        'public_ip' : public_ip,
+        'subscription_id': subscription_id, 
+        
+        # Entities
         'users': user_vars,
         'azure_config_dir': azure_config_dir,
         'groups': group_vars,
         'applications': application_vars,
         'administrative_units': administrative_unit_vars,
+        
+        # ARM Resources
+        'resource_groups': resource_groups,
+        'key_vaults': key_vaults,
+        'storage_accounts': storage_accounts,
+        'virtual_machines': virtual_machines,        
+        
+        # Assignments
         'user_group_assignments': user_group_assignments,
         'user_au_assignments': user_au_assignments,
         'user_role_assignments': user_role_assignments,
         'app_role_assignments': app_role_assignments,
         'app_api_permission_assignments' : app_api_permission_assignments,
+        
+        # Attack Paths
         'attack_path_application_owner_assignments' : attack_path_application_owner_assignments,
         'attack_path_user_role_assignments' : attack_path_user_role_assignments,
-        'attack_path_application_role_assignments' : attack_path_app_role_assignments,
-        'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments
+        'attack_path_application_role_assignments' : attack_path_application_role_assignments,
+        'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments,
+        
+        'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
+        'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments
     }
     
     # Write the Terraform variables to a file
     logging.info(f"Creating terraform.tfvars.json")
     with open(os.path.join(TERRAFORM_DIR, 'terraform.tfvars.json'), 'w') as f:
         json.dump(tf_vars, f, indent=4)
-
-
 
     # Initialize and apply the Terraform configuration
     logging.info(f"Calling terraform init.")
@@ -536,7 +778,7 @@ def build(config, verbose):
     write_users_to_file(users, domain, 'users.txt')
     logging.info("Created users.txt file.")
     logging.info("Attack Path Details")
-
+    """
     for attack_path in config['attack_paths']:
         
         if config['attack_paths'][attack_path]['enabled']:
@@ -556,7 +798,7 @@ def build(config, verbose):
                     file.write(f"Access Token: {tokens['access_token']}\n")
                     file.write(f"Refresh Token: {tokens['refresh_token']}\n")
                 logging.info(f"Tokens saved in tokens.txt!.")
-                  
+    """                  
     logging.info("Good bye.")
                   
 @cli.command()

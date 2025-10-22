@@ -13,6 +13,11 @@ variable "domain" {
   type        = string
 }
 
+variable "public_ip" {
+  description = "The public IP address of the machine running the tool"
+  type        = string
+}
+
 variable "users" {
   type = map(object({
     user_principal_name = string
@@ -97,7 +102,7 @@ variable "attack_path_application_role_assignments" {
   default = {}
   type = map(object({
     app_name = string
-    role_id  = string
+    role_ids = list(string)
   }))
 }
 
@@ -106,10 +111,9 @@ variable "attack_path_application_api_permission_assignments" {
   default = {}
   type = map(object({
     app_name            = string
-    api_permission_id   = string
+    api_permission_ids  = list(string)
   }))
 }
-
 
 variable "attack_path_application_owner_assignments" {
   description = "A map of application owner assignments used in an attack path"
@@ -117,5 +121,72 @@ variable "attack_path_application_owner_assignments" {
   type = map(object({
     app_name = string
     user_principal_name = string
+  }))
+}
+
+variable "subscription_id" {
+  description = "The subscription ID to use"
+  type        = string
+}
+
+variable "resource_groups" {
+  type = map(object({
+    name     = string
+    location = string
+  }))
+}
+
+
+variable "key_vaults" {
+  type = map(object({
+    name     = string
+    location = string
+    resource_group_name = string
+    sku_name = string
+  }))
+}
+
+variable "storage_accounts" {
+  type = map(object({
+    name                  = string
+    location              = string
+    resource_group_name   = string
+    account_tier          = string
+    account_replication_type = string
+  }))
+}
+
+variable "virtual_machines" {
+  type = map(object({
+    name                  = string
+    location              = string
+    resource_group_name   = string
+    vm_size               = string
+    admin_username        = string
+    admin_password        = string
+    os_type               = string # "Windows" or "Linux"
+  }))
+}
+
+variable "attack_path_kv_abuse_assignments" {
+  type = map(object({
+    key_vault      = string
+    principal_type = string  # Options: "user", "service_principal", "managed_identity"
+    principal_name = string  # Name of the principal
+    virtual_machine = string # Optional for managed identity
+    app_name         = string  # The application to which a secret will be added
+
+  }))
+}
+
+variable "attack_path_storage_abuse_assignments" {
+  type = map(object({
+    app_name          = string
+    certificate_path  = string
+    private_key_path  = string        
+    storage_account   = string
+    principal_type    = string  # Options: "user", "service_principal", "managed_identity"
+    principal_name    = string  # Name of the principal
+    virtual_machine   = string 
   }))
 }
