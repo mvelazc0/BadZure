@@ -15,7 +15,7 @@ The key advantage of BadZure is its ability to quickly populate and purge both A
 
 ## Goals / Use Cases
 
-BadZure was initialy written to host the [Azure AD Battle School: Hands-on Attack and Defense](https://www.x33fcon.com/#!archive/2023/s/MauricioVelazco.md) workshop at X33fcon 2023. .md
+BadZure was initialy written to host the [Azure AD Battle School: Hands-on Attack and Defense](https://www.x33fcon.com/#!archive/2023/s/MauricioVelazco.md) workshop at X33fcon 2023.
 
 An Azure AD tenant populated with BadZure also enables red and blue teams to:
 
