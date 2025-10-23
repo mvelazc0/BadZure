@@ -17,14 +17,14 @@ The key advantage of BadZure is its ability to quickly populate and purge both A
 
 BadZure was initialy written to host the [Azure AD Battle School: Hands-on Attack and Defense](https://www.x33fcon.com/#!archive/2023/s/MauricioVelazco.md) workshop at X33fcon 2023.
 
-An Azure AD tenant populated with BadZure also enables red and blue teams to:
+An Azure environment populated with BadZure now enables red and blue teams to:
 
-* Experiment with common Azure AD attack vectors and tools
-* Quickly stand up misconfigured Azure AD lab tenants.
-* Obtain attack telemetry to build, test and enhance detection controls
-* Execute purple team exercises in a safe setting
-* Faciliate hands-on Azure AD security training
-* Host dynamic Azure AD Capture the Flag (CTF) events
+* Experiment with common Entra ID attack vectors and modern cloud infrastructure attack techniques
+* Quickly stand up misconfigured Azure tenants with vulnerable cloud resources
+* Obtain comprehensive attack telemetry across identity and infrastructure layers to build, test and enhance detection controls
+* Execute purple team exercises covering both traditional identity attacks and cloud-native compromise scenarios in a safe setting
+* Facilitate hands-on Entra ID and cloud security training with realistic attack paths
+* Host dynamic Azure cloud security Capture the Flag (CTF) events with multi-vector attack scenarios
 
 ## Attack Paths
 
