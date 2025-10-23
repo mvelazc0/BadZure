@@ -40,10 +40,14 @@ When configured to use passwords, BadZure assigns randomly generated passwords t
 
 For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), [endpoint malware](https://mrd0x.com/stealing-tokens-from-office-applications/) or [device code phishing](https://aadinternals.com/post/phishing/). Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
 
+## Privilege Escalation
+BadZure supports three distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
 
-### Privilege Escalation
+- **ServicePrincipalAbuse**: Traditional service principal privilege escalation through Azure AD role and Graph API permission misconfigurations
+- **KeyVaultAbuse**: Cloud-native privilege escalation through Azure Key Vault access misconfigurations and secret retrieval
+- **StorageAccountAbuse**: Certificate-based privilege escalation through Azure Storage Account misconfigurations and authentication material theft
 
-BadZure simulates privilege escalation by introducing misconfigurations within Azure AD roles, Graph API permissions, and application ownerships. These misconfigurations include assigning high-privilege roles to service principals or users, granting extensive Graph API permissions to applications, and configuring users as owners of privileged applications. These settings allow for the configuration of [service principal abuse](https://posts.specterops.io/azure-privilege-escalation-via-service-principal-abuse-210ae2be2a5) attack scenarios.
+Each attack path supports multiple principal types (users, service principals, managed identities) and can be configured with specific or random role assignments. For detailed configuration options and attack path descriptions, refer to the project [Wiki](https://github.com/mvelazc0/BadZure/wiki/Supported-Attack-Paths).
 
 A BloodHound-generated graph, showcasing the attack paths BadZure can create, is shown below.
 
