@@ -274,15 +274,17 @@ def create_sp_attack_path(attack_patch_config, users, applications, domain, pass
     random_user = random.choice(user_keys)
     user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
     password = users[random_user]['password']
+    
+    scenario = attack_patch_config.get('scenario', 'direct') # returns 'default' if missing
 
-    if attack_patch_config['scenario'] == "direct":
+    if scenario == "direct":
         
         initial_access_user = {
         "user_principal_name": user_principal_name,
         "password": password
         }
         
-    elif attack_patch_config['scenario'] == "helpdesk":
+    elif scenario == "helpdesk":
         
         helpdesk_admin_role_id = "729827e3-9c14-49f7-bb1b-9608f156bbb8"  # ID for "Helpdesk Administrator"
         second_random_user = random.choice(user_keys)
