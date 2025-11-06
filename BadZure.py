@@ -274,15 +274,17 @@ def create_sp_attack_path(attack_patch_config, users, applications, domain, pass
     random_user = random.choice(user_keys)
     user_principal_name = f"{users[random_user]['user_principal_name']}@{domain}"
     password = users[random_user]['password']
+    
+    scenario = attack_patch_config.get('scenario', 'direct') 
 
-    if attack_patch_config['scenario'] == "direct":
+    if scenario == "direct":
         
         initial_access_user = {
         "user_principal_name": user_principal_name,
         "password": password
         }
         
-    elif attack_patch_config['scenario'] == "helpdesk":
+    elif scenario == "helpdesk":
         
         helpdesk_admin_role_id = "729827e3-9c14-49f7-bb1b-9608f156bbb8"  # ID for "Helpdesk Administrator"
         second_random_user = random.choice(user_keys)
@@ -778,13 +780,54 @@ def build(config, verbose):
     write_users_to_file(users, domain, 'users.txt')
     logging.info("Created users.txt file.")
     logging.info("Attack Path Details")
-    """
-    for attack_path in config['attack_paths']:
+    
+    for attack_path_name, attack_path_data in config['attack_paths'].items():
         
-        if config['attack_paths'][attack_path]['enabled']:
-            logging.info(f"*** {attack_path} ***")
-            logging.info(f"Initial access user: {user_creds[attack_path]['user_principal_name']}")
+        if attack_path_data['enabled']:
+            logging.info(f"*** {attack_path_name} ***")
             
+            # Display attack path details based on privilege escalation type
+            if attack_path_data['privilege_escalation'] == 'ServicePrincipalAbuse':
+                # Extract attack path ID from the key
+                attack_path_id = list(attack_path_application_owner_assignments.keys())[0].split('-')[-1]
+                logging.info(f"Attack Path ID: attack-path-{attack_path_id}")
+                logging.info(f"Initial Access Identity: User - {user_creds[attack_path_name]['user_principal_name']}")
+                
+            elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
+                # Extract attack path ID and principal details from KeyVault abuse assignments
+                for key, assignment in attack_path_kv_abuse_assignments.items():
+                    attack_path_id = key.split('-')[-1]
+                    logging.info(f"Attack Path ID: {key}")
+                    
+                    principal_type = assignment['principal_type']
+                    principal_name = assignment['principal_name']
+                    
+                    if principal_type == "user":
+                        logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                    elif principal_type == "service_principal":
+                        logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                    elif principal_type == "managed_identity":
+                        vm_name = assignment['virtual_machine']
+                        logging.info(f"Initial Access Identity: Managed Identity (VM) - {vm_name}")
+                        
+            elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
+                # Extract attack path ID and principal details from Storage Account abuse assignments
+                for key, assignment in attack_path_storage_abuse_assignments.items():
+                    attack_path_id = key.split('-')[-1]
+                    logging.info(f"Attack Path ID: {key}")
+                    
+                    principal_type = assignment['principal_type']
+                    principal_name = assignment['principal_name']
+                    
+                    if principal_type == "user":
+                        logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                    elif principal_type == "service_principal":
+                        logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                    elif principal_type == "managed_identity":
+                        vm_name = assignment['virtual_machine']
+                        logging.info(f"Initial Access Identity: Managed Identity (VM) - {vm_name}")
+    
+        """
             if config['attack_paths'][attack_path]['initial_access'] == "password":
                 logging.info(f"Password: {user_creds[attack_path]['password']}")
                 
@@ -798,7 +841,8 @@ def build(config, verbose):
                     file.write(f"Access Token: {tokens['access_token']}\n")
                     file.write(f"Refresh Token: {tokens['refresh_token']}\n")
                 logging.info(f"Tokens saved in tokens.txt!.")
-    """                  
+        """        
+                      
     logging.info("Good bye.")
                   
 @cli.command()
