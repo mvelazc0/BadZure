@@ -449,18 +449,36 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
   role_definition_name = "Storage Blob Data Reader"
 
   principal_id = (
-    each.value.principal_type == "user" ? 
+    each.value.principal_type == "user" ?
       azuread_user.users[each.value.principal_name].id :
-    each.value.principal_type == "service_principal" ? 
+    each.value.principal_type == "service_principal" ?
       azuread_service_principal.spns[each.value.principal_name].id :
-    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ? 
+    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ?
       azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id :
       azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
   )
 
   depends_on = [
-    azurerm_storage_account.sas, 
-    azurerm_linux_virtual_machine.linux_vms, 
+    azurerm_storage_account.sas,
+    azurerm_linux_virtual_machine.linux_vms,
     azurerm_windows_virtual_machine.windows_vms
+  ]
+}
+
+resource "azurerm_role_assignment" "attack_path_vm_contributor_access" {
+  for_each = var.attack_path_vm_contributor_assignments
+
+  scope                = (
+    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].id :
+      azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].id
+  )
+  role_definition_name = "Virtual Machine Contributor"
+  principal_id         = azuread_user.users[each.value.user_name].id
+
+  depends_on = [
+    azurerm_linux_virtual_machine.linux_vms,
+    azurerm_windows_virtual_machine.windows_vms,
+    azuread_user.users
   ]
 }

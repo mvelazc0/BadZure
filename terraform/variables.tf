@@ -183,10 +183,19 @@ variable "attack_path_storage_abuse_assignments" {
   type = map(object({
     app_name          = string
     certificate_path  = string
-    private_key_path  = string        
+    private_key_path  = string
     storage_account   = string
     principal_type    = string  # Options: "user", "service_principal", "managed_identity"
     principal_name    = string  # Name of the principal
-    virtual_machine   = string 
+    virtual_machine   = string
+  }))
+}
+
+variable "attack_path_vm_contributor_assignments" {
+  description = "A map of user to VM Contributor role assignments for attack paths with managed identities"
+  default = {}
+  type = map(object({
+    user_name        = string
+    virtual_machine  = string
   }))
 }

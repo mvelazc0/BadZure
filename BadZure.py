@@ -112,8 +112,9 @@ def write_users_to_file(users, domain, file_path):
 def create_kv_attack_path_flexible(attack_patch_config, applications, keyvaults, users, service_principals, virtual_machines):
 
     attack_path_kv_abuse_assignments = {}
-    app_role_assignments = {}  
+    app_role_assignments = {}
     app_api_permission_assignments = {}
+    vm_contributor_assignments = {}
 
     attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
     key = f"attack-path-{attack_path_id}"
@@ -137,13 +138,22 @@ def create_kv_attack_path_flexible(attack_patch_config, applications, keyvaults,
     elif principal_type == "managed_identity":
         principal_keys = list(virtual_machines.keys())
         random_principal = random.choice(principal_keys)
+        
+        # When using managed identity, assign a user with VM Contributor role
+        user_keys = list(users.keys())
+        random_user = random.choice(user_keys)
+        vm_contributor_assignments[key] = {
+            'user_name': random_user,
+            'virtual_machine': random_principal
+        }
 
     attack_path_kv_abuse_assignments[key] = {
         "key_vault": random_kv,
         "principal_type": principal_type,
         "principal_name": random_principal,  # Can be user, service principal, or VM
         "virtual_machine": random_principal if principal_type == "managed_identity" else None,
-        "app_name": random_app 
+        "app_name": random_app,
+        'initial_access_user': random_user if principal_type == "managed_identity" else None
     }
     
     if attack_patch_config['method'] == "AzureADRole":
@@ -174,15 +184,16 @@ def create_kv_attack_path_flexible(attack_patch_config, applications, keyvaults,
         app_api_permission_assignments[key] = {
             'app_name': random_app,
             'api_permission_ids': api_permission_ids,
-        }    
+        }
 
-    return attack_path_kv_abuse_assignments, app_role_assignments, app_api_permission_assignments
+    return attack_path_kv_abuse_assignments, app_role_assignments, app_api_permission_assignments, vm_contributor_assignments
 
 def create_storage_attack_path_flexible(attack_patch_config, applications, storage_accounts, users, service_principals, virtual_machines):
 
     attack_path_storage_abuse_assignments = {}
     app_role_assignments = {}
     app_api_permission_assignments = {}
+    vm_contributor_assignments = {}
 
     attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
     key = f"attack-path-{attack_path_id}"
@@ -209,6 +220,14 @@ def create_storage_attack_path_flexible(attack_patch_config, applications, stora
     elif principal_type == "managed_identity":
         principal_keys = list(virtual_machines.keys())
         random_principal = random.choice(principal_keys)
+        
+        # When using managed identity, assign a user with VM Contributor role
+        user_keys = list(users.keys())
+        random_user = random.choice(user_keys)
+        vm_contributor_assignments[key] = {
+            'user_name': random_user,
+            'virtual_machine': random_principal
+        }
 
     attack_path_storage_abuse_assignments[key] = {
         
@@ -218,7 +237,8 @@ def create_storage_attack_path_flexible(attack_patch_config, applications, stora
         "principal_name": random_principal,  # Can be user, service principal, or VM
         "virtual_machine": random_principal if principal_type == "managed_identity" else None,
         'certificate_path': cert_path,
-        'private_key_path': key_path
+        'private_key_path': key_path,
+        'initial_access_user': random_user if principal_type == "managed_identity" else None
     }
 
     if attack_patch_config['method'] == "AzureADRole":
@@ -251,7 +271,7 @@ def create_storage_attack_path_flexible(attack_patch_config, applications, stora
             'api_permission_ids': api_permission_ids,
         }
 
-    return attack_path_storage_abuse_assignments, app_role_assignments, app_api_permission_assignments
+    return attack_path_storage_abuse_assignments, app_role_assignments, app_api_permission_assignments, vm_contributor_assignments
 
 
 def create_sp_attack_path(attack_patch_config, users, applications, domain, password):
@@ -679,6 +699,7 @@ def build(config, verbose):
     attack_path_application_owner_assignments, attack_path_user_role_assignments, attack_path_application_role_assignments, attack_path_app_api_permission_assignments = {}, {}, {}, {}
         
     attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments = {}, {}
+    attack_path_vm_contributor_assignments = {}
     
     user_creds = {}
   
@@ -694,19 +715,23 @@ def build(config, verbose):
             attack_path_application_role_assignments = {**attack_path_application_role_assignments, **ap_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **ap_app_api_permission_assignments}
             user_creds[attack_path_name] = initial_access
-            #update_password(users, initial_access['user_principal_name'].split('@')[0], password)    
+            #update_password(users, initial_access['user_principal_name'].split('@')[0], password)
             
         elif attack_path_data['enabled'] and attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
                         
-            attack_path_kv_abuse_assignments, kv_app_role_assignments, kv_app_api_permission_assignments = create_kv_attack_path_flexible(attack_path_data, applications, key_vaults, users, applications, virtual_machines)
+            kv_abuse_assignments, kv_app_role_assignments, kv_app_api_permission_assignments, kv_vm_contributor_assignments = create_kv_attack_path_flexible(attack_path_data, applications, key_vaults, users, applications, virtual_machines)
+            attack_path_kv_abuse_assignments = {**attack_path_kv_abuse_assignments, **kv_abuse_assignments}
             attack_path_application_role_assignments = {**attack_path_application_role_assignments, **kv_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **kv_app_api_permission_assignments}
+            attack_path_vm_contributor_assignments = {**attack_path_vm_contributor_assignments, **kv_vm_contributor_assignments}
             
         elif attack_path_data['enabled'] and attack_path_data['privilege_escalation']=='StorageAccountAbuse':
 
-            attack_path_storage_abuse_assignments, sa_app_role_assignments, sa_app_api_permission_assignments = create_storage_attack_path_flexible(attack_path_data, applications, storage_accounts, users, applications, virtual_machines)
+            sa_abuse_assignments, sa_app_role_assignments, sa_app_api_permission_assignments, sa_vm_contributor_assignments = create_storage_attack_path_flexible(attack_path_data, applications, storage_accounts, users, applications, virtual_machines)
+            attack_path_storage_abuse_assignments = {**attack_path_storage_abuse_assignments, **sa_abuse_assignments}
             attack_path_application_role_assignments = {**attack_path_application_role_assignments, **sa_app_role_assignments}
             attack_path_app_api_permission_assignments = {**attack_path_app_api_permission_assignments, **sa_app_api_permission_assignments}
+            attack_path_vm_contributor_assignments = {**attack_path_vm_contributor_assignments, **sa_vm_contributor_assignments}
 
     # Prepare Terraform variables
     user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -749,7 +774,8 @@ def build(config, verbose):
         'attack_path_application_api_permission_assignments' : attack_path_app_api_permission_assignments,
         
         'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
-        'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments
+        'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments,
+        'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments
     }
     
     # Write the Terraform variables to a file
@@ -801,14 +827,20 @@ def build(config, verbose):
                     
                     principal_type = assignment['principal_type']
                     principal_name = assignment['principal_name']
+                    key_vault = assignment['key_vault']
                     
                     if principal_type == "user":
                         logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                     elif principal_type == "service_principal":
                         logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                     elif principal_type == "managed_identity":
                         vm_name = assignment['virtual_machine']
-                        logging.info(f"Initial Access Identity: Managed Identity (VM) - {vm_name}")
+                        initial_user = assignment.get('initial_access_user')
+                        logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
+                        logging.info(f"Target Managed Identity: {vm_name}")
+                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         
             elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
                 # Extract attack path ID and principal details from Storage Account abuse assignments
@@ -818,14 +850,20 @@ def build(config, verbose):
                     
                     principal_type = assignment['principal_type']
                     principal_name = assignment['principal_name']
+                    storage_account = assignment['storage_account']
                     
                     if principal_type == "user":
                         logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                     elif principal_type == "service_principal":
                         logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                     elif principal_type == "managed_identity":
                         vm_name = assignment['virtual_machine']
-                        logging.info(f"Initial Access Identity: Managed Identity (VM) - {vm_name}")
+                        initial_user = assignment.get('initial_access_user')
+                        logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
+                        logging.info(f"Target Managed Identity: {vm_name}")
+                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
     
         """
             if config['attack_paths'][attack_path]['initial_access'] == "password":
