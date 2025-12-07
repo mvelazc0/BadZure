@@ -58,12 +58,14 @@ def generate_certificate_and_key(app_name):
     ])
 
     # Certificate validity (1 year)
+    # Use timezone-aware datetime to avoid Azure AD validation issues
+    now = datetime.datetime.now(datetime.timezone.utc)
     cert = x509.CertificateBuilder().subject_name(subject) \
         .issuer_name(issuer) \
         .public_key(private_key.public_key()) \
         .serial_number(x509.random_serial_number()) \
-        .not_valid_before(datetime.datetime.utcnow()) \
-        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365)) \
+        .not_valid_before(now) \
+        .not_valid_after(now + datetime.timedelta(days=365)) \
         .sign(private_key, hashes.SHA256())
 
 

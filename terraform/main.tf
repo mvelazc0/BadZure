@@ -210,7 +210,8 @@ resource "azuread_application_certificate" "attack_path_storage_certificates" {
   type              = "AsymmetricX509Cert"
   value             = file(each.value.certificate_path)  # Read certificate file
   #end_date          = timeadd(timestamp(), "8760h")  # calculates 1 year from now in UTC
-  end_date          = "2025-12-01T01:02:03Z"
+  #end_date          = "2025-12-01T01:02:03  
+  # Don't specify end_date - let Azure AD extract it from the certificate itself
 
 }
 
