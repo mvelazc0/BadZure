@@ -118,7 +118,8 @@ class OutputFormatter:
             
             if priv_esc == 'ServicePrincipalAbuse':
                 for key, assignment in assignments.get('app_owners', {}).items():
-                    if path_name in user_creds:
+                    # Match the key to the path_name
+                    if path_name in key and path_name in user_creds:
                         logging.info(f"Attack Path ID: {key}")
                         logging.info(f"Initial Access Identity: User - {user_creds[path_name]['user_principal_name']}")
                         logging.info(f"Password: {user_creds[path_name]['password']}")
@@ -132,59 +133,63 @@ class OutputFormatter:
             
             elif priv_esc == 'KeyVaultAbuse':
                 for key, assignment in assignments.get('kv_abuse', {}).items():
-                    logging.info(f"Attack Path ID: {key}")
-                    
-                    principal_type = assignment['principal_type']
-                    principal_name = assignment['principal_name']
-                    key_vault = assignment['key_vault']
-                    
-                    if principal_type == 'user':
-                        logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
-                        if principal_name in users:
-                            logging.info(f"Password: {users[principal_name]['password']}")
-                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                    elif principal_type == 'service_principal':
-                        logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                    elif principal_type == 'managed_identity':
-                        vm_name = assignment['virtual_machine']
-                        initial_user = assignment.get('initial_access_user')
-                        logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                        if initial_user in users:
-                            logging.info(f"Password: {users[initial_user]['password']}")
-                        logging.info(f"Target Managed Identity: {vm_name}")
-                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                    
-                    logging.info(f"Target Application: {assignment['app_name']}")
-                    break
+                    # Match the key to the path_name
+                    if path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        
+                        principal_type = assignment['principal_type']
+                        principal_name = assignment['principal_name']
+                        key_vault = assignment['key_vault']
+                        
+                        if principal_type == 'user':
+                            logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            if principal_name in users:
+                                logging.info(f"Password: {users[principal_name]['password']}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                        elif principal_type == 'service_principal':
+                            logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                        elif principal_type == 'managed_identity':
+                            vm_name = assignment['virtual_machine']
+                            initial_user = assignment.get('initial_access_user')
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
+                            if initial_user in users:
+                                logging.info(f"Password: {users[initial_user]['password']}")
+                            logging.info(f"Target Managed Identity: {vm_name}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                        
+                        logging.info(f"Target Application: {assignment['app_name']}")
+                        break
             
             elif priv_esc == 'StorageAccountAbuse':
                 for key, assignment in assignments.get('storage_abuse', {}).items():
-                    logging.info(f"Attack Path ID: {key}")
-                    
-                    principal_type = assignment['principal_type']
-                    principal_name = assignment['principal_name']
-                    storage_account = assignment['storage_account']
-                    
-                    if principal_type == 'user':
-                        logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
-                        if principal_name in users:
-                            logging.info(f"Password: {users[principal_name]['password']}")
-                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                    elif principal_type == 'service_principal':
-                        logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                    elif principal_type == 'managed_identity':
-                        vm_name = assignment['virtual_machine']
-                        initial_user = assignment.get('initial_access_user')
-                        logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                        if initial_user in users:
-                            logging.info(f"Password: {users[initial_user]['password']}")
-                        logging.info(f"Target Managed Identity: {vm_name}")
-                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                    
-                    logging.info(f"Target Application: {assignment['app_name']}")
-                    logging.info(f"Certificate stored in: {storage_account}/cert-container/")
-                    break
+                    # Match the key to the path_name
+                    if path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        
+                        principal_type = assignment['principal_type']
+                        principal_name = assignment['principal_name']
+                        storage_account = assignment['storage_account']
+                        
+                        if principal_type == 'user':
+                            logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            if principal_name in users:
+                                logging.info(f"Password: {users[principal_name]['password']}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        elif principal_type == 'service_principal':
+                            logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        elif principal_type == 'managed_identity':
+                            vm_name = assignment['virtual_machine']
+                            initial_user = assignment.get('initial_access_user')
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
+                            if initial_user in users:
+                                logging.info(f"Password: {users[initial_user]['password']}")
+                            logging.info(f"Target Managed Identity: {vm_name}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        
+                        logging.info(f"Target Application: {assignment['app_name']}")
+                        logging.info(f"Certificate stored in: {storage_account}/cert-container/")
+                        break
         
         logging.info("\n" + "=" * 60)
