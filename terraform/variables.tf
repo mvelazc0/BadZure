@@ -112,6 +112,7 @@ variable "attack_path_application_api_permission_assignments" {
   type = map(object({
     app_name            = string
     api_permission_ids  = list(string)
+    api_type            = optional(string, "graph")  # Optional field, defaults to "graph" for backward compatibility
   }))
 }
 

@@ -534,11 +534,11 @@ GRAPH_API_PERMISSIONS = {
         "id": "b47b160b-1054-4efd-9ca0-e2f614696086",
         "origin": "Application",
     },
-    #"RoleManagement.ReadWrite.Directory": {
-    #    "allowedMemberTypes": ["Application"],
-    #    "id": "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8",
-    #    "origin": "Application",
-    #},
+    "RoleManagement.ReadWrite.Directory": {
+        "allowedMemberTypes": ["Application"],
+        "id": "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8",
+        "origin": "Application",
+    },
     "CloudPC.Read.All": {
         "allowedMemberTypes": ["Application"],
         "id": "a9e09520-8ed4-4cde-838e-4fdea192c227",
@@ -2478,5 +2478,55 @@ GRAPH_API_PERMISSIONS = {
         "allowedMemberTypes": ["Application"],
         "id": "50483e42-d915-4231-9639-7fdb7fd190e5",
         "origin": "Application",
+    }
+}
+
+# ============================================================================
+# Multi-API Permission Support
+# ============================================================================
+
+# API Registry - Metadata for supported APIs
+API_REGISTRY = {
+    "graph": {
+        "display_name": "Microsoft Graph",
+        "service_principal_name": "Microsoft Graph",
+        "description": "Microsoft Graph API - Azure AD, SharePoint, Teams, OneDrive, etc."
     },
+    "exchange": {
+        "display_name": "Exchange Online",
+        "service_principal_name": "Office 365 Exchange Online",
+        "description": "Exchange Online API - Direct mailbox and configuration access"
+    }
+}
+
+# Exchange Online API Permissions
+EXCHANGE_API_PERMISSIONS = {
+    "full_access_as_app": {
+        "allowedMemberTypes": ["Application"],
+        "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
+        "origin": "Application",
+        "description": "Full mailbox access to all mailboxes"
+    },
+    "Exchange.ManageAsApp": {
+        "allowedMemberTypes": ["Application"],
+        "id": "dc890d15-9560-4a4c-9b7f-a736ec74ec40",
+        "origin": "Application",
+        "description": "Manage Exchange as application"
+    }
+}
+
+HIGH_PRIVILEGED_EXCHANGE_API_PERMISSIONS = {
+    "full_access_as_app": EXCHANGE_API_PERMISSIONS["full_access_as_app"],
+    "Exchange.ManageAsApp": EXCHANGE_API_PERMISSIONS["Exchange.ManageAsApp"]
+}
+
+# Unified permission lookup dictionaries
+ALL_API_PERMISSIONS = {
+    "graph": GRAPH_API_PERMISSIONS,
+    "exchange": EXCHANGE_API_PERMISSIONS
+}
+
+ALL_HIGH_PRIVILEGED_PERMISSIONS = {
+    "graph": HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS,
+    "exchange": HIGH_PRIVILEGED_EXCHANGE_API_PERMISSIONS
 }

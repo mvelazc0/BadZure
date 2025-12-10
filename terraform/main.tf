@@ -33,6 +33,10 @@ data "azuread_service_principal" "microsoft_graph" {
   display_name = "Microsoft Graph"
 }
 
+data "azuread_service_principal" "exchange_online" {
+  display_name = "Office 365 Exchange Online"
+}
+
 resource "azuread_user" "users" {
   for_each = var.users
 
@@ -133,13 +137,14 @@ resource "azuread_app_role_assignment" "attack_path_application_api_permission_a
       "${assignment_key}-${permission_id}" => {
         app_name          = assignment.app_name
         api_permission_id = permission_id
+        api_type          = lookup(assignment, "api_type", "graph")  # Default to graph for backward compatibility
       }
     }
   ]...)
 
   app_role_id         = each.value.api_permission_id
   principal_object_id = azuread_service_principal.spns[each.value.app_name].id
-  resource_object_id  = data.azuread_service_principal.microsoft_graph.id
+  resource_object_id  = each.value.api_type == "exchange" ? data.azuread_service_principal.exchange_online.id : data.azuread_service_principal.microsoft_graph.id
 }
 
 

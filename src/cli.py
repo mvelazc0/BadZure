@@ -11,7 +11,6 @@ from src.assignment_manager import AssignmentManager
 from src.attack_path_manager import AttackPathManager
 from src.terraform_manager import TerraformManager
 from src.output_formatter import OutputFormatter
-from src.targeted_attack_path_manager import TargetedAttackPathManager
 import src.utils as utils
 
 
@@ -115,7 +114,7 @@ class BuildCommand:
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (initial_access, ap_app_owner, ap_user_role, ap_app_role,
                  ap_app_api_permission) = self.attack_path_mgr.create_service_principal_abuse(
-                    attack_path_data, users, applications, domain
+                    attack_path_data, users, applications, domain, mode='random'
                 )
                 attack_path_application_owner_assignments.update(ap_app_owner)
                 attack_path_user_role_assignments.update(ap_user_role)
@@ -126,7 +125,8 @@ class BuildCommand:
             elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
                 (kv_abuse, kv_app_role, kv_app_api_permission,
                  kv_vm_contributor) = self.attack_path_mgr.create_keyvault_abuse(
-                    attack_path_data, applications, key_vaults, users, applications, virtual_machines
+                    attack_path_data, applications, key_vaults, users, applications,
+                    virtual_machines, mode='random'
                 )
                 attack_path_kv_abuse_assignments.update(kv_abuse)
                 attack_path_application_role_assignments.update(kv_app_role)
@@ -136,7 +136,8 @@ class BuildCommand:
             elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
                 (sa_abuse, sa_app_role, sa_app_api_permission,
                  sa_vm_contributor) = self.attack_path_mgr.create_storage_account_abuse(
-                    attack_path_data, applications, storage_accounts, users, applications, virtual_machines
+                    attack_path_data, applications, storage_accounts, users, applications,
+                    virtual_machines, mode='random'
                 )
                 attack_path_storage_abuse_assignments.update(sa_abuse)
                 attack_path_application_role_assignments.update(sa_app_role)
@@ -230,8 +231,7 @@ class BuildCommand:
         
         # Create targeted attack path assignments
         logging.info("Creating attack path assignments")
-        targeted_mgr = TargetedAttackPathManager()
-        attack_path_assignments = targeted_mgr.create_assignments(
+        attack_path_assignments = self._create_targeted_assignments(
             config, users, groups, applications, administrative_units,
             resource_groups, key_vaults, storage_accounts, virtual_machines, domain
         )
@@ -274,6 +274,70 @@ class BuildCommand:
         logging.info("Azure AD tenant setup completed!")
         self.output_formatter.write_users_file(users, domain)
         self.output_formatter.format_targeted_mode_attack_paths(config, attack_path_assignments, users, domain)
+    
+    def _create_targeted_assignments(
+        self, config: Dict, users: Dict, groups: Dict, applications: Dict,
+        administrative_units: Dict, resource_groups: Dict, key_vaults: Dict,
+        storage_accounts: Dict, virtual_machines: Dict, domain: str
+    ) -> Dict:
+        """Create targeted attack path assignments using consolidated AttackPathManager."""
+        assignments = {
+            'app_owners': {},
+            'user_roles': {},
+            'app_roles': {},
+            'app_api_permissions': {},
+            'kv_abuse': {},
+            'storage_abuse': {},
+            'vm_contributor': {}
+        }
+        
+        user_creds = {}
+        
+        for path_name, path_config in config['attack_paths'].items():
+            if not path_config.get('enabled', False):
+                continue
+            
+            priv_esc = path_config.get('privilege_escalation')
+            entities = path_config.get('entities', {})
+            
+            if priv_esc == 'ServicePrincipalAbuse':
+                (initial_access, ap_app_owner, ap_user_role, ap_app_role,
+                 ap_app_api_permission) = self.attack_path_mgr.create_service_principal_abuse(
+                    path_config, users, applications, domain,
+                    mode='targeted', entities=entities, path_name=path_name
+                )
+                assignments['app_owners'].update(ap_app_owner)
+                assignments['user_roles'].update(ap_user_role)
+                assignments['app_roles'].update(ap_app_role)
+                assignments['app_api_permissions'].update(ap_app_api_permission)
+                user_creds[path_name] = initial_access
+            
+            elif priv_esc == 'KeyVaultAbuse':
+                (kv_abuse, kv_app_role, kv_app_api_permission,
+                 kv_vm_contributor) = self.attack_path_mgr.create_keyvault_abuse(
+                    path_config, applications, key_vaults, users, applications,
+                    virtual_machines, mode='targeted', entities=entities, path_name=path_name
+                )
+                assignments['kv_abuse'].update(kv_abuse)
+                assignments['app_roles'].update(kv_app_role)
+                assignments['app_api_permissions'].update(kv_app_api_permission)
+                assignments['vm_contributor'].update(kv_vm_contributor)
+            
+            elif priv_esc == 'StorageAccountAbuse':
+                (sa_abuse, sa_app_role, sa_app_api_permission,
+                 sa_vm_contributor) = self.attack_path_mgr.create_storage_account_abuse(
+                    path_config, applications, storage_accounts, users, applications,
+                    virtual_machines, mode='targeted', entities=entities, path_name=path_name
+                )
+                assignments['storage_abuse'].update(sa_abuse)
+                assignments['app_roles'].update(sa_app_role)
+                assignments['app_api_permissions'].update(sa_app_api_permission)
+                assignments['vm_contributor'].update(sa_vm_contributor)
+        
+        # Store user credentials for output
+        assignments['user_creds'] = user_creds
+        
+        return assignments
         logging.info("Good bye.")
     
     def _collect_entities_from_attack_paths(self, config: Dict) -> Dict:
