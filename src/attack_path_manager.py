@@ -18,7 +18,7 @@ from src.crypto import generate_certificate_and_key
 class AttackPathManager:
     """Manages creation of attack paths for both random and targeted modes."""
     
-    def create_service_principal_abuse(
+    def create_application_ownership_abuse(
         self,
         attack_config: Dict,
         users: Dict,
@@ -29,7 +29,7 @@ class AttackPathManager:
         path_name: Optional[str] = None
     ) -> Tuple[Dict, Dict, Dict, Dict, Dict]:
         """
-        Create Service Principal Abuse attack path.
+        Create Application Ownership Abuse attack path.
         
         Args:
             attack_config: Attack path configuration
@@ -59,11 +59,11 @@ class AttackPathManager:
         
         # Select entities based on mode
         if mode == 'random':
-            app_name, user_name, second_user_name = self._select_random_entities_sp_abuse(
+            app_name, user_name, second_user_name = self._select_random_entities_app_ownership(
                 users, applications, attack_config.get('scenario', 'direct')
             )
         else:  # targeted mode
-            app_name, user_name, second_user_name = self._select_targeted_entities_sp_abuse(
+            app_name, user_name, second_user_name = self._select_targeted_entities_app_ownership(
                 users, applications, entities, attack_config.get('scenario', 'direct'), path_name
             )
         
@@ -106,6 +106,86 @@ class AttackPathManager:
         return (
             initial_access_user,
             app_owner_assignments,
+            user_role_assignments,
+            app_role_assignments,
+            app_api_permission_assignments
+        )
+    
+    def create_application_administrator_abuse(
+        self,
+        attack_config: Dict,
+        users: Dict,
+        applications: Dict,
+        domain: str,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None
+    ) -> Tuple[Dict, Dict, Dict, Dict]:
+        """
+        Create Application Administrator Abuse attack path.
+        
+        This technique exploits the Application Administrator Entra ID role to manage
+        any application in the tenant and add credentials to privileged applications.
+        
+        Args:
+            attack_config: Attack path configuration
+            users: Dictionary of users
+            applications: Dictionary of applications
+            domain: Domain name
+            mode: 'random' or 'targeted'
+            entities: Entity specifications (required for targeted mode)
+            path_name: Attack path name (used for targeted mode)
+        
+        Returns:
+            Tuple of (initial_access_user, user_role_assignments,
+                     app_role_assignments, app_api_permission_assignments)
+        """
+        user_role_assignments = {}
+        app_role_assignments = {}
+        app_api_permission_assignments = {}
+        
+        # Generate attack path key
+        attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        if mode == 'targeted' and path_name:
+            key = f"attack-path-{path_name}-{attack_path_id}"
+        else:
+            key = f"attack-path-{attack_path_id}"
+        
+        # Select entities based on mode
+        if mode == 'random':
+            app_name, user_name = self._select_random_entities_app_administrator(
+                users, applications
+            )
+        else:  # targeted mode
+            app_name, user_name = self._select_targeted_entities_app_administrator(
+                users, applications, entities, path_name
+            )
+        
+        # Create assignments
+        user_principal_name = f"{user_name}@{domain}"
+        password = users[user_name]['password']
+        
+        initial_access_user = {
+            "user_principal_name": user_principal_name,
+            "password": password
+        }
+        
+        # Assign Application Administrator role to user
+        # Application Administrator role ID: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
+        app_admin_role_id = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
+        user_role_assignments[key] = {
+            'user_name': user_name,
+            'role_definition_id': app_admin_role_id
+        }
+        
+        # Assign privileges to the target application
+        self._assign_app_privileges(
+            attack_config, app_name, key,
+            app_role_assignments, app_api_permission_assignments
+        )
+        
+        return (
+            initial_access_user,
             user_role_assignments,
             app_role_assignments,
             app_api_permission_assignments
@@ -290,10 +370,10 @@ class AttackPathManager:
     # Random Mode Entity Selection
     # ========================================================================
     
-    def _select_random_entities_sp_abuse(
+    def _select_random_entities_app_ownership(
         self, users: Dict, applications: Dict, scenario: str
     ) -> Tuple[str, str, str]:
-        """Select random entities for Service Principal Abuse."""
+        """Select random entities for Application Ownership Abuse."""
         app_keys = list(applications.keys())
         app_name = random.choice(app_keys)
         
@@ -302,6 +382,18 @@ class AttackPathManager:
         second_user_name = random.choice(user_keys) if scenario == "helpdesk" else user_name
         
         return app_name, user_name, second_user_name
+    
+    def _select_random_entities_app_administrator(
+        self, users: Dict, applications: Dict
+    ) -> Tuple[str, str]:
+        """Select random entities for Application Administrator Abuse."""
+        app_keys = list(applications.keys())
+        app_name = random.choice(app_keys)
+        
+        user_keys = list(users.keys())
+        user_name = random.choice(user_keys)
+        
+        return app_name, user_name
     
     def _select_random_entities_kv_abuse(
         self, applications: Dict, keyvaults: Dict, users: Dict,
@@ -347,11 +439,11 @@ class AttackPathManager:
     # Targeted Mode Entity Selection
     # ========================================================================
     
-    def _select_targeted_entities_sp_abuse(
+    def _select_targeted_entities_app_ownership(
         self, users: Dict, applications: Dict, entities: Dict,
         scenario: str, path_name: str
     ) -> Tuple[str, str, str]:
-        """Select targeted entities for Service Principal Abuse."""
+        """Select targeted entities for Application Ownership Abuse."""
         # Get user
         user_list = list(entities.get('users', []))
         if not user_list:
@@ -387,6 +479,32 @@ class AttackPathManager:
             second_user_name = user_name
         
         return app_name, user_name, second_user_name
+    
+    def _select_targeted_entities_app_administrator(
+        self, users: Dict, applications: Dict, entities: Dict, path_name: str
+    ) -> Tuple[str, str]:
+        """Select targeted entities for Application Administrator Abuse."""
+        # Get user
+        user_list = list(entities.get('users', []))
+        if not user_list:
+            raise ValueError(f"{path_name}: No users specified")
+        
+        user_spec = user_list[0]
+        user_name = user_spec.get('name', 'random')
+        if user_name == 'random':
+            user_name = random.choice(list(users.keys()))
+        
+        # Get application
+        app_list = list(entities.get('applications', []))
+        if not app_list:
+            raise ValueError(f"{path_name}: No applications specified")
+        
+        app_spec = app_list[0]
+        app_name = app_spec.get('name', 'random')
+        if app_name == 'random':
+            app_name = random.choice(list(applications.keys()))
+        
+        return app_name, user_name
     
     def _select_targeted_entities_kv_abuse(
         self, applications: Dict, keyvaults: Dict, users: Dict,

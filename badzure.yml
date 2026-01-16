@@ -1,35 +1,123 @@
+# BadZure Configuration File
+# This file demonstrates all supported privilege escalation techniques
+# Uncomment and modify the tenant section with your Azure environment details
+
 tenant:
+  # Replace with your Azure tenant information
+  tenant_id: YOUR_TENANT_ID
+  domain: YOUR_DOMAIN.onmicrosoft.com
+  subscription_id: YOUR_SUBSCRIPTION_ID
 
-  tenant_id: 00000000-0000-0000-0000-000000000000
-  domain: contoso.onmicrosoft.com
+  # Identity resources (required for all attack paths)
+  users: 5
+  applications: 3
+  groups: 2
+  administrative_units: 1
 
-  users: 30
-  applications: 15
-  groups: 10
-  administrative_units: 10
+  # Azure resources (required for KeyVaultAbuse and StorageAccountAbuse)
+  resource_groups: 1
+  key_vaults: 1
+  storage_accounts: 1
+  virtual_machines: 1
+
+# Attack Path Examples
+# Each attack path demonstrates a different privilege escalation technique
+# Enable/disable attack paths by setting 'enabled: true/false'
 
 attack_paths:
 
+  # ============================================================================
+  # Identity-Based Privilege Escalation Techniques
+  # ============================================================================
+
+  # Example 1: ApplicationOwnershipAbuse with Azure AD Role
+  # Simulates a compromised user who owns an application with Global Administrator role
   attack_path_1:
     enabled: true
-    initial_access: password 
-    scenario : direct
-    privilege_escalation: ServicePrincipalAbuse
+    initial_access: password
+    privilege_escalation: ApplicationOwnershipAbuse
+    scenario: direct
     method: AzureADRole
-    entra_role : random
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
+  # Example 2: ApplicationOwnershipAbuse with Microsoft Graph API Permissions
+  # Simulates a compromised user who owns an application with high-privileged Graph permissions
   attack_path_2:
     enabled: true
-    initial_access: token
-    scenario : helpdesk
-    privilege_escalation: ServicePrincipalAbuse
-    method: GraphAPIPermission
-    app_role : random
+    initial_access: password
+    privilege_escalation: ApplicationOwnershipAbuse
+    scenario: direct
+    method: APIPermission
+    api_type: graph
+    app_role:
+      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+      - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 
+  # Example 3: ApplicationAdministratorAbuse with Exchange Online Permissions
+  # Simulates a compromised Application Administrator accessing Exchange mailboxes
   attack_path_3:
+    enabled: true
+    initial_access: password
+    privilege_escalation: ApplicationAdministratorAbuse
+    method: APIPermission
+    api_type: exchange
+    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
+
+  # Example 4: ApplicationAdministratorAbuse with Azure AD Role
+  # Simulates a compromised Application Administrator leveraging privileged applications
+  attack_path_4:
     enabled: false
     initial_access: token
-    scenario : helpdesk
-    privilege_escalation: ServicePrincipalAbuse
-    method: GraphAPIPermission
-    app_role : 810c84a8-4a9e-49e6-bf7d-12d183f40d01 # Mail.Read Application Permission
+    privilege_escalation: ApplicationAdministratorAbuse
+    method: AzureADRole
+    entra_role: 
+      - 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3  # Application Administrator
+      - 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # ============================================================================
+  # Cloud Resource-Based Privilege Escalation Techniques
+  # ============================================================================
+
+  # Example 5: KeyVaultAbuse with User Principal
+  # Simulates a compromised user with Key Vault access retrieving application secrets
+  attack_path_5:
+    enabled: false
+    initial_access: password
+    privilege_escalation: KeyVaultAbuse
+    principal_type: user
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example 6: KeyVaultAbuse with Managed Identity
+  # Simulates a compromised VM with managed identity accessing Key Vault secrets
+  attack_path_6:
+    enabled: false
+    initial_access: password
+    privilege_escalation: KeyVaultAbuse
+    principal_type: managed_identity
+    method: APIPermission
+    api_type: graph
+    app_role:
+      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+      - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
+
+  # Example 7: StorageAccountAbuse with Service Principal
+  # Simulates a compromised service principal accessing certificates in storage
+  attack_path_7:
+    enabled: false
+    initial_access: password
+    privilege_escalation: StorageAccountAbuse
+    principal_type: service_principal
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example 8: StorageAccountAbuse with Managed Identity
+  # Simulates a compromised VM accessing application certificates in blob storage
+  attack_path_8:
+    enabled: false
+    initial_access: token
+    privilege_escalation: StorageAccountAbuse
+    principal_type: managed_identity
+    method: APIPermission
+    api_type: exchange
+    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app

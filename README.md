@@ -41,11 +41,17 @@ When configured to use passwords, BadZure assigns randomly generated passwords t
 For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), [endpoint malware](https://mrd0x.com/stealing-tokens-from-office-applications/) or [device code phishing](https://aadinternals.com/post/phishing/). Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
 
 ## Privilege Escalation
-BadZure supports three distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
+BadZure supports four distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
 
-- **ServicePrincipalAbuse**: Traditional service principal privilege escalation through Azure AD role and Graph API permission misconfigurations
+### Identity-Based Privilege Escalation
+- **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to owned applications with high privileges
+- **ApplicationAdministratorAbuse**: Exploits the Application Administrator Entra ID role to manage any application and add credentials to privileged applications
+
+### Cloud Resource-Based Privilege Escalation
 - **KeyVaultAbuse**: Cloud-native privilege escalation through Azure Key Vault access misconfigurations and secret retrieval
 - **StorageAccountAbuse**: Certificate-based privilege escalation through Azure Storage Account misconfigurations and authentication material theft
+
+**Note:** The legacy `ServicePrincipalAbuse` name is still supported for backward compatibility but is deprecated. Please use `ApplicationOwnershipAbuse` instead.
 
 Each attack path supports multiple principal types (users, service principals, managed identities) and can be configured with specific or random role assignments. For detailed configuration options and attack path descriptions, refer to the project [Wiki](https://github.com/mvelazc0/BadZure/wiki/Supported-Attack-Paths).
 
@@ -138,17 +144,18 @@ attack_paths:
 
   attack_path_1:
     enabled: true
-    initial_access: password 
-    privilege_escalation: ServicePrincipalAbuse
+    initial_access: password
+    privilege_escalation: ApplicationOwnershipAbuse
     method: AzureADRole
     entra_role : random
 
   attack_path_2:
     enabled: true
     initial_access: token
-    privilege_escalation: ServicePrincipalAbuse
-    method: GraphAPIPermission
-    app_role : random 
+    privilege_escalation: ApplicationAdministratorAbuse
+    method: APIPermission
+    api_type: graph
+    app_role : random
 
 ```
 

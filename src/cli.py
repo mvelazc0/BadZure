@@ -110,13 +110,40 @@ class BuildCommand:
             if not attack_path_data['enabled']:
                 continue
             
-            if attack_path_data['privilege_escalation'] == 'ServicePrincipalAbuse':
+            # Support both old and new names with deprecation warning
+            priv_esc = attack_path_data['privilege_escalation']
+            
+            if priv_esc == 'ServicePrincipalAbuse':
+                logging.warning(f"{attack_path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (initial_access, ap_app_owner, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_service_principal_abuse(
+                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
                     attack_path_data, users, applications, domain, mode='random'
                 )
                 attack_path_application_owner_assignments.update(ap_app_owner)
+                attack_path_user_role_assignments.update(ap_user_role)
+                attack_path_application_role_assignments.update(ap_app_role)
+                attack_path_app_api_permission_assignments.update(ap_app_api_permission)
+                user_creds[attack_path_name] = initial_access
+            
+            elif priv_esc == 'ApplicationOwnershipAbuse':
+                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
+                (initial_access, ap_app_owner, ap_user_role, ap_app_role,
+                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
+                    attack_path_data, users, applications, domain, mode='random'
+                )
+                attack_path_application_owner_assignments.update(ap_app_owner)
+                attack_path_user_role_assignments.update(ap_user_role)
+                attack_path_application_role_assignments.update(ap_app_role)
+                attack_path_app_api_permission_assignments.update(ap_app_api_permission)
+                user_creds[attack_path_name] = initial_access
+            
+            elif priv_esc == 'ApplicationAdministratorAbuse':
+                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
+                (initial_access, ap_user_role, ap_app_role,
+                 ap_app_api_permission) = self.attack_path_mgr.create_application_administrator_abuse(
+                    attack_path_data, users, applications, domain, mode='random'
+                )
                 attack_path_user_role_assignments.update(ap_user_role)
                 attack_path_application_role_assignments.update(ap_app_role)
                 attack_path_app_api_permission_assignments.update(ap_app_api_permission)
@@ -300,13 +327,38 @@ class BuildCommand:
             priv_esc = path_config.get('privilege_escalation')
             entities = path_config.get('entities', {})
             
+            # Support both old and new names with deprecation warning
             if priv_esc == 'ServicePrincipalAbuse':
+                logging.warning(f"{path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
                 (initial_access, ap_app_owner, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_service_principal_abuse(
+                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
                 assignments['app_owners'].update(ap_app_owner)
+                assignments['user_roles'].update(ap_user_role)
+                assignments['app_roles'].update(ap_app_role)
+                assignments['app_api_permissions'].update(ap_app_api_permission)
+                user_creds[path_name] = initial_access
+            
+            elif priv_esc == 'ApplicationOwnershipAbuse':
+                (initial_access, ap_app_owner, ap_user_role, ap_app_role,
+                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
+                    path_config, users, applications, domain,
+                    mode='targeted', entities=entities, path_name=path_name
+                )
+                assignments['app_owners'].update(ap_app_owner)
+                assignments['user_roles'].update(ap_user_role)
+                assignments['app_roles'].update(ap_app_role)
+                assignments['app_api_permissions'].update(ap_app_api_permission)
+                user_creds[path_name] = initial_access
+            
+            elif priv_esc == 'ApplicationAdministratorAbuse':
+                (initial_access, ap_user_role, ap_app_role,
+                 ap_app_api_permission) = self.attack_path_mgr.create_application_administrator_abuse(
+                    path_config, users, applications, domain,
+                    mode='targeted', entities=entities, path_name=path_name
+                )
                 assignments['user_roles'].update(ap_user_role)
                 assignments['app_roles'].update(ap_app_role)
                 assignments['app_api_permissions'].update(ap_app_api_permission)

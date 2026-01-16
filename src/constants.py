@@ -2503,13 +2503,13 @@ API_REGISTRY = {
 EXCHANGE_API_PERMISSIONS = {
     "full_access_as_app": {
         "allowedMemberTypes": ["Application"],
-        "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
+        "id": "dc890d15-9560-4a4c-9b7f-a736ec74ec40",
         "origin": "Application",
         "description": "Full mailbox access to all mailboxes"
     },
     "Exchange.ManageAsApp": {
         "allowedMemberTypes": ["Application"],
-        "id": "dc890d15-9560-4a4c-9b7f-a736ec74ec40",
+        "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
         "origin": "Application",
         "description": "Manage Exchange as application"
     }

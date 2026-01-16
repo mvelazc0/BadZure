@@ -67,8 +67,16 @@ class ConfigManager:
             # Validate based on privilege_escalation type
             priv_esc = path_config.get('privilege_escalation')
             
+            # Support both old and new names with deprecation warning
             if priv_esc == 'ServicePrincipalAbuse':
-                self._validate_sp_abuse(path_name, path_config, entities, errors)
+                logging.warning(f"{path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
+                self._validate_app_ownership_abuse(path_name, path_config, entities, errors)
+            
+            elif priv_esc == 'ApplicationOwnershipAbuse':
+                self._validate_app_ownership_abuse(path_name, path_config, entities, errors)
+            
+            elif priv_esc == 'ApplicationAdministratorAbuse':
+                self._validate_app_administrator_abuse(path_name, path_config, entities, errors)
                     
             elif priv_esc == 'KeyVaultAbuse':
                 self._validate_kv_abuse(path_name, path_config, entities, errors)
@@ -78,12 +86,34 @@ class ConfigManager:
         
         return len(errors) == 0, errors
     
-    def _validate_sp_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
-        """Validate Service Principal Abuse configuration."""
+    def _validate_app_ownership_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
+        """Validate Application Ownership Abuse configuration."""
         if 'users' not in entities or not entities['users']:
-            errors.append(f"{path_name}: ServicePrincipalAbuse requires at least one user")
+            errors.append(f"{path_name}: ApplicationOwnershipAbuse requires at least one user")
         if 'applications' not in entities or not entities['applications']:
-            errors.append(f"{path_name}: ServicePrincipalAbuse requires at least one application")
+            errors.append(f"{path_name}: ApplicationOwnershipAbuse requires at least one application")
+        
+        # Validate method and related parameters
+        method = path_config.get('method')
+        if not method:
+            errors.append(f"{path_name}: Missing 'method' parameter")
+            return
+        
+        if method == 'AzureADRole':
+            self._validate_entra_role(path_name, path_config, errors)
+        elif method == 'GraphAPIPermission':
+            self._validate_graph_api_permission(path_name, path_config, errors)
+        elif method == 'APIPermission':
+            self._validate_api_permission(path_name, path_config, errors)
+        else:
+            errors.append(f"{path_name}: Invalid method '{method}'. Must be 'AzureADRole', 'GraphAPIPermission', or 'APIPermission'")
+    
+    def _validate_app_administrator_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
+        """Validate Application Administrator Abuse configuration."""
+        if 'users' not in entities or not entities['users']:
+            errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one user")
+        if 'applications' not in entities or not entities['applications']:
+            errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one application")
         
         # Validate method and related parameters
         method = path_config.get('method')
