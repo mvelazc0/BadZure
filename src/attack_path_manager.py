@@ -230,6 +230,10 @@ class AttackPathManager:
         attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
         if mode == 'targeted' and path_name:
             key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            # Include path_name in random mode to enable filtering in output
+            # Use path_name directly with random ID (no "attack-path" prefix to avoid duplication)
+            key = f"{path_name}-{attack_path_id}"
         else:
             key = f"attack-path-{attack_path_id}"
         
@@ -315,6 +319,10 @@ class AttackPathManager:
         attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
         if mode == 'targeted' and path_name:
             key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            # Include path_name in random mode to enable filtering in output
+            # Use path_name directly with random ID (no "attack-path" prefix to avoid duplication)
+            key = f"{path_name}-{attack_path_id}"
         else:
             key = f"attack-path-{attack_path_id}"
         

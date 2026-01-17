@@ -231,8 +231,8 @@ resource "azuread_application_certificate" "attack_path_storage_certificates" {
 resource "azurerm_storage_container" "attack_path_storage_containers" {
   for_each            = var.attack_path_storage_abuse_assignments
 
-  name                = "cert-container-${each.key}"
-  storage_account_name = azurerm_storage_account.sas[each.value.storage_account].name
+  name                = "cert-container-${replace(each.key, "_", "-")}"
+  storage_account_id   = azurerm_storage_account.sas[each.value.storage_account].id
   container_access_type = "private"
 
   depends_on = [azurerm_storage_account.sas]

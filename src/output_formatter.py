@@ -53,46 +53,58 @@ class OutputFormatter:
                         logging.info(f"Initial Access Identity: User - {user_creds[attack_path_name]['user_principal_name']}")
             
             elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
+                # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_kv_abuse_assignments.items():
-                    logging.info(f"Attack Path ID: {key}")
-                    
-                    principal_type = assignment['principal_type']
-                    principal_name = assignment['principal_name']
-                    key_vault = assignment['key_vault']
-                    
-                    if principal_type == "user":
-                        logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
-                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                    elif principal_type == "service_principal":
-                        logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                    elif principal_type == "managed_identity":
-                        vm_name = assignment['virtual_machine']
-                        initial_user = assignment.get('initial_access_user')
-                        logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                        logging.info(f"Target Managed Identity: {vm_name}")
-                        logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                    # Check if this assignment belongs to the current attack path
+                    if attack_path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        
+                        principal_type = assignment['principal_type']
+                        principal_name = assignment['principal_name']
+                        key_vault = assignment['key_vault']
+                        
+                        if principal_type == "user":
+                            logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                        elif principal_type == "service_principal":
+                            logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                        elif principal_type == "managed_identity":
+                            vm_name = assignment['virtual_machine']
+                            initial_user = assignment.get('initial_access_user')
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
+                            logging.info(f"Target Managed Identity: {vm_name}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                        
+                        # Only show one assignment per attack path
+                        break
             
             elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
+                # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_storage_abuse_assignments.items():
-                    logging.info(f"Attack Path ID: {key}")
-                    
-                    principal_type = assignment['principal_type']
-                    principal_name = assignment['principal_name']
-                    storage_account = assignment['storage_account']
-                    
-                    if principal_type == "user":
-                        logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
-                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                    elif principal_type == "service_principal":
-                        logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                    elif principal_type == "managed_identity":
-                        vm_name = assignment['virtual_machine']
-                        initial_user = assignment.get('initial_access_user')
-                        logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                        logging.info(f"Target Managed Identity: {vm_name}")
-                        logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                    # Check if this assignment belongs to the current attack path
+                    if attack_path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        
+                        principal_type = assignment['principal_type']
+                        principal_name = assignment['principal_name']
+                        storage_account = assignment['storage_account']
+                        
+                        if principal_type == "user":
+                            logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        elif principal_type == "service_principal":
+                            logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        elif principal_type == "managed_identity":
+                            vm_name = assignment['virtual_machine']
+                            initial_user = assignment.get('initial_access_user')
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
+                            logging.info(f"Target Managed Identity: {vm_name}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        
+                        # Only show one assignment per attack path
+                        break
     
     def format_targeted_mode_attack_paths(
         self,

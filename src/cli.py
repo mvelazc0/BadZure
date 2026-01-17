@@ -150,10 +150,11 @@ class BuildCommand:
                 user_creds[attack_path_name] = initial_access
             
             elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
+                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (kv_abuse, kv_app_role, kv_app_api_permission,
                  kv_vm_contributor) = self.attack_path_mgr.create_keyvault_abuse(
                     attack_path_data, applications, key_vaults, users, applications,
-                    virtual_machines, mode='random'
+                    virtual_machines, mode='random', path_name=attack_path_name
                 )
                 attack_path_kv_abuse_assignments.update(kv_abuse)
                 attack_path_application_role_assignments.update(kv_app_role)
@@ -161,10 +162,11 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(kv_vm_contributor)
             
             elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
+                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (sa_abuse, sa_app_role, sa_app_api_permission,
                  sa_vm_contributor) = self.attack_path_mgr.create_storage_account_abuse(
                     attack_path_data, applications, storage_accounts, users, applications,
-                    virtual_machines, mode='random'
+                    virtual_machines, mode='random', path_name=attack_path_name
                 )
                 attack_path_storage_abuse_assignments.update(sa_abuse)
                 attack_path_application_role_assignments.update(sa_app_role)
