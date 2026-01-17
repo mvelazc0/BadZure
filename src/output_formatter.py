@@ -37,7 +37,9 @@ class OutputFormatter:
         domain: str
     ) -> None:
         """Format and display attack paths for random mode."""
-        logging.info("Attack Path Details")
+        logging.info("=" * 70)
+        logging.info("ATTACK PATH DETAILS")
+        logging.info("=" * 70)
         
         for attack_path_name, attack_path_data in config['attack_paths'].items():
             if not attack_path_data['enabled']:
@@ -69,6 +71,7 @@ class OutputFormatter:
                             api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
                             perm_ids_str = ', '.join(perm_info['api_permission_ids'])
                             logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
+                        logging.info("")  # Blank line after attack path
                         break
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
@@ -95,6 +98,7 @@ class OutputFormatter:
                             perm_ids_str = ', '.join(perm_info['api_permission_ids'])
                             logging.info(f"Target Application: {target_app}")
                             logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
+                        logging.info("")  # Blank line after attack path
                         break
             
             elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
@@ -121,6 +125,7 @@ class OutputFormatter:
                             logging.info(f"Target Managed Identity: {vm_name}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         
+                        logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
                         break
             
@@ -148,6 +153,7 @@ class OutputFormatter:
                             logging.info(f"Target Managed Identity: {vm_name}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                         
+                        logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
                         break
     
