@@ -21,8 +21,8 @@ provider "azurerm" {
       prevent_deletion_if_contains_resources = false
     }
     key_vault {
-      purge_soft_delete_on_destroy    = true
-      recover_soft_deleted_key_vaults = false
+      purge_soft_delete_on_destroy    = false
+      recover_soft_deleted_key_vaults = true
     }
   }
 
@@ -385,7 +385,8 @@ resource "azurerm_subnet" "vm_subnets" {
   name                 = "${each.value.name}-subnet"
   resource_group_name  = each.value.resource_group_name
   virtual_network_name = azurerm_virtual_network.vm_vnets[each.key].name
-  address_prefixes     = ["10.0.1.0/24"]
+  # Use unique subnet range for each VM to prevent overlap when multiple VMs share a VNet
+  address_prefixes     = ["10.0.${index(keys(var.virtual_machines), each.key) + 1}.0/24"]
 
   depends_on           = [azurerm_virtual_network.vm_vnets]
 }

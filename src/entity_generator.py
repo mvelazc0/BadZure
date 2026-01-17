@@ -221,8 +221,8 @@ class EntityGenerator:
         
         for kv in selected_kvs:
             random_rg = random.choice(list(resource_groups.keys()))
-            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
-            kv_name = f"{kv}-{random_suffix}"
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            kv_name = f"{kv}{random_suffix}"
             
             kvs[kv_name] = {
                 'name': kv_name,
@@ -244,8 +244,8 @@ class EntityGenerator:
             
             if name == 'random':
                 base_name = random.choice(kv_names)
-                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
-                name = f"{base_name}-{random_suffix}"
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+                name = f"{base_name}{random_suffix}"
             
             # Handle "random" resource group reference
             if rg_name == 'random':

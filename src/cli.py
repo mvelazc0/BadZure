@@ -4,6 +4,7 @@ Implements build, show, and destroy commands.
 """
 import os
 import logging
+import time
 from typing import Dict
 from src.config_manager import ConfigManager
 from src.entity_generator import EntityGenerator
@@ -48,6 +49,8 @@ class BuildCommand:
     
     def _build_random_mode(self, config: Dict, verbose: bool) -> None:
         """Build in random mode."""
+        start_time = time.time()
+        
         # Validate resource counts before proceeding
         is_valid, errors = self.config_mgr.validate_random_mode_resources(config)
         if not is_valid:
@@ -142,7 +145,7 @@ class BuildCommand:
                 attack_path_application_role_assignments.update(ap_app_role)
                 attack_path_app_api_permission_assignments.update(ap_app_api_permission)
                 user_creds[attack_path_name] = initial_access
-                # Track used resources
+                # Track used resources from owner assignments
                 for assignment in ap_app_owner.values():
                     used_apps.add(assignment['app_name'])
                 for assignment in ap_user_role.values():
@@ -161,7 +164,7 @@ class BuildCommand:
                 attack_path_application_role_assignments.update(ap_app_role)
                 attack_path_app_api_permission_assignments.update(ap_app_api_permission)
                 user_creds[attack_path_name] = initial_access
-                # Track used resources
+                # Track used resources from owner assignments
                 for assignment in ap_app_owner.values():
                     used_apps.add(assignment['app_name'])
                 for assignment in ap_user_role.values():
@@ -179,8 +182,10 @@ class BuildCommand:
                 attack_path_application_role_assignments.update(ap_app_role)
                 attack_path_app_api_permission_assignments.update(ap_app_api_permission)
                 user_creds[attack_path_name] = initial_access
-                # Track used resources
+                # Track used resources from both role and API permission assignments
                 for assignment in ap_app_role.values():
+                    used_apps.add(assignment['app_name'])
+                for assignment in ap_app_api_permission.values():
                     used_apps.add(assignment['app_name'])
                 for assignment in ap_user_role.values():
                     used_users.add(assignment['user_name'])
@@ -259,10 +264,20 @@ class BuildCommand:
             attack_path_user_role_assignments,
             user_creds, domain
         )
+        
+        # Display deployment statistics
+        elapsed_time = time.time() - start_time
+        self._display_deployment_stats(
+            elapsed_time, users, groups, applications, administrative_units,
+            resource_groups, key_vaults, storage_accounts, virtual_machines
+        )
+        
         logging.info("Good bye.")
     
     def _build_targeted_mode(self, config: Dict, verbose: bool) -> None:
         """Build in targeted mode."""
+        start_time = time.time()
+        
         # Validate targeted configuration
         is_valid, errors = self.config_mgr.validate_targeted_config(config)
         if not is_valid:
@@ -349,6 +364,15 @@ class BuildCommand:
         logging.info("Azure AD tenant setup completed!")
         self.output_formatter.write_users_file(users, domain)
         self.output_formatter.format_targeted_mode_attack_paths(config, attack_path_assignments, users, domain)
+        
+        # Display deployment statistics
+        elapsed_time = time.time() - start_time
+        self._display_deployment_stats(
+            elapsed_time, users, groups, applications, administrative_units,
+            resource_groups, key_vaults, storage_accounts, virtual_machines
+        )
+        
+        logging.info("Good bye.")
     
     def _create_targeted_assignments(
         self, config: Dict, users: Dict, groups: Dict, applications: Dict,
@@ -438,7 +462,6 @@ class BuildCommand:
         assignments['user_creds'] = user_creds
         
         return assignments
-        logging.info("Good bye.")
     
     def _collect_entities_from_attack_paths(self, config: Dict) -> Dict:
         """Collect all entities from enabled attack paths."""
@@ -473,6 +496,35 @@ class BuildCommand:
                             all_entities[entity_type].append(entity)
         
         return all_entities
+    
+    def _display_deployment_stats(self, elapsed_time: float, users: Dict, groups: Dict,
+                                   applications: Dict, administrative_units: Dict,
+                                   resource_groups: Dict, key_vaults: Dict,
+                                   storage_accounts: Dict, virtual_machines: Dict) -> None:
+        """Display deployment statistics summary."""
+        minutes = int(elapsed_time // 60)
+        seconds = int(elapsed_time % 60)
+        
+        total_identities = len(users) + len(groups) + len(applications) + len(administrative_units)
+        total_resources = len(resource_groups) + len(key_vaults) + len(storage_accounts) + len(virtual_machines)
+        
+        logging.info("")
+        logging.info("=" * 70)
+        logging.info("DEPLOYMENT STATISTICS")
+        logging.info("=" * 70)
+        logging.info(f"Total deployment time: {minutes}m {seconds}s")
+        logging.info(f"Total identities created: {total_identities}")
+        logging.info(f"  - Users: {len(users)}")
+        logging.info(f"  - Groups: {len(groups)}")
+        logging.info(f"  - Applications: {len(applications)}")
+        logging.info(f"  - Administrative Units: {len(administrative_units)}")
+        logging.info(f"Total Azure resources created: {total_resources}")
+        logging.info(f"  - Resource Groups: {len(resource_groups)}")
+        logging.info(f"  - Key Vaults: {len(key_vaults)}")
+        logging.info(f"  - Storage Accounts: {len(storage_accounts)}")
+        logging.info(f"  - Virtual Machines: {len(virtual_machines)}")
+        logging.info("=" * 70)
+        logging.info("")
 
 
 class ShowCommand:
