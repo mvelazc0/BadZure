@@ -56,6 +56,9 @@ class AttackPathManager:
         attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
         if mode == 'targeted' and path_name:
             key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            # Include path_name in random mode to enable filtering in output
+            key = f"{path_name}-{attack_path_id}"
         else:
             key = f"attack-path-{attack_path_id}"
         
@@ -153,6 +156,9 @@ class AttackPathManager:
         attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
         if mode == 'targeted' and path_name:
             key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            # Include path_name in random mode to enable filtering in output
+            key = f"{path_name}-{attack_path_id}"
         else:
             key = f"attack-path-{attack_path_id}"
         

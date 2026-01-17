@@ -134,6 +134,7 @@ class BuildCommand:
                 (initial_access, ap_app_owner, ap_user_role, ap_app_role,
                  ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
                     attack_path_data, users, applications, domain, mode='random',
+                    path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
                 attack_path_application_owner_assignments.update(ap_app_owner)
@@ -152,6 +153,7 @@ class BuildCommand:
                 (initial_access, ap_app_owner, ap_user_role, ap_app_role,
                  ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
                     attack_path_data, users, applications, domain, mode='random',
+                    path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
                 attack_path_application_owner_assignments.update(ap_app_owner)
@@ -170,6 +172,7 @@ class BuildCommand:
                 (initial_access, ap_user_role, ap_app_role,
                  ap_app_api_permission) = self.attack_path_mgr.create_application_administrator_abuse(
                     attack_path_data, users, applications, domain, mode='random',
+                    path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
                 attack_path_user_role_assignments.update(ap_user_role)
@@ -252,6 +255,8 @@ class BuildCommand:
         self.output_formatter.format_random_mode_attack_paths(
             config, attack_path_application_owner_assignments,
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
+            attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
+            attack_path_user_role_assignments,
             user_creds, domain
         )
         logging.info("Good bye.")

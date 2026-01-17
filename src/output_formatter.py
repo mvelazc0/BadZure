@@ -4,6 +4,7 @@ Handles formatting and writing of attack path details and user files.
 """
 import logging
 from typing import Dict
+from src.constants import API_REGISTRY
 
 
 class OutputFormatter:
@@ -29,6 +30,9 @@ class OutputFormatter:
         attack_path_application_owner_assignments: Dict,
         attack_path_kv_abuse_assignments: Dict,
         attack_path_storage_abuse_assignments: Dict,
+        attack_path_application_role_assignments: Dict,
+        attack_path_app_api_permission_assignments: Dict,
+        attack_path_user_role_assignments: Dict,
         user_creds: Dict,
         domain: str
     ) -> None:
@@ -45,12 +49,53 @@ class OutputFormatter:
             priv_esc = attack_path_data['privilege_escalation']
             
             # Support both old and new names
-            if priv_esc in ['ServicePrincipalAbuse', 'ApplicationOwnershipAbuse', 'ApplicationAdministratorAbuse']:
-                if attack_path_application_owner_assignments:
-                    attack_path_id = list(attack_path_application_owner_assignments.keys())[0].split('-')[-1]
-                    logging.info(f"Attack Path ID: attack-path-{attack_path_id}")
-                    if attack_path_name in user_creds:
-                        logging.info(f"Initial Access Identity: User - {user_creds[attack_path_name]['user_principal_name']}")
+            if priv_esc in ['ServicePrincipalAbuse', 'ApplicationOwnershipAbuse']:
+                # Find the matching assignment for this attack path
+                for key, assignment in attack_path_application_owner_assignments.items():
+                    if attack_path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        if attack_path_name in user_creds:
+                            logging.info(f"Initial Access Identity: User - {user_creds[attack_path_name]['user_principal_name']}")
+                        logging.info(f"Owned Application: {assignment['app_name']}")
+                        
+                        # Show what privileges the application has
+                        if key in attack_path_application_role_assignments:
+                            role_info = attack_path_application_role_assignments[key]
+                            role_ids_str = ', '.join(role_info['role_ids'])
+                            logging.info(f"Application Privileges: Entra Role(s) - {role_ids_str}")
+                        elif key in attack_path_app_api_permission_assignments:
+                            perm_info = attack_path_app_api_permission_assignments[key]
+                            api_type = perm_info.get('api_type', 'graph')
+                            api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
+                            perm_ids_str = ', '.join(perm_info['api_permission_ids'])
+                            logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
+                        break
+            
+            elif priv_esc == 'ApplicationAdministratorAbuse':
+                # Find the matching user role assignment for this attack path
+                for key, assignment in attack_path_user_role_assignments.items():
+                    if attack_path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        if attack_path_name in user_creds:
+                            logging.info(f"Initial Access Identity: User - {user_creds[attack_path_name]['user_principal_name']}")
+                        logging.info(f"User Role: Application Administrator")
+                        
+                        # Find target application from app_roles or app_api_permissions
+                        if key in attack_path_application_role_assignments:
+                            role_info = attack_path_application_role_assignments[key]
+                            target_app = role_info['app_name']
+                            role_ids_str = ', '.join(role_info['role_ids'])
+                            logging.info(f"Target Application: {target_app}")
+                            logging.info(f"Application Privileges: Entra Role(s) - {role_ids_str}")
+                        elif key in attack_path_app_api_permission_assignments:
+                            perm_info = attack_path_app_api_permission_assignments[key]
+                            target_app = perm_info['app_name']
+                            api_type = perm_info.get('api_type', 'graph')
+                            api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
+                            perm_ids_str = ', '.join(perm_info['api_permission_ids'])
+                            logging.info(f"Target Application: {target_app}")
+                            logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
+                        break
             
             elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
                 # Filter assignments to only show the one for this attack path
