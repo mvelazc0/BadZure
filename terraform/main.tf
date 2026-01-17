@@ -20,6 +20,10 @@ provider "azurerm" {
     resource_group {
       prevent_deletion_if_contains_resources = false
     }
+    key_vault {
+      purge_soft_delete_on_destroy    = true
+      recover_soft_deleted_key_vaults = false
+    }
   }
 
   subscription_id = var.subscription_id
@@ -118,8 +122,8 @@ resource "azuread_directory_role_assignment" "attack_path_user_role_assignments"
 resource "azuread_directory_role_assignment" "attack_path_application_role_assignments" {
   for_each = merge([
     for assignment_key, assignment in var.attack_path_application_role_assignments : {
-      for role_id in assignment.role_ids :
-      "${assignment_key}-${role_id}" => {
+      for idx, role_id in assignment.role_ids :
+      "${assignment_key}-${idx}-${role_id}" => {
         app_name = assignment.app_name
         role_id  = role_id
       }
@@ -133,8 +137,8 @@ resource "azuread_directory_role_assignment" "attack_path_application_role_assig
 resource "azuread_app_role_assignment" "attack_path_application_api_permission_assignments" {
   for_each = merge([
     for assignment_key, assignment in var.attack_path_application_api_permission_assignments : {
-      for permission_id in assignment.api_permission_ids :
-      "${assignment_key}-${permission_id}" => {
+      for idx, permission_id in assignment.api_permission_ids :
+      "${assignment_key}-${idx}-${permission_id}" => {
         app_name          = assignment.app_name
         api_permission_id = permission_id
         api_type          = lookup(assignment, "api_type", "graph")  # Default to graph for backward compatibility
@@ -227,7 +231,7 @@ resource "azuread_application_certificate" "attack_path_storage_certificates" {
 resource "azurerm_storage_container" "attack_path_storage_containers" {
   for_each            = var.attack_path_storage_abuse_assignments
 
-  name                = "cert-container"
+  name                = "cert-container-${each.key}"
   storage_account_name = azurerm_storage_account.sas[each.value.storage_account].name
   container_access_type = "private"
 
