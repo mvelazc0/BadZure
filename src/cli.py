@@ -48,6 +48,17 @@ class BuildCommand:
     
     def _build_random_mode(self, config: Dict, verbose: bool) -> None:
         """Build in random mode."""
+        # Validate resource counts before proceeding
+        is_valid, errors = self.config_mgr.validate_random_mode_resources(config)
+        if not is_valid:
+            logging.error("Configuration validation failed:")
+            for error in errors:
+                logging.error(f"  {error}")
+            return
+        elif errors:  # Warnings
+            for error in errors:
+                logging.warning(error)
+        
         azure_config_dir = os.path.expanduser('~/.azure')
         os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
         
@@ -106,6 +117,10 @@ class BuildCommand:
         attack_path_vm_contributor_assignments = {}
         user_creds = {}
         
+        # Track used resources to prevent conflicts
+        used_apps = set()
+        used_users = set()
+        
         for attack_path_name, attack_path_data in config['attack_paths'].items():
             if not attack_path_data['enabled']:
                 continue
@@ -118,60 +133,86 @@ class BuildCommand:
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (initial_access, ap_app_owner, ap_user_role, ap_app_role,
                  ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
-                    attack_path_data, users, applications, domain, mode='random'
+                    attack_path_data, users, applications, domain, mode='random',
+                    used_apps=used_apps, used_users=used_users
                 )
                 attack_path_application_owner_assignments.update(ap_app_owner)
                 attack_path_user_role_assignments.update(ap_user_role)
                 attack_path_application_role_assignments.update(ap_app_role)
                 attack_path_app_api_permission_assignments.update(ap_app_api_permission)
                 user_creds[attack_path_name] = initial_access
+                # Track used resources
+                for assignment in ap_app_owner.values():
+                    used_apps.add(assignment['app_name'])
+                for assignment in ap_user_role.values():
+                    used_users.add(assignment['user_name'])
             
             elif priv_esc == 'ApplicationOwnershipAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (initial_access, ap_app_owner, ap_user_role, ap_app_role,
                  ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
-                    attack_path_data, users, applications, domain, mode='random'
+                    attack_path_data, users, applications, domain, mode='random',
+                    used_apps=used_apps, used_users=used_users
                 )
                 attack_path_application_owner_assignments.update(ap_app_owner)
                 attack_path_user_role_assignments.update(ap_user_role)
                 attack_path_application_role_assignments.update(ap_app_role)
                 attack_path_app_api_permission_assignments.update(ap_app_api_permission)
                 user_creds[attack_path_name] = initial_access
+                # Track used resources
+                for assignment in ap_app_owner.values():
+                    used_apps.add(assignment['app_name'])
+                for assignment in ap_user_role.values():
+                    used_users.add(assignment['user_name'])
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (initial_access, ap_user_role, ap_app_role,
                  ap_app_api_permission) = self.attack_path_mgr.create_application_administrator_abuse(
-                    attack_path_data, users, applications, domain, mode='random'
+                    attack_path_data, users, applications, domain, mode='random',
+                    used_apps=used_apps, used_users=used_users
                 )
                 attack_path_user_role_assignments.update(ap_user_role)
                 attack_path_application_role_assignments.update(ap_app_role)
                 attack_path_app_api_permission_assignments.update(ap_app_api_permission)
                 user_creds[attack_path_name] = initial_access
+                # Track used resources
+                for assignment in ap_app_role.values():
+                    used_apps.add(assignment['app_name'])
+                for assignment in ap_user_role.values():
+                    used_users.add(assignment['user_name'])
             
             elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (kv_abuse, kv_app_role, kv_app_api_permission,
                  kv_vm_contributor) = self.attack_path_mgr.create_keyvault_abuse(
                     attack_path_data, applications, key_vaults, users, applications,
-                    virtual_machines, mode='random', path_name=attack_path_name
+                    virtual_machines, mode='random', path_name=attack_path_name,
+                    used_apps=used_apps
                 )
                 attack_path_kv_abuse_assignments.update(kv_abuse)
                 attack_path_application_role_assignments.update(kv_app_role)
                 attack_path_app_api_permission_assignments.update(kv_app_api_permission)
                 attack_path_vm_contributor_assignments.update(kv_vm_contributor)
+                # Track used apps
+                for assignment in kv_abuse.values():
+                    used_apps.add(assignment['app_name'])
             
             elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (sa_abuse, sa_app_role, sa_app_api_permission,
                  sa_vm_contributor) = self.attack_path_mgr.create_storage_account_abuse(
                     attack_path_data, applications, storage_accounts, users, applications,
-                    virtual_machines, mode='random', path_name=attack_path_name
+                    virtual_machines, mode='random', path_name=attack_path_name,
+                    used_apps=used_apps
                 )
                 attack_path_storage_abuse_assignments.update(sa_abuse)
                 attack_path_application_role_assignments.update(sa_app_role)
                 attack_path_app_api_permission_assignments.update(sa_app_api_permission)
                 attack_path_vm_contributor_assignments.update(sa_vm_contributor)
+                # Track used apps
+                for assignment in sa_abuse.values():
+                    used_apps.add(assignment['app_name'])
         
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(

@@ -26,7 +26,9 @@ class AttackPathManager:
         domain: str,
         mode: str = 'random',
         entities: Optional[Dict] = None,
-        path_name: Optional[str] = None
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None,
+        used_users: Optional[set] = None
     ) -> Tuple[Dict, Dict, Dict, Dict, Dict]:
         """
         Create Application Ownership Abuse attack path.
@@ -60,7 +62,8 @@ class AttackPathManager:
         # Select entities based on mode
         if mode == 'random':
             app_name, user_name, second_user_name = self._select_random_entities_app_ownership(
-                users, applications, attack_config.get('scenario', 'direct')
+                users, applications, attack_config.get('scenario', 'direct'),
+                used_apps, used_users
             )
         else:  # targeted mode
             app_name, user_name, second_user_name = self._select_targeted_entities_app_ownership(
@@ -119,7 +122,9 @@ class AttackPathManager:
         domain: str,
         mode: str = 'random',
         entities: Optional[Dict] = None,
-        path_name: Optional[str] = None
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None,
+        used_users: Optional[set] = None
     ) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         Create Application Administrator Abuse attack path.
@@ -154,7 +159,7 @@ class AttackPathManager:
         # Select entities based on mode
         if mode == 'random':
             app_name, user_name = self._select_random_entities_app_administrator(
-                users, applications
+                users, applications, used_apps, used_users
             )
         else:  # targeted mode
             app_name, user_name = self._select_targeted_entities_app_administrator(
@@ -201,7 +206,8 @@ class AttackPathManager:
         virtual_machines: Dict,
         mode: str = 'random',
         entities: Optional[Dict] = None,
-        path_name: Optional[str] = None
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None
     ) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         Create Key Vault Abuse attack path.
@@ -240,8 +246,8 @@ class AttackPathManager:
         # Select entities based on mode
         if mode == 'random':
             app_name, kv_name, principal_name, user_name = self._select_random_entities_kv_abuse(
-                applications, keyvaults, users, service_principals, 
-                virtual_machines, attack_config['principal_type']
+                applications, keyvaults, users, service_principals,
+                virtual_machines, attack_config['principal_type'], used_apps
             )
         else:  # targeted mode
             app_name, kv_name, principal_name, user_name = self._select_targeted_entities_kv_abuse(
@@ -290,7 +296,8 @@ class AttackPathManager:
         virtual_machines: Dict,
         mode: str = 'random',
         entities: Optional[Dict] = None,
-        path_name: Optional[str] = None
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None
     ) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         Create Storage Account Abuse attack path.
@@ -330,7 +337,7 @@ class AttackPathManager:
         if mode == 'random':
             app_name, sa_name, principal_name, user_name = self._select_random_entities_storage_abuse(
                 applications, storage_accounts, users, service_principals,
-                virtual_machines, attack_config['principal_type']
+                virtual_machines, attack_config['principal_type'], used_apps
             )
         else:  # targeted mode
             app_name, sa_name, principal_name, user_name = self._select_targeted_entities_storage_abuse(
@@ -379,36 +386,75 @@ class AttackPathManager:
     # ========================================================================
     
     def _select_random_entities_app_ownership(
-        self, users: Dict, applications: Dict, scenario: str
+        self, users: Dict, applications: Dict, scenario: str,
+        used_apps: set = None, used_users: set = None
     ) -> Tuple[str, str, str]:
         """Select random entities for Application Ownership Abuse."""
         app_keys = list(applications.keys())
+        
+        # Exclude used applications
+        if used_apps:
+            available_apps = [app for app in app_keys if app not in used_apps]
+            if available_apps:
+                app_keys = available_apps
+        
         app_name = random.choice(app_keys)
         
         user_keys = list(users.keys())
+        
+        # Exclude used users
+        if used_users:
+            available_users = [user for user in user_keys if user not in used_users]
+            if available_users:
+                user_keys = available_users
+        
         user_name = random.choice(user_keys)
         second_user_name = random.choice(user_keys) if scenario == "helpdesk" else user_name
         
         return app_name, user_name, second_user_name
     
     def _select_random_entities_app_administrator(
-        self, users: Dict, applications: Dict
+        self, users: Dict, applications: Dict,
+        used_apps: set = None, used_users: set = None
     ) -> Tuple[str, str]:
         """Select random entities for Application Administrator Abuse."""
         app_keys = list(applications.keys())
+        
+        # Exclude used applications
+        if used_apps:
+            available_apps = [app for app in app_keys if app not in used_apps]
+            if available_apps:
+                app_keys = available_apps
+        
         app_name = random.choice(app_keys)
         
         user_keys = list(users.keys())
+        
+        # Exclude used users
+        if used_users:
+            available_users = [user for user in user_keys if user not in used_users]
+            if available_users:
+                user_keys = available_users
+        
         user_name = random.choice(user_keys)
         
         return app_name, user_name
     
     def _select_random_entities_kv_abuse(
         self, applications: Dict, keyvaults: Dict, users: Dict,
-        service_principals: Dict, virtual_machines: Dict, principal_type: str
+        service_principals: Dict, virtual_machines: Dict, principal_type: str,
+        used_apps: set = None
     ) -> Tuple[str, str, str, Optional[str]]:
         """Select random entities for Key Vault Abuse."""
-        app_name = random.choice(list(applications.keys()))
+        app_keys = list(applications.keys())
+        
+        # Exclude used applications
+        if used_apps:
+            available_apps = [app for app in app_keys if app not in used_apps]
+            if available_apps:
+                app_keys = available_apps
+        
+        app_name = random.choice(app_keys)
         kv_name = random.choice(list(keyvaults.keys()))
         
         if principal_type == "user":
@@ -425,10 +471,19 @@ class AttackPathManager:
     
     def _select_random_entities_storage_abuse(
         self, applications: Dict, storage_accounts: Dict, users: Dict,
-        service_principals: Dict, virtual_machines: Dict, principal_type: str
+        service_principals: Dict, virtual_machines: Dict, principal_type: str,
+        used_apps: set = None
     ) -> Tuple[str, str, str, Optional[str]]:
         """Select random entities for Storage Account Abuse."""
-        app_name = random.choice(list(applications.keys()))
+        app_keys = list(applications.keys())
+        
+        # Exclude used applications
+        if used_apps:
+            available_apps = [app for app in app_keys if app not in used_apps]
+            if available_apps:
+                app_keys = available_apps
+        
+        app_name = random.choice(app_keys)
         sa_name = random.choice(list(storage_accounts.keys()))
         
         if principal_type == "user":

@@ -238,3 +238,69 @@ class ConfigManager:
                 errors.append(f"{path_name}: principal_type 'managed_identity' requires at least one virtual_machine")
             if 'users' not in entities or not entities['users']:
                 errors.append(f"{path_name}: principal_type 'managed_identity' requires at least one user for VM Contributor access")
+    
+    def validate_random_mode_resources(self, config: Dict) -> Tuple[bool, List[str]]:
+        """
+        Validate that there are enough resources for random mode attack paths.
+        
+        Args:
+            config: Configuration dictionary
+            
+        Returns:
+            Tuple of (is_valid, error_messages)
+        """
+        errors = []
+        
+        # Count enabled attack paths
+        enabled_paths = [
+            (name, path) for name, path in config.get('attack_paths', {}).items()
+            if path.get('enabled', False)
+        ]
+        
+        if not enabled_paths:
+            return True, []  # No enabled paths, nothing to validate
+        
+        # Get resource counts
+        num_applications = config.get('tenant', {}).get('applications', 0)
+        num_users = config.get('tenant', {}).get('users', 0)
+        
+        # Count attack paths that need applications
+        app_paths = sum(
+            1 for name, path in enabled_paths
+            if path.get('privilege_escalation') in [
+                'ServicePrincipalAbuse', 'ApplicationOwnershipAbuse',
+                'ApplicationAdministratorAbuse', 'KeyVaultAbuse', 'StorageAccountAbuse'
+            ]
+        )
+        
+        # Count attack paths that need user roles
+        user_role_paths = sum(
+            1 for name, path in enabled_paths
+            if path.get('privilege_escalation') == 'ApplicationAdministratorAbuse' or
+            (path.get('privilege_escalation') in ['ServicePrincipalAbuse', 'ApplicationOwnershipAbuse'] and
+             path.get('scenario') == 'helpdesk')
+        )
+        
+        # Validate application count
+        if num_applications < app_paths:
+            errors.append(
+                f"Insufficient applications: {app_paths} attack paths enabled but only "
+                f"{num_applications} applications configured. To avoid role assignment conflicts, "
+                f"set 'applications' to at least {app_paths}.\n"
+                f"Example fix:\n"
+                f"  tenant:\n"
+                f"    applications: {app_paths}  # Increase from {num_applications}"
+            )
+        
+        # Validate user count
+        if user_role_paths > 0 and num_users < user_role_paths:
+            errors.append(
+                f"Insufficient users: {user_role_paths} attack paths need user roles but only "
+                f"{num_users} users configured. To avoid role assignment conflicts, "
+                f"set 'users' to at least {user_role_paths}.\n"
+                f"Example fix:\n"
+                f"  tenant:\n"
+                f"    users: {user_role_paths}  # Increase from {num_users}"
+            )
+        
+        return len(errors) == 0, errors
