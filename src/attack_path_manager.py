@@ -214,7 +214,8 @@ class AttackPathManager:
         mode: str = 'random',
         entities: Optional[Dict] = None,
         path_name: Optional[str] = None,
-        used_apps: Optional[set] = None
+        used_apps: Optional[set] = None,
+        used_users: Optional[set] = None
     ) -> Tuple[Dict, Dict, Dict, Dict]:
         """
         Create Managed Identity Theft attack path.
@@ -260,7 +261,7 @@ class AttackPathManager:
         if mode == 'random':
             app_name, target_name, source_name, user_name = self._select_random_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps, users,
-                source_type, target_resource_type, used_apps
+                source_type, target_resource_type, used_apps, used_users
             )
         else:  # targeted mode
             app_name, target_name, source_name, user_name = self._select_targeted_entities_mi_theft(
@@ -601,7 +602,7 @@ class AttackPathManager:
     def _select_random_entities_mi_theft(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, users: Dict, source_type: str,
-        target_resource_type: str, used_apps: set = None
+        target_resource_type: str, used_apps: set = None, used_users: set = None
     ) -> Tuple[str, str, str, str]:
         """Select random entities for Managed Identity Theft."""
         app_keys = list(applications.keys())
@@ -632,8 +633,16 @@ class AttackPathManager:
             # For future expansion: subscription, resource_group
             target_name = random.choice(list(key_vaults.keys()))
         
-        # Select user for VM Contributor access
-        user_name = random.choice(list(users.keys()))
+        # Select user for Contributor access
+        user_keys = list(users.keys())
+        
+        # Exclude used users
+        if used_users:
+            available_users = [user for user in user_keys if user not in used_users]
+            if available_users:
+                user_keys = available_users
+        
+        user_name = random.choice(user_keys)
         
         return app_name, target_name, source_name, user_name
     

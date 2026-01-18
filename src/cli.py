@@ -233,15 +233,16 @@ class BuildCommand:
                  mi_vm_contributor) = self.attack_path_mgr.create_managed_identity_theft(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
                     virtual_machines, logic_apps, mode='random', path_name=attack_path_name,
-                    used_apps=used_apps
+                    used_apps=used_apps, used_users=used_users
                 )
                 attack_path_managed_identity_theft_assignments.update(mi_theft)
                 attack_path_application_role_assignments.update(mi_app_role)
                 attack_path_app_api_permission_assignments.update(mi_app_api_permission)
                 attack_path_vm_contributor_assignments.update(mi_vm_contributor)
-                # Track used apps
+                # Track used apps and users
                 for assignment in mi_theft.values():
                     used_apps.add(assignment['app_name'])
+                    used_users.add(assignment['initial_access_user'])
         
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
