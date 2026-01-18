@@ -454,3 +454,66 @@ class EntityGenerator:
             }
         
         return logic_apps
+    
+    # Automation Account generation
+    def generate_automation_accounts(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random Automation Accounts."""
+        automation_accounts = {}
+        
+        if count == 0 or not resource_groups:
+            return automation_accounts
+        
+        # Load Automation Account names from file
+        automation_account_names = self._read_names_from_file('automation-accounts.txt')
+        
+        # Shuffle and select the required number of names
+        random.shuffle(automation_account_names)
+        selected_names = automation_account_names[:count]
+        
+        rg_list = list(resource_groups.keys())
+        
+        for name in selected_names:
+            rg_name = random.choice(rg_list)
+            
+            automation_accounts[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return automation_accounts
+    
+    def generate_automation_accounts_targeted(self, automation_account_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Automation Accounts from targeted specifications."""
+        automation_accounts = {}
+        
+        # Load Automation Account names from file
+        automation_account_names = self._read_names_from_file('automation-accounts.txt')
+        
+        for spec in automation_account_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            
+            if name == 'random':
+                # Select random name from file
+                base_name = random.choice(automation_account_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            automation_accounts[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return automation_accounts

@@ -95,7 +95,7 @@ api_type: graph | exchange  # Only for APIPermission method
 **Description**: This attack path simulates scenarios where an attacker exploits access to Azure resources with managed identities to steal identity tokens and pivot to other cloud resources. This technique represents the identity theft component of cloud-native privilege escalation attacks.
 
 **Attack Scenario**:
-- An attacker gains initial access to a user account with contributor access to an Azure resource (e.g., Virtual Machine)
+- An attacker gains initial access to a user account with contributor access to an Azure resource (e.g., Virtual Machine, Logic App, or Automation Account)
 - The Azure resource has a system-assigned managed identity with permissions to access other cloud resources
 - The attacker leverages their access to the source resource to extract the managed identity token
 - The attacker uses the stolen managed identity token to access the target resource (Key Vault or Storage Account)
@@ -103,14 +103,16 @@ api_type: graph | exchange  # Only for APIPermission method
 - The application has high-privileged permissions that enable further privilege escalation
 
 **Technical Implementation**:
-- Creates an Azure resource (Virtual Machine) with system-assigned managed identity
-- Assigns the user VM Contributor role on the resource
+- Creates an Azure resource with system-assigned managed identity
+- Assigns the user appropriate Contributor role on the resource (VM Contributor, Logic App Contributor, or Automation Contributor)
 - Grants the managed identity access to target resources (Key Vault or Storage Account)
 - Stores application credentials in the target resource
 - Configures the target application with high-privileged Azure AD roles or API permissions
 
 **Source Types**:
-- **virtual_machine**: VM with system-assigned managed identity
+- **vm**: Virtual Machine with system-assigned managed identity (requires VM Contributor role)
+- **logic_app**: Logic App with system-assigned managed identity (requires Logic App Contributor role)
+- **automation_account**: Automation Account with system-assigned managed identity (requires Automation Contributor role)
 
 **Target Resource Types**:
 - **key_vault**: Managed identity has Key Vault Contributor access to retrieve secrets
@@ -119,7 +121,7 @@ api_type: graph | exchange  # Only for APIPermission method
 **Configuration Options**:
 ```yaml
 privilege_escalation: ManagedIdentityTheft
-source_type: virtual_machine
+source_type: vm | logic_app | automation_account
 target_resource_type: key_vault | storage_account
 method: AzureADRole | APIPermission
 initial_access: password | token
@@ -127,6 +129,14 @@ entra_role: <role_id> | random | [<role_id1>, <role_id2>]
 app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
 ```
+
+**Attack Variations by Source Type**:
+
+1. **Virtual Machine**: Attacker with VM Contributor can run commands on the VM to extract the managed identity token via the Azure Instance Metadata Service (IMDS).
+
+2. **Logic App**: Attacker with Logic App Contributor can modify workflow definitions to extract managed identity tokens through HTTP actions or custom connectors.
+
+3. **Automation Account**: Attacker with Automation Contributor can create or modify runbooks to extract managed identity tokens and execute arbitrary code in the automation context.
 
 **Real-World Relevance**: This attack path reflects scenarios where managed identities are overprivileged or where users have excessive permissions on Azure resources. It's particularly relevant for testing the security of managed identity configurations and resource access controls in cloud-native environments.
 

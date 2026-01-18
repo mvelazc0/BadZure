@@ -179,6 +179,16 @@ variable "logic_apps" {
   default = {}
 }
 
+variable "automation_accounts" {
+  description = "A map of Automation Accounts to create"
+  type = map(object({
+    name                = string
+    location            = string
+    resource_group_name = string
+  }))
+  default = {}
+}
+
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
     key_vault      = string

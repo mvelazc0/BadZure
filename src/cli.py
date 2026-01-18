@@ -78,6 +78,7 @@ class BuildCommand:
         max_sas = config['tenant']['storage_accounts']
         max_vms = config['tenant']['virtual_machines']
         max_logic_apps = config['tenant'].get('logic_apps', 0)
+        max_automation_accounts = config['tenant'].get('automation_accounts', 0)
         
         public_ip = utils.get_public_ip()
         
@@ -108,6 +109,9 @@ class BuildCommand:
         
         logging.info(f"Generating {max_logic_apps} logic apps")
         logic_apps = self.generator.generate_logic_apps(max_logic_apps, resource_groups)
+        
+        logging.info(f"Generating {max_automation_accounts} automation accounts")
+        automation_accounts = self.generator.generate_automation_accounts(max_automation_accounts, resource_groups)
         
         # Create random assignments
         (user_group_assignments, user_au_assignments, user_role_assignments,
@@ -232,7 +236,7 @@ class BuildCommand:
                 (mi_theft, mi_app_role, mi_app_api_permission,
                  mi_vm_contributor) = self.attack_path_mgr.create_managed_identity_theft(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
-                    virtual_machines, logic_apps, mode='random', path_name=attack_path_name,
+                    virtual_machines, logic_apps, automation_accounts, mode='random', path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
                 attack_path_managed_identity_theft_assignments.update(mi_theft)
@@ -249,6 +253,7 @@ class BuildCommand:
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
             users, groups, applications, administrative_units,
             resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps,
+            automation_accounts,
             user_group_assignments, user_au_assignments, user_role_assignments,
             app_role_assignments, app_api_permission_assignments,
             attack_path_application_owner_assignments, attack_path_user_role_assignments,
@@ -293,7 +298,8 @@ class BuildCommand:
         elapsed_time = time.time() - start_time
         self._display_deployment_stats(
             elapsed_time, users, groups, applications, administrative_units,
-            resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps
+            resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps,
+            automation_accounts
         )
         
         logging.info("Good bye.")
@@ -345,12 +351,16 @@ class BuildCommand:
         logic_apps = self.generator.generate_logic_apps_targeted(
             all_entities.get('logic_apps', []), resource_groups
         )
+        automation_accounts = self.generator.generate_automation_accounts_targeted(
+            all_entities.get('automation_accounts', []), resource_groups
+        )
         
         # Create targeted attack path assignments
         logging.info("Creating attack path assignments")
         attack_path_assignments = self._create_targeted_assignments(
             config, users, groups, applications, administrative_units,
-            resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps, domain
+            resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps,
+            automation_accounts, domain
         )
         
         # Build and write Terraform variables
@@ -358,6 +368,7 @@ class BuildCommand:
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
             users, groups, applications, administrative_units,
             resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps,
+            automation_accounts,
             {}, {}, {}, {}, {},  # Empty random assignments
             attack_path_assignments.get('app_owners', {}),
             attack_path_assignments.get('user_roles', {}),
@@ -397,7 +408,8 @@ class BuildCommand:
         elapsed_time = time.time() - start_time
         self._display_deployment_stats(
             elapsed_time, users, groups, applications, administrative_units,
-            resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps
+            resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps,
+            automation_accounts
         )
         
         logging.info("Good bye.")
@@ -405,7 +417,8 @@ class BuildCommand:
     def _create_targeted_assignments(
         self, config: Dict, users: Dict, groups: Dict, applications: Dict,
         administrative_units: Dict, resource_groups: Dict, key_vaults: Dict,
-        storage_accounts: Dict, virtual_machines: Dict, logic_apps: Dict, domain: str
+        storage_accounts: Dict, virtual_machines: Dict, logic_apps: Dict,
+        automation_accounts: Dict, domain: str
     ) -> Dict:
         """Create targeted attack path assignments using consolidated AttackPathManager."""
         assignments = {
@@ -491,7 +504,7 @@ class BuildCommand:
                 (mi_theft, mi_app_role, mi_app_api_permission,
                  mi_vm_contributor) = self.attack_path_mgr.create_managed_identity_theft(
                     path_config, applications, key_vaults, storage_accounts, users,
-                    virtual_machines, logic_apps, mode='targeted', entities=entities, path_name=path_name
+                    virtual_machines, logic_apps, automation_accounts, mode='targeted', entities=entities, path_name=path_name
                 )
                 assignments['managed_identity_theft'].update(mi_theft)
                 assignments['app_roles'].update(mi_app_role)
@@ -507,7 +520,8 @@ class BuildCommand:
         """Collect all entities from enabled attack paths."""
         all_entities = {
             'users': [], 'groups': [], 'applications': [], 'administrative_units': [],
-            'resource_groups': [], 'key_vaults': [], 'storage_accounts': [], 'virtual_machines': []
+            'resource_groups': [], 'key_vaults': [], 'storage_accounts': [], 'virtual_machines': [],
+            'logic_apps': [], 'automation_accounts': []
         }
         
         seen_names = {key: set() for key in all_entities.keys()}
@@ -540,13 +554,14 @@ class BuildCommand:
     def _display_deployment_stats(self, elapsed_time: float, users: Dict, groups: Dict,
                                    applications: Dict, administrative_units: Dict,
                                    resource_groups: Dict, key_vaults: Dict,
-                                   storage_accounts: Dict, virtual_machines: Dict, logic_apps: Dict) -> None:
+                                   storage_accounts: Dict, virtual_machines: Dict, logic_apps: Dict,
+                                   automation_accounts: Dict) -> None:
         """Display deployment statistics summary."""
         minutes = int(elapsed_time // 60)
         seconds = int(elapsed_time % 60)
         
         total_identities = len(users) + len(groups) + len(applications) + len(administrative_units)
-        total_resources = len(resource_groups) + len(key_vaults) + len(storage_accounts) + len(virtual_machines) + len(logic_apps)
+        total_resources = len(resource_groups) + len(key_vaults) + len(storage_accounts) + len(virtual_machines) + len(logic_apps) + len(automation_accounts)
         
         logging.info("")
         logging.info("=" * 70)
@@ -564,6 +579,7 @@ class BuildCommand:
         logging.info(f"  - Storage Accounts: {len(storage_accounts)}")
         logging.info(f"  - Virtual Machines: {len(virtual_machines)}")
         logging.info(f"  - Logic Apps: {len(logic_apps)}")
+        logging.info(f"  - Automation Accounts: {len(automation_accounts)}")
         logging.info("=" * 70)
         logging.info("")
 

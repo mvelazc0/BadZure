@@ -77,11 +77,13 @@ The `tenant` section defines the Azure AD tenant details and the number of entit
 - `groups`: The number of security groups to create.
 - `administrative_units`: The number of administrative units to create.
 
-### Azure Resources 
+### Azure Resources
 - `resource_groups`: The number of Azure resource groups to create.
 - `key_vaults`: The number of Azure Key Vaults to provision.
 - `storage_accounts`: The number of Azure Storage Accounts to create.
 - `virtual_machines`: The number of virtual machines to deploy (Linux VMs with networking).
+- `logic_apps`: The number of Logic Apps to create (with system-assigned managed identities).
+- `automation_accounts`: The number of Automation Accounts to create (with system-assigned managed identities).
 
 ## Attack Paths Configuration
 
@@ -127,7 +129,9 @@ For **KeyVaultSecretTheft** and **StorageCertificateTheft** attack paths, specif
 For **ManagedIdentityTheft** attack paths, specify the source and target resources:
 
 - **source_type**: The type of Azure resource with the managed identity:
-  - **virtual_machine**: A VM with system-assigned managed identity.
+  - **vm**: A VM with system-assigned managed identity (requires VM Contributor role).
+  - **logic_app**: A Logic App with system-assigned managed identity (requires Logic App Contributor role).
+  - **automation_account**: An Automation Account with system-assigned managed identity (requires Automation Contributor role).
 
 - **target_resource_type**: The type of resource the managed identity can access:
   - **key_vault**: Managed identity has access to Key Vault secrets.
@@ -192,10 +196,15 @@ Simulates an attacker who exploits access to Azure resources with managed identi
 
 **Required fields:**
 - `privilege_escalation: ManagedIdentityTheft`
-- `source_type`: virtual_machine
+- `source_type`: vm, logic_app, or automation_account
 - `target_resource_type`: key_vault or storage_account
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the application
+
+**Supported Source Types:**
+- `vm`: Virtual Machine with VM Contributor role
+- `logic_app`: Logic App with Logic App Contributor role
+- `automation_account`: Automation Account with Automation Contributor role
 
 ### KeyVaultSecretTheft
 Simulates an attacker with direct access to Azure Key Vault who retrieves application secrets to authenticate as the application.

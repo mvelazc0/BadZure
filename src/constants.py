@@ -2548,6 +2548,7 @@ VALID_TECHNIQUES = [
 MANAGED_IDENTITY_SOURCE_TYPES = [
     'vm',
     'logic_app',
+    'automation_account',
     'function_app',
     'container_instance',
     'app_service'

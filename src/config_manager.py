@@ -269,6 +269,9 @@ class ConfigManager:
         elif source_type == 'logic_app':
             if 'logic_apps' not in entities or not entities['logic_apps']:
                 errors.append(f"{path_name}: source_type 'logic_app' requires at least one logic_app")
+        elif source_type == 'automation_account':
+            if 'automation_accounts' not in entities or not entities['automation_accounts']:
+                errors.append(f"{path_name}: source_type 'automation_account' requires at least one automation_account")
         
         # Validate required entities based on target_resource_type
         if target_resource_type == 'key_vault':

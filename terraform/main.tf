@@ -513,6 +513,22 @@ resource "azurerm_logic_app_workflow" "logic_apps" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
+# Automation Account with system-assigned managed identity
+resource "azurerm_automation_account" "automation_accounts" {
+  for_each = var.automation_accounts
+
+  name                = each.value.name
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  sku_name            = "Basic"
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
 # ============================================================================
 # ManagedIdentityTheft Attack Path Resources
 # ============================================================================
@@ -609,6 +625,8 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
         azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
     each.value.source_type == "logic_app" ?
       azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "automation_account" ?
+      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
       null
   )
 
@@ -616,7 +634,8 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
     azurerm_key_vault.kvaults,
     azurerm_linux_virtual_machine.linux_vms,
     azurerm_windows_virtual_machine.windows_vms,
-    azurerm_logic_app_workflow.logic_apps
+    azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts
   ]
 }
 
@@ -634,6 +653,8 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
         azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
     each.value.source_type == "logic_app" ?
       azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "automation_account" ?
+      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
       null
   )
 
@@ -641,7 +662,8 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
     azurerm_storage_account.sas,
     azurerm_linux_virtual_machine.linux_vms,
     azurerm_windows_virtual_machine.windows_vms,
-    azurerm_logic_app_workflow.logic_apps
+    azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts
   ]
 }
 
@@ -656,12 +678,15 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
         azurerm_windows_virtual_machine.windows_vms[each.value.source_name].id) :
     each.value.source_type == "logic_app" ?
       azurerm_logic_app_workflow.logic_apps[each.value.source_name].id :
+    each.value.source_type == "automation_account" ?
+      azurerm_automation_account.automation_accounts[each.value.source_name].id :
       null
   )
   
   role_definition_name = (
     each.value.source_type == "vm" ? "Virtual Machine Contributor" :
     each.value.source_type == "logic_app" ? "Logic App Contributor" :
+    each.value.source_type == "automation_account" ? "Automation Contributor" :
     null
   )
   
@@ -671,6 +696,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     azurerm_linux_virtual_machine.linux_vms,
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts,
     azuread_user.users
   ]
 }
