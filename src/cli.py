@@ -117,6 +117,7 @@ class BuildCommand:
         attack_path_app_api_permission_assignments = {}
         attack_path_kv_abuse_assignments = {}
         attack_path_storage_abuse_assignments = {}
+        attack_path_managed_identity_theft_assignments = {}
         attack_path_vm_contributor_assignments = {}
         user_creds = {}
         
@@ -190,10 +191,10 @@ class BuildCommand:
                 for assignment in ap_user_role.values():
                     used_users.add(assignment['user_name'])
             
-            elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
+            elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (kv_abuse, kv_app_role, kv_app_api_permission,
-                 kv_vm_contributor) = self.attack_path_mgr.create_keyvault_abuse(
+                 kv_vm_contributor) = self.attack_path_mgr.create_keyvault_secret_theft(
                     attack_path_data, applications, key_vaults, users, applications,
                     virtual_machines, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
@@ -206,10 +207,10 @@ class BuildCommand:
                 for assignment in kv_abuse.values():
                     used_apps.add(assignment['app_name'])
             
-            elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
+            elif attack_path_data['privilege_escalation'] == 'StorageCertificateTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 (sa_abuse, sa_app_role, sa_app_api_permission,
-                 sa_vm_contributor) = self.attack_path_mgr.create_storage_account_abuse(
+                 sa_vm_contributor) = self.attack_path_mgr.create_storage_certificate_theft(
                     attack_path_data, applications, storage_accounts, users, applications,
                     virtual_machines, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
@@ -220,6 +221,22 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(sa_vm_contributor)
                 # Track used apps
                 for assignment in sa_abuse.values():
+                    used_apps.add(assignment['app_name'])
+            
+            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
+                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
+                (mi_theft, mi_app_role, mi_app_api_permission,
+                 mi_vm_contributor) = self.attack_path_mgr.create_managed_identity_theft(
+                    attack_path_data, applications, key_vaults, storage_accounts, users,
+                    virtual_machines, mode='random', path_name=attack_path_name,
+                    used_apps=used_apps
+                )
+                attack_path_managed_identity_theft_assignments.update(mi_theft)
+                attack_path_application_role_assignments.update(mi_app_role)
+                attack_path_app_api_permission_assignments.update(mi_app_api_permission)
+                attack_path_vm_contributor_assignments.update(mi_vm_contributor)
+                # Track used apps
+                for assignment in mi_theft.values():
                     used_apps.add(assignment['app_name'])
         
         # Build and write Terraform variables
@@ -232,6 +249,7 @@ class BuildCommand:
             attack_path_application_owner_assignments, attack_path_user_role_assignments,
             attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
+            attack_path_managed_identity_theft_assignments,
             attack_path_vm_contributor_assignments
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
@@ -260,6 +278,7 @@ class BuildCommand:
         self.output_formatter.format_random_mode_attack_paths(
             config, attack_path_application_owner_assignments,
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
+            attack_path_managed_identity_theft_assignments,
             attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
             attack_path_user_role_assignments,
             user_creds, domain
@@ -338,6 +357,7 @@ class BuildCommand:
             attack_path_assignments.get('app_api_permissions', {}),
             attack_path_assignments.get('kv_abuse', {}),
             attack_path_assignments.get('storage_abuse', {}),
+            attack_path_assignments.get('managed_identity_theft', {}),
             attack_path_assignments.get('vm_contributor', {})
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
@@ -387,6 +407,7 @@ class BuildCommand:
             'app_api_permissions': {},
             'kv_abuse': {},
             'storage_abuse': {},
+            'managed_identity_theft': {},
             'vm_contributor': {}
         }
         
@@ -436,9 +457,9 @@ class BuildCommand:
                 assignments['app_api_permissions'].update(ap_app_api_permission)
                 user_creds[path_name] = initial_access
             
-            elif priv_esc == 'KeyVaultAbuse':
+            elif priv_esc == 'KeyVaultSecretTheft':
                 (kv_abuse, kv_app_role, kv_app_api_permission,
-                 kv_vm_contributor) = self.attack_path_mgr.create_keyvault_abuse(
+                 kv_vm_contributor) = self.attack_path_mgr.create_keyvault_secret_theft(
                     path_config, applications, key_vaults, users, applications,
                     virtual_machines, mode='targeted', entities=entities, path_name=path_name
                 )
@@ -447,9 +468,9 @@ class BuildCommand:
                 assignments['app_api_permissions'].update(kv_app_api_permission)
                 assignments['vm_contributor'].update(kv_vm_contributor)
             
-            elif priv_esc == 'StorageAccountAbuse':
+            elif priv_esc == 'StorageCertificateTheft':
                 (sa_abuse, sa_app_role, sa_app_api_permission,
-                 sa_vm_contributor) = self.attack_path_mgr.create_storage_account_abuse(
+                 sa_vm_contributor) = self.attack_path_mgr.create_storage_certificate_theft(
                     path_config, applications, storage_accounts, users, applications,
                     virtual_machines, mode='targeted', entities=entities, path_name=path_name
                 )
@@ -457,6 +478,17 @@ class BuildCommand:
                 assignments['app_roles'].update(sa_app_role)
                 assignments['app_api_permissions'].update(sa_app_api_permission)
                 assignments['vm_contributor'].update(sa_vm_contributor)
+            
+            elif priv_esc == 'ManagedIdentityTheft':
+                (mi_theft, mi_app_role, mi_app_api_permission,
+                 mi_vm_contributor) = self.attack_path_mgr.create_managed_identity_theft(
+                    path_config, applications, key_vaults, storage_accounts, users,
+                    virtual_machines, mode='targeted', entities=entities, path_name=path_name
+                )
+                assignments['managed_identity_theft'].update(mi_theft)
+                assignments['app_roles'].update(mi_app_role)
+                assignments['app_api_permissions'].update(mi_app_api_permission)
+                assignments['vm_contributor'].update(mi_vm_contributor)
         
         # Store user credentials for output
         assignments['user_creds'] = user_creds

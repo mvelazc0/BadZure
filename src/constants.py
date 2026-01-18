@@ -2530,3 +2530,33 @@ ALL_HIGH_PRIVILEGED_PERMISSIONS = {
     "graph": HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS,
     "exchange": HIGH_PRIVILEGED_EXCHANGE_API_PERMISSIONS
 }
+
+# ============================================================================
+# Privilege Escalation Technique Validation
+# ============================================================================
+
+# Valid privilege escalation technique names
+VALID_TECHNIQUES = [
+    'ApplicationOwnershipAbuse',
+    'ApplicationAdministratorAbuse',
+    'ManagedIdentityTheft',
+    'KeyVaultSecretTheft',
+    'StorageCertificateTheft'
+]
+
+# Managed identity source types for ManagedIdentityTheft
+MANAGED_IDENTITY_SOURCE_TYPES = [
+    'vm',
+    'logic_app',
+    'function_app',
+    'container_instance',
+    'app_service'
+]
+
+# Target resource types for ManagedIdentityTheft
+MI_TARGET_RESOURCE_TYPES = [
+    'key_vault',
+    'storage_account',
+    'subscription',
+    'resource_group'
+]

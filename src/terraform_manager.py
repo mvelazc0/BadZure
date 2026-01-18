@@ -58,6 +58,7 @@ class TerraformManager:
         attack_path_application_api_permission_assignments: Dict,
         attack_path_kv_abuse_assignments: Dict,
         attack_path_storage_abuse_assignments: Dict,
+        attack_path_managed_identity_theft_assignments: Dict,
         attack_path_vm_contributor_assignments: Dict
     ) -> Dict:
         """
@@ -106,6 +107,7 @@ class TerraformManager:
             'attack_path_application_api_permission_assignments': attack_path_application_api_permission_assignments,
             'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
             'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments,
+            'attack_path_managed_identity_theft_assignments': attack_path_managed_identity_theft_assignments,
             'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments
         }
         

@@ -8,8 +8,8 @@ BadZure supports multiple attack path scenarios that simulate real-world privile
 
 BadZure organizes attack paths into two main categories:
 
-**Identity-Based Privilege Escalation**: Exploits misconfigurations in Azure AD identity and application management
-**Cloud Resource-Based Privilege Escalation**: Exploits misconfigurations in Azure resource access controls
+**Identity-Based Privilege Escalation**: Exploits misconfigurations in Azure AD identity, application management, and managed identity configurations
+**Resource-Based Privilege Escalation**: Exploits direct misconfigurations in Azure resource access controls
 
 ## Supported Attack Paths
 
@@ -88,35 +88,39 @@ api_type: graph | exchange  # Only for APIPermission method
 
 ---
 
-### 3. KeyVaultAbuse
+### 3. ManagedIdentityTheft
 
-**Category**: Cloud Resource-Based Privilege Escalation
+**Category**: Identity-Based Privilege Escalation
 
-**Description**: This attack path simulates scenarios where an attacker gains unauthorized access to Azure Key Vault to retrieve application secrets, which are then used for privilege escalation. The attack exploits overprivileged access to Key Vault resources and the common practice of storing application credentials in Key Vault.
+**Description**: This attack path simulates scenarios where an attacker exploits access to Azure resources with managed identities to steal identity tokens and pivot to other cloud resources. This technique represents the identity theft component of cloud-native privilege escalation attacks.
 
 **Attack Scenario**:
-- An attacker gains initial access through compromised credentials or insider threat
-- The attacker's identity (user, service principal, or managed identity) has been granted excessive permissions to an Azure Key Vault
-- Application client secrets are stored in the Key Vault for legitimate operational purposes
-- The attacker retrieves the client secrets from Key Vault and uses them to authenticate as the application
-- The application has high-privileged permissions that allow further privilege escalation
+- An attacker gains initial access to a user account with contributor access to an Azure resource (e.g., Virtual Machine)
+- The Azure resource has a system-assigned managed identity with permissions to access other cloud resources
+- The attacker leverages their access to the source resource to extract the managed identity token
+- The attacker uses the stolen managed identity token to access the target resource (Key Vault or Storage Account)
+- The attacker retrieves application credentials from the target resource
+- The application has high-privileged permissions that enable further privilege escalation
 
 **Technical Implementation**:
-- Creates Azure Key Vault with RBAC authorization enabled
-- Assigns Key Vault Contributor role to the specified principal type (user, service principal, or managed identity)
-- Generates and stores application client secrets in the Key Vault
+- Creates an Azure resource (Virtual Machine) with system-assigned managed identity
+- Assigns the user VM Contributor role on the resource
+- Grants the managed identity access to target resources (Key Vault or Storage Account)
+- Stores application credentials in the target resource
 - Configures the target application with high-privileged Azure AD roles or API permissions
-- Supports flexible principal types including VM managed identities for cloud-native attack scenarios
 
-**Principal Types**:
-- **User**: Regular user account gains Key Vault access through role assignment
-- **Service Principal**: Application service principal is granted Key Vault permissions
-- **Managed Identity**: Virtual machine managed identity is assigned Key Vault access
+**Source Types**:
+- **virtual_machine**: VM with system-assigned managed identity
+
+**Target Resource Types**:
+- **key_vault**: Managed identity has Key Vault Contributor access to retrieve secrets
+- **storage_account**: Managed identity has Storage Blob Data Reader access to retrieve certificates
 
 **Configuration Options**:
 ```yaml
-privilege_escalation: KeyVaultAbuse
-principal_type: user | service_principal | managed_identity
+privilege_escalation: ManagedIdentityTheft
+source_type: virtual_machine
+target_resource_type: key_vault | storage_account
 method: AzureADRole | APIPermission
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
@@ -124,20 +128,61 @@ app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
 ```
 
-**Real-World Relevance**: This attack path reflects common scenarios where Key Vault access controls are misconfigured, allowing unauthorized access to sensitive application credentials. It's particularly relevant in cloud-native environments where managed identities are used extensively.
+**Real-World Relevance**: This attack path reflects scenarios where managed identities are overprivileged or where users have excessive permissions on Azure resources. It's particularly relevant for testing the security of managed identity configurations and resource access controls in cloud-native environments.
 
 ---
 
-### 4. StorageAccountAbuse
+### 4. KeyVaultSecretTheft
 
-**Category**: Cloud Resource-Based Privilege Escalation
+**Category**: Resource-Based Privilege Escalation
 
-**Description**: This attack path simulates scenarios where an attacker gains access to Azure Storage Account to retrieve certificates and private keys used for application authentication. The attack exploits misconfigured storage permissions and the practice of storing authentication materials in blob storage.
+**Description**: This attack path simulates scenarios where an attacker with direct access to Azure Key Vault retrieves application secrets for privilege escalation. Unlike ManagedIdentityTheft, this technique focuses on direct Key Vault access without the identity theft component.
 
 **Attack Scenario**:
-- An attacker gains initial access to an identity with storage account permissions
-- The attacker's identity has been granted read access to Azure Blob Storage containers
-- Application certificates and private keys are stored in the storage account for operational purposes
+- An attacker gains initial access to a user or service principal account
+- The identity has been granted direct access to an Azure Key Vault
+- Application client secrets are stored in the Key Vault
+- The attacker retrieves the client secrets from Key Vault
+- The attacker uses the secrets to authenticate as the application
+- The application has high-privileged permissions that allow further privilege escalation
+
+**Technical Implementation**:
+- Creates Azure Key Vault with RBAC authorization enabled
+- Assigns Key Vault Contributor role to the specified principal (user or service principal)
+- Generates and stores application client secrets in the Key Vault
+- Configures the target application with high-privileged Azure AD roles or API permissions
+
+**Principal Types**:
+- **User**: Regular user account with Key Vault access
+- **Service Principal**: Application service principal with Key Vault permissions
+
+**Note**: For scenarios involving managed identity token theft to access Key Vault, use the `ManagedIdentityTheft` technique with `target_resource_type: key_vault`.
+
+**Configuration Options**:
+```yaml
+privilege_escalation: KeyVaultSecretTheft
+principal_type: user | service_principal
+method: AzureADRole | APIPermission
+initial_access: password | token
+entra_role: <role_id> | random | [<role_id1>, <role_id2>]
+app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
+api_type: graph | exchange  # Only for APIPermission method
+```
+
+**Real-World Relevance**: This attack path reflects scenarios where Key Vault access controls are misconfigured, allowing direct unauthorized access to sensitive application credentials.
+
+---
+
+### 5. StorageCertificateTheft
+
+**Category**: Resource-Based Privilege Escalation
+
+**Description**: This attack path simulates scenarios where an attacker with direct access to Azure Storage Account retrieves certificates and private keys used for application authentication. Unlike ManagedIdentityTheft, this technique focuses on direct storage access without the identity theft component.
+
+**Attack Scenario**:
+- An attacker gains initial access to a user or service principal account
+- The identity has been granted direct read access to Azure Blob Storage containers
+- Application certificates and private keys are stored in the storage account
 - The attacker downloads the certificate and private key files from storage
 - The attacker uses certificate-based authentication to impersonate the application
 - The application has high-privileged permissions that enable further privilege escalation
@@ -147,7 +192,7 @@ api_type: graph | exchange  # Only for APIPermission method
 - Generates self-signed X.509 certificates and private keys for target applications
 - Uploads certificate (.pem) and private key (.key) files to storage containers
 - Registers certificates with target applications for authentication
-- Assigns Storage Blob Data Reader role to the specified principal type
+- Assigns Storage Blob Data Reader role to the specified principal (user or service principal)
 - Configures applications with high-privileged Azure AD roles or API permissions
 
 **Certificate Management**:
@@ -157,14 +202,15 @@ api_type: graph | exchange  # Only for APIPermission method
 - Registers certificates with applications using Terraform automation
 
 **Principal Types**:
-- **User**: Regular user account gains storage access through role assignment
-- **Service Principal**: Application service principal is granted storage permissions  
-- **Managed Identity**: Virtual machine managed identity is assigned storage access
+- **User**: Regular user account with storage access
+- **Service Principal**: Application service principal with storage permissions
+
+**Note**: For scenarios involving managed identity token theft to access Storage Account, use the `ManagedIdentityTheft` technique with `target_resource_type: storage_account`.
 
 **Configuration Options**:
 ```yaml
-privilege_escalation: StorageAccountAbuse
-principal_type: user | service_principal | managed_identity
+privilege_escalation: StorageCertificateTheft
+principal_type: user | service_principal
 method: AzureADRole | APIPermission
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]

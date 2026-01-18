@@ -41,19 +41,20 @@ When configured to use passwords, BadZure assigns randomly generated passwords t
 For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), [endpoint malware](https://mrd0x.com/stealing-tokens-from-office-applications/) or [device code phishing](https://aadinternals.com/post/phishing/). Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
 
 ## Privilege Escalation
-BadZure supports four distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
+BadZure supports five distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
 
 ### Identity-Based Privilege Escalation
 - **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to owned applications with high privileges
 - **ApplicationAdministratorAbuse**: Exploits the Application Administrator Entra ID role to manage any application and add credentials to privileged applications
+- **ManagedIdentityTheft**: Exploits access to Azure resources with managed identities to steal identity tokens and pivot to other cloud resources
 
-### Cloud Resource-Based Privilege Escalation
-- **KeyVaultAbuse**: Cloud-native privilege escalation through Azure Key Vault access misconfigurations and secret retrieval
-- **StorageAccountAbuse**: Certificate-based privilege escalation through Azure Storage Account misconfigurations and authentication material theft
+### Resource-Based Privilege Escalation
+- **KeyVaultSecretTheft**: Direct privilege escalation through Azure Key Vault access to retrieve application secrets
+- **StorageCertificateTheft**: Direct privilege escalation through Azure Storage Account access to retrieve application certificates
 
 **Note:** The legacy `ServicePrincipalAbuse` name is still supported for backward compatibility but is deprecated. Please use `ApplicationOwnershipAbuse` instead.
 
-Each attack path supports multiple principal types (users, service principals, managed identities) and can be configured with specific or random role assignments. For detailed configuration options and attack path descriptions, refer to the project [Wiki](https://github.com/mvelazc0/BadZure/wiki/Supported-Attack-Paths).
+Each attack path can be configured with specific or random role assignments and supports various principal types depending on the technique. For detailed configuration options and attack path descriptions, refer to the project [Wiki](https://github.com/mvelazc0/BadZure/wiki/Supported-Attack-Paths).
 
 A BloodHound-generated graph, showcasing the attack paths BadZure can create, is shown below.
 

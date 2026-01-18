@@ -192,6 +192,22 @@ variable "attack_path_storage_abuse_assignments" {
   }))
 }
 
+variable "attack_path_managed_identity_theft_assignments" {
+  description = "A map of managed identity theft assignments for attack paths"
+  default = {}
+  type = map(object({
+    source_type              = string  # "vm", "logic_app", etc.
+    source_name              = string  # Name of the source resource (VM name, etc.)
+    target_resource_type     = string  # "key_vault" or "storage_account"
+    target_name              = string  # Name of the target resource
+    app_name                 = string  # The application to which credentials will be added
+    initial_access_user      = string  # User with access to the source resource
+    managed_identity_name    = string  # Name of the managed identity
+    certificate_path         = optional(string, "")  # Required for storage_account targets
+    private_key_path         = optional(string, "")  # Required for storage_account targets
+  }))
+}
+
 variable "attack_path_vm_contributor_assignments" {
   description = "A map of user to VM Contributor role assignments for attack paths with managed identities"
   default = {}

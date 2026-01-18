@@ -30,6 +30,7 @@ class OutputFormatter:
         attack_path_application_owner_assignments: Dict,
         attack_path_kv_abuse_assignments: Dict,
         attack_path_storage_abuse_assignments: Dict,
+        attack_path_managed_identity_theft_assignments: Dict,
         attack_path_application_role_assignments: Dict,
         attack_path_app_api_permission_assignments: Dict,
         attack_path_user_role_assignments: Dict,
@@ -101,7 +102,7 @@ class OutputFormatter:
                         logging.info("")  # Blank line after attack path
                         break
             
-            elif attack_path_data['privilege_escalation'] == 'KeyVaultAbuse':
+            elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_kv_abuse_assignments.items():
                     # Check if this assignment belongs to the current attack path
@@ -118,18 +119,12 @@ class OutputFormatter:
                         elif principal_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                        elif principal_type == "managed_identity":
-                            vm_name = assignment['virtual_machine']
-                            initial_user = assignment.get('initial_access_user')
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                            logging.info(f"Target Managed Identity: {vm_name}")
-                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         
                         logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
                         break
             
-            elif attack_path_data['privilege_escalation'] == 'StorageAccountAbuse':
+            elif attack_path_data['privilege_escalation'] == 'StorageCertificateTheft':
                 # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_storage_abuse_assignments.items():
                     # Check if this assignment belongs to the current attack path
@@ -146,12 +141,52 @@ class OutputFormatter:
                         elif principal_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                        elif principal_type == "managed_identity":
-                            vm_name = assignment['virtual_machine']
-                            initial_user = assignment.get('initial_access_user')
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                            logging.info(f"Target Managed Identity: {vm_name}")
-                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        
+                        logging.info("")  # Blank line after attack path
+                        # Only show one assignment per attack path
+                        break
+            
+            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
+                # Filter assignments to only show the one for this attack path
+                for key, assignment in attack_path_managed_identity_theft_assignments.items():
+                    # Check if this assignment belongs to the current attack path
+                    if attack_path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        
+                        source_type = assignment['source_type']
+                        source_name = assignment['source_name']
+                        target_resource_type = assignment['target_resource_type']
+                        target_name = assignment['target_name']
+                        initial_user = assignment.get('initial_access_user')
+                        app_name = assignment.get('app_name')
+                        managed_identity_name = assignment.get('managed_identity_name')
+                        
+                        # Display source information
+                        if source_type == 'vm':
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
+                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with VM Contributor)")
+                            logging.info(f"Managed Identity: {managed_identity_name}")
+                        
+                        # Display target information
+                        if target_resource_type == 'key_vault':
+                            logging.info(f"Target Resource: Key Vault - {target_name} (Key Vault Contributor)")
+                        elif target_resource_type == 'storage_account':
+                            logging.info(f"Target Resource: Storage Account - {target_name} (Storage Blob Data Reader)")
+                        
+                        # Display application with privileges
+                        logging.info(f"Target Application: {app_name}")
+                        
+                        # Show what privileges the application has
+                        if key in attack_path_application_role_assignments:
+                            role_info = attack_path_application_role_assignments[key]
+                            role_ids_str = ', '.join(role_info['role_ids'])
+                            logging.info(f"Application Privileges: Entra Role(s) - {role_ids_str}")
+                        elif key in attack_path_app_api_permission_assignments:
+                            perm_info = attack_path_app_api_permission_assignments[key]
+                            api_type = perm_info.get('api_type', 'graph')
+                            api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
+                            perm_ids_str = ', '.join(perm_info['api_permission_ids'])
+                            logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
                         
                         logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
@@ -222,7 +257,7 @@ class OutputFormatter:
                                 logging.info(f"Application Privileges: API Permission(s)")
                             break
             
-            elif priv_esc == 'KeyVaultAbuse':
+            elif priv_esc == 'KeyVaultSecretTheft':
                 for key, assignment in assignments.get('kv_abuse', {}).items():
                     # Match the key to the path_name
                     if path_name in key:
@@ -240,19 +275,11 @@ class OutputFormatter:
                         elif principal_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                        elif principal_type == 'managed_identity':
-                            vm_name = assignment['virtual_machine']
-                            initial_user = assignment.get('initial_access_user')
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                            if initial_user in users:
-                                logging.info(f"Password: {users[initial_user]['password']}")
-                            logging.info(f"Target Managed Identity: {vm_name}")
-                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         
                         logging.info(f"Target Application: {assignment['app_name']}")
                         break
             
-            elif priv_esc == 'StorageAccountAbuse':
+            elif priv_esc == 'StorageCertificateTheft':
                 for key, assignment in assignments.get('storage_abuse', {}).items():
                     # Match the key to the path_name
                     if path_name in key:
@@ -270,17 +297,46 @@ class OutputFormatter:
                         elif principal_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                        elif principal_type == 'managed_identity':
-                            vm_name = assignment['virtual_machine']
-                            initial_user = assignment.get('initial_access_user')
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain} (with VM Contributor on {vm_name})")
-                            if initial_user in users:
-                                logging.info(f"Password: {users[initial_user]['password']}")
-                            logging.info(f"Target Managed Identity: {vm_name}")
-                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                         
                         logging.info(f"Target Application: {assignment['app_name']}")
                         logging.info(f"Certificate stored in: {storage_account}/cert-container/")
+                        break
+            
+            elif priv_esc == 'ManagedIdentityTheft':
+                for key, assignment in assignments.get('managed_identity_theft', {}).items():
+                    # Match the key to the path_name
+                    if path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+                        logging.info(f"Privilege Escalation: ManagedIdentityTheft")
+                        
+                        source_type = assignment['source_type']
+                        source_name = assignment['source_name']
+                        target_resource_type = assignment['target_resource_type']
+                        target_name = assignment['target_name']
+                        initial_user = assignment.get('initial_access_user')
+                        app_name = assignment.get('app_name')
+                        managed_identity_name = assignment.get('managed_identity_name')
+                        
+                        # Display source information
+                        if source_type == 'vm':
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
+                            if initial_user in users:
+                                logging.info(f"Password: {users[initial_user]['password']}")
+                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with VM Contributor)")
+                            logging.info(f"Managed Identity: {managed_identity_name}")
+                        
+                        # Display target information
+                        if target_resource_type == 'key_vault':
+                            logging.info(f"Target Resource: Key Vault - {target_name} (Key Vault Contributor)")
+                        elif target_resource_type == 'storage_account':
+                            logging.info(f"Target Resource: Storage Account - {target_name} (Storage Blob Data Reader)")
+                        
+                        # Display application with privileges
+                        logging.info(f"Target Application: {app_name}")
+                        
+                        # Show certificate location for storage accounts
+                        if target_resource_type == 'storage_account':
+                            logging.info(f"Certificate stored in: {target_name}/cert-container/")
                         break
         
         logging.info("\n" + "=" * 60)

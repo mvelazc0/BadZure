@@ -202,7 +202,110 @@ class AttackPathManager:
             app_api_permission_assignments
         )
     
-    def create_keyvault_abuse(
+    def create_managed_identity_theft(
+        self,
+        attack_config: Dict,
+        applications: Dict,
+        key_vaults: Dict,
+        storage_accounts: Dict,
+        users: Dict,
+        virtual_machines: Dict,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None
+    ) -> Tuple[Dict, Dict, Dict, Dict]:
+        """
+        Create Managed Identity Theft attack path.
+        
+        This technique simulates stealing a managed identity token from a resource
+        (VM, Logic App, etc.) to access other Azure resources.
+        
+        Args:
+            attack_config: Attack path configuration
+            applications: Dictionary of applications
+            key_vaults: Dictionary of key vaults (if target is key_vault)
+            storage_accounts: Dictionary of storage accounts (if target is storage_account)
+            users: Dictionary of users
+            virtual_machines: Dictionary of virtual machines
+            mode: 'random' or 'targeted'
+            entities: Entity specifications (required for targeted mode)
+            path_name: Attack path name
+            used_apps: Set of already-used application names
+        
+        Returns:
+            Tuple of (mi_theft_assignments, app_role_assignments,
+                     app_api_permission_assignments, vm_contributor_assignments)
+        """
+        mi_theft_assignments = {}
+        app_role_assignments = {}
+        app_api_permission_assignments = {}
+        vm_contributor_assignments = {}  # Empty - Terraform handles this directly
+        
+        # Generate attack path key
+        attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        if mode == 'targeted' and path_name:
+            key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            key = f"{path_name}-{attack_path_id}"
+        else:
+            key = f"attack-path-{attack_path_id}"
+        
+        # Get source_type and target_resource_type from config
+        source_type = attack_config.get('source_type', 'vm')
+        target_resource_type = attack_config.get('target_resource_type')
+        
+        # Select entities based on mode
+        if mode == 'random':
+            app_name, target_name, source_name, user_name = self._select_random_entities_mi_theft(
+                applications, key_vaults, storage_accounts, virtual_machines, users,
+                source_type, target_resource_type, used_apps
+            )
+        else:  # targeted mode
+            app_name, target_name, source_name, user_name = self._select_targeted_entities_mi_theft(
+                applications, key_vaults, storage_accounts, virtual_machines, users,
+                entities, source_type, target_resource_type, path_name
+            )
+        
+        # Create MI theft assignment
+        # Note: VM Contributor assignment is handled directly by Terraform
+        # from the initial_access_user field in this assignment
+        mi_theft_assignment = {
+            'source_type': source_type,
+            'source_name': source_name,
+            'target_resource_type': target_resource_type,
+            'target_name': target_name,
+            'app_name': app_name,
+            'initial_access_user': user_name,
+            'managed_identity_name': source_name  # For VMs, MI name = VM name
+        }
+        
+        # Generate certificate for storage account targets
+        if target_resource_type == 'storage_account':
+            cert_path, key_path = generate_certificate_and_key(app_name)
+            mi_theft_assignment['certificate_path'] = cert_path
+            mi_theft_assignment['private_key_path'] = key_path
+        else:
+            # For key_vault targets, these are optional (not used)
+            mi_theft_assignment['certificate_path'] = ''
+            mi_theft_assignment['private_key_path'] = ''
+        
+        mi_theft_assignments[key] = mi_theft_assignment
+        
+        # Assign privileges to the target application
+        self._assign_app_privileges(
+            attack_config, app_name, key,
+            app_role_assignments, app_api_permission_assignments
+        )
+        
+        return (
+            mi_theft_assignments,
+            app_role_assignments,
+            app_api_permission_assignments,
+            vm_contributor_assignments  # Always empty for ManagedIdentityTheft
+        )
+    
+    def create_keyvault_secret_theft(
         self,
         attack_config: Dict,
         applications: Dict,
@@ -216,7 +319,10 @@ class AttackPathManager:
         used_apps: Optional[set] = None
     ) -> Tuple[Dict, Dict, Dict, Dict]:
         """
-        Create Key Vault Abuse attack path.
+        Create Key Vault Secret Theft attack path.
+        
+        This technique only supports principal_type 'user' or 'service_principal'.
+        For managed identity scenarios, use ManagedIdentityTheft instead.
         
         Args:
             attack_config: Attack path configuration
@@ -230,9 +336,17 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (kv_abuse_assignments, app_role_assignments, 
+            Tuple of (kv_abuse_assignments, app_role_assignments,
                      app_api_permission_assignments, vm_contributor_assignments)
         """
+        # Validate principal_type
+        principal_type = attack_config.get('principal_type', 'user')
+        if principal_type == 'managed_identity':
+            raise ValueError(
+                "KeyVaultSecretTheft does not support principal_type 'managed_identity'. "
+                "Use 'ManagedIdentityTheft' with target_resource_type 'key_vault' instead."
+            )
+        
         attack_path_kv_abuse_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
@@ -251,32 +365,21 @@ class AttackPathManager:
         
         # Select entities based on mode
         if mode == 'random':
-            app_name, kv_name, principal_name, user_name = self._select_random_entities_kv_abuse(
+            app_name, kv_name, principal_name = self._select_random_entities_kv_secret_theft(
                 applications, keyvaults, users, service_principals,
-                virtual_machines, attack_config['principal_type'], used_apps
+                principal_type, used_apps
             )
         else:  # targeted mode
-            app_name, kv_name, principal_name, user_name = self._select_targeted_entities_kv_abuse(
-                applications, keyvaults, users, virtual_machines,
-                entities, attack_config['principal_type'], path_name
+            app_name, kv_name, principal_name = self._select_targeted_entities_kv_secret_theft(
+                applications, keyvaults, users,
+                entities, principal_type, path_name
             )
-        
-        principal_type = attack_config['principal_type']
-        
-        # Handle managed identity VM Contributor assignment
-        if principal_type == "managed_identity":
-            vm_contributor_assignments[key] = {
-                'user_name': user_name,
-                'virtual_machine': principal_name
-            }
         
         attack_path_kv_abuse_assignments[key] = {
             "key_vault": kv_name,
             "principal_type": principal_type,
             "principal_name": principal_name,
-            "virtual_machine": principal_name if principal_type == "managed_identity" else None,
-            "app_name": app_name,
-            'initial_access_user': user_name if principal_type == "managed_identity" else None
+            "app_name": app_name
         }
         
         # Assign privileges
@@ -292,7 +395,7 @@ class AttackPathManager:
             vm_contributor_assignments
         )
     
-    def create_storage_account_abuse(
+    def create_storage_certificate_theft(
         self,
         attack_config: Dict,
         applications: Dict,
@@ -306,7 +409,10 @@ class AttackPathManager:
         used_apps: Optional[set] = None
     ) -> Tuple[Dict, Dict, Dict, Dict]:
         """
-        Create Storage Account Abuse attack path.
+        Create Storage Certificate Theft attack path.
+        
+        This technique only supports principal_type 'user' or 'service_principal'.
+        For managed identity scenarios, use ManagedIdentityTheft instead.
         
         Args:
             attack_config: Attack path configuration
@@ -320,9 +426,17 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (storage_abuse_assignments, app_role_assignments, 
+            Tuple of (storage_abuse_assignments, app_role_assignments,
                      app_api_permission_assignments, vm_contributor_assignments)
         """
+        # Validate principal_type
+        principal_type = attack_config.get('principal_type', 'user')
+        if principal_type == 'managed_identity':
+            raise ValueError(
+                "StorageCertificateTheft does not support principal_type 'managed_identity'. "
+                "Use 'ManagedIdentityTheft' with target_resource_type 'storage_account' instead."
+            )
+        
         attack_path_storage_abuse_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
@@ -341,37 +455,26 @@ class AttackPathManager:
         
         # Select entities based on mode
         if mode == 'random':
-            app_name, sa_name, principal_name, user_name = self._select_random_entities_storage_abuse(
+            app_name, sa_name, principal_name = self._select_random_entities_storage_cert_theft(
                 applications, storage_accounts, users, service_principals,
-                virtual_machines, attack_config['principal_type'], used_apps
+                principal_type, used_apps
             )
         else:  # targeted mode
-            app_name, sa_name, principal_name, user_name = self._select_targeted_entities_storage_abuse(
-                applications, storage_accounts, users, virtual_machines,
-                entities, attack_config['principal_type'], path_name
+            app_name, sa_name, principal_name = self._select_targeted_entities_storage_cert_theft(
+                applications, storage_accounts, users,
+                entities, principal_type, path_name
             )
-        
-        principal_type = attack_config['principal_type']
         
         # Generate certificate
         cert_path, key_path = generate_certificate_and_key(app_name)
-        
-        # Handle managed identity VM Contributor assignment
-        if principal_type == "managed_identity":
-            vm_contributor_assignments[key] = {
-                'user_name': user_name,
-                'virtual_machine': principal_name
-            }
         
         attack_path_storage_abuse_assignments[key] = {
             "app_name": app_name,
             "storage_account": sa_name,
             "principal_type": principal_type,
             "principal_name": principal_name,
-            "virtual_machine": principal_name if principal_type == "managed_identity" else None,
             'certificate_path': cert_path,
-            'private_key_path': key_path,
-            'initial_access_user': user_name if principal_type == "managed_identity" else None
+            'private_key_path': key_path
         }
         
         # Assign privileges
@@ -446,12 +549,12 @@ class AttackPathManager:
         
         return app_name, user_name
     
-    def _select_random_entities_kv_abuse(
+    def _select_random_entities_kv_secret_theft(
         self, applications: Dict, keyvaults: Dict, users: Dict,
-        service_principals: Dict, virtual_machines: Dict, principal_type: str,
+        service_principals: Dict, principal_type: str,
         used_apps: set = None
-    ) -> Tuple[str, str, str, Optional[str]]:
-        """Select random entities for Key Vault Abuse."""
+    ) -> Tuple[str, str, str]:
+        """Select random entities for Key Vault Secret Theft."""
         app_keys = list(applications.keys())
         
         # Exclude used applications
@@ -465,22 +568,17 @@ class AttackPathManager:
         
         if principal_type == "user":
             principal_name = random.choice(list(users.keys()))
-            user_name = None
         elif principal_type == "service_principal":
             principal_name = random.choice(list(service_principals.keys()))
-            user_name = None
-        elif principal_type == "managed_identity":
-            principal_name = random.choice(list(virtual_machines.keys()))
-            user_name = random.choice(list(users.keys()))
         
-        return app_name, kv_name, principal_name, user_name
+        return app_name, kv_name, principal_name
     
-    def _select_random_entities_storage_abuse(
+    def _select_random_entities_storage_cert_theft(
         self, applications: Dict, storage_accounts: Dict, users: Dict,
-        service_principals: Dict, virtual_machines: Dict, principal_type: str,
+        service_principals: Dict, principal_type: str,
         used_apps: set = None
-    ) -> Tuple[str, str, str, Optional[str]]:
-        """Select random entities for Storage Account Abuse."""
+    ) -> Tuple[str, str, str]:
+        """Select random entities for Storage Certificate Theft."""
         app_keys = list(applications.keys())
         
         # Exclude used applications
@@ -494,15 +592,47 @@ class AttackPathManager:
         
         if principal_type == "user":
             principal_name = random.choice(list(users.keys()))
-            user_name = None
         elif principal_type == "service_principal":
             principal_name = random.choice(list(service_principals.keys()))
-            user_name = None
-        elif principal_type == "managed_identity":
-            principal_name = random.choice(list(virtual_machines.keys()))
-            user_name = random.choice(list(users.keys()))
         
-        return app_name, sa_name, principal_name, user_name
+        return app_name, sa_name, principal_name
+    
+    def _select_random_entities_mi_theft(
+        self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
+        virtual_machines: Dict, users: Dict, source_type: str,
+        target_resource_type: str, used_apps: set = None
+    ) -> Tuple[str, str, str, str]:
+        """Select random entities for Managed Identity Theft."""
+        app_keys = list(applications.keys())
+        
+        # Exclude used applications
+        if used_apps:
+            available_apps = [app for app in app_keys if app not in used_apps]
+            if available_apps:
+                app_keys = available_apps
+        
+        app_name = random.choice(app_keys)
+        
+        # Select source (VM for now, can be expanded later)
+        if source_type == 'vm':
+            source_name = random.choice(list(virtual_machines.keys()))
+        else:
+            # For future expansion: logic_app, function_app, etc.
+            source_name = random.choice(list(virtual_machines.keys()))
+        
+        # Select target resource
+        if target_resource_type == 'key_vault':
+            target_name = random.choice(list(key_vaults.keys()))
+        elif target_resource_type == 'storage_account':
+            target_name = random.choice(list(storage_accounts.keys()))
+        else:
+            # For future expansion: subscription, resource_group
+            target_name = random.choice(list(key_vaults.keys()))
+        
+        # Select user for VM Contributor access
+        user_name = random.choice(list(users.keys()))
+        
+        return app_name, target_name, source_name, user_name
     
     # ========================================================================
     # Targeted Mode Entity Selection
@@ -575,11 +705,11 @@ class AttackPathManager:
         
         return app_name, user_name
     
-    def _select_targeted_entities_kv_abuse(
+    def _select_targeted_entities_kv_secret_theft(
         self, applications: Dict, keyvaults: Dict, users: Dict,
-        virtual_machines: Dict, entities: Dict, principal_type: str, path_name: str
-    ) -> Tuple[str, str, str, Optional[str]]:
-        """Select targeted entities for Key Vault Abuse."""
+        entities: Dict, principal_type: str, path_name: str
+    ) -> Tuple[str, str, str]:
+        """Select targeted entities for Key Vault Secret Theft."""
         # Get application
         app_list = list(entities.get('applications', []))
         if not app_list:
@@ -599,7 +729,6 @@ class AttackPathManager:
             kv_name = random.choice(list(keyvaults.keys()))
         
         # Get principal based on type
-        user_name = None
         if principal_type == 'user':
             user_list = list(entities.get('users', []))
             if not user_list:
@@ -610,31 +739,14 @@ class AttackPathManager:
                 principal_name = random.choice(list(users.keys()))
         elif principal_type == 'service_principal':
             principal_name = app_name
-        elif principal_type == 'managed_identity':
-            vm_list = list(entities.get('virtual_machines', []))
-            if not vm_list:
-                raise ValueError(f"{path_name}: principal_type 'managed_identity' requires virtual_machines")
-            vm_spec = vm_list[0]
-            principal_name = vm_spec.get('name', 'random')
-            if principal_name == 'random':
-                principal_name = random.choice(list(virtual_machines.keys()))
-            
-            # Get user for VM Contributor
-            user_list = list(entities.get('users', []))
-            if not user_list:
-                raise ValueError(f"{path_name}: managed_identity requires users for VM Contributor")
-            user_spec = user_list[0]
-            user_name = user_spec.get('name', 'random')
-            if user_name == 'random':
-                user_name = random.choice(list(users.keys()))
         
-        return app_name, kv_name, principal_name, user_name
+        return app_name, kv_name, principal_name
     
-    def _select_targeted_entities_storage_abuse(
+    def _select_targeted_entities_storage_cert_theft(
         self, applications: Dict, storage_accounts: Dict, users: Dict,
-        virtual_machines: Dict, entities: Dict, principal_type: str, path_name: str
-    ) -> Tuple[str, str, str, Optional[str]]:
-        """Select targeted entities for Storage Account Abuse."""
+        entities: Dict, principal_type: str, path_name: str
+    ) -> Tuple[str, str, str]:
+        """Select targeted entities for Storage Certificate Theft."""
         # Get application
         app_list = list(entities.get('applications', []))
         if not app_list:
@@ -654,7 +766,6 @@ class AttackPathManager:
             sa_name = random.choice(list(storage_accounts.keys()))
         
         # Get principal based on type
-        user_name = None
         if principal_type == 'user':
             user_list = list(entities.get('users', []))
             if not user_list:
@@ -665,25 +776,68 @@ class AttackPathManager:
                 principal_name = random.choice(list(users.keys()))
         elif principal_type == 'service_principal':
             principal_name = app_name
-        elif principal_type == 'managed_identity':
+        
+        return app_name, sa_name, principal_name
+    
+    def _select_targeted_entities_mi_theft(
+        self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
+        virtual_machines: Dict, users: Dict, entities: Dict,
+        source_type: str, target_resource_type: str, path_name: str
+    ) -> Tuple[str, str, str, str]:
+        """Select targeted entities for Managed Identity Theft."""
+        # Get application
+        app_list = list(entities.get('applications', []))
+        if not app_list:
+            raise ValueError(f"{path_name}: No applications specified")
+        app_spec = app_list[0]
+        app_name = app_spec.get('name', 'random')
+        if app_name == 'random':
+            app_name = random.choice(list(applications.keys()))
+        
+        # Get source resource (VM for now)
+        if source_type == 'vm':
             vm_list = list(entities.get('virtual_machines', []))
             if not vm_list:
-                raise ValueError(f"{path_name}: principal_type 'managed_identity' requires virtual_machines")
+                raise ValueError(f"{path_name}: source_type 'vm' requires virtual_machines")
             vm_spec = vm_list[0]
-            principal_name = vm_spec.get('name', 'random')
-            if principal_name == 'random':
-                principal_name = random.choice(list(virtual_machines.keys()))
-            
-            # Get user for VM Contributor
-            user_list = list(entities.get('users', []))
-            if not user_list:
-                raise ValueError(f"{path_name}: managed_identity requires users for VM Contributor")
-            user_spec = user_list[0]
-            user_name = user_spec.get('name', 'random')
-            if user_name == 'random':
-                user_name = random.choice(list(users.keys()))
+            source_name = vm_spec.get('name', 'random')
+            if source_name == 'random':
+                source_name = random.choice(list(virtual_machines.keys()))
+        else:
+            # For future expansion
+            source_name = random.choice(list(virtual_machines.keys()))
         
-        return app_name, sa_name, principal_name, user_name
+        # Get target resource
+        if target_resource_type == 'key_vault':
+            kv_list = list(entities.get('key_vaults', []))
+            if not kv_list:
+                raise ValueError(f"{path_name}: target_resource_type 'key_vault' requires key_vaults")
+            kv_spec = kv_list[0]
+            target_name = kv_spec.get('name', 'random')
+            if target_name == 'random':
+                target_name = random.choice(list(key_vaults.keys()))
+        elif target_resource_type == 'storage_account':
+            sa_list = list(entities.get('storage_accounts', []))
+            if not sa_list:
+                raise ValueError(f"{path_name}: target_resource_type 'storage_account' requires storage_accounts")
+            sa_spec = sa_list[0]
+            target_name = sa_spec.get('name', 'random')
+            if target_name == 'random':
+                target_name = random.choice(list(storage_accounts.keys()))
+        else:
+            # For future expansion
+            target_name = random.choice(list(key_vaults.keys()))
+        
+        # Get user for VM Contributor
+        user_list = list(entities.get('users', []))
+        if not user_list:
+            raise ValueError(f"{path_name}: ManagedIdentityTheft requires users for VM Contributor")
+        user_spec = user_list[0]
+        user_name = user_spec.get('name', 'random')
+        if user_name == 'random':
+            user_name = random.choice(list(users.keys()))
+        
+        return app_name, target_name, source_name, user_name
     
     # ========================================================================
     # Privilege Assignment (Shared Logic)

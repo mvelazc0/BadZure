@@ -44,9 +44,8 @@ attack_paths:
   attack_path_3:
     enabled: true
     initial_access: password
-    scenario: helpdesk
-    privilege_escalation: KeyVaultAbuse
-    principal_type: managed_identity
+    privilege_escalation: KeyVaultSecretTheft
+    principal_type: user
     method: APIPermission
     api_type: graph
     app_role: random
@@ -54,10 +53,11 @@ attack_paths:
   attack_path_4:
     enabled: true
     initial_access: password
-    privilege_escalation: StorageAccountAbuse
-    principal_type: user
+    privilege_escalation: ManagedIdentityTheft
+    source_type: virtual_machine
+    target_resource_type: storage_account
     method: AzureADRole
-    entra_role: 
+    entra_role:
       - e8611ab8-c189-46e8-94e1-60213ab1f814  # Privileged Role Administrator
       - 7be44c8a-adaf-4e2a-84d6-ab2649e08a13  # Privileged Authentication Administrator
 ```
@@ -104,8 +104,9 @@ The `attack_paths` section defines different attack paths to simulate within the
 - **privilege_escalation**: The privilege escalation technique. Available options:
   - **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to privileged applications.
   - **ApplicationAdministratorAbuse**: Exploits the Application Administrator role to manage any application and add credentials.
-  - **KeyVaultAbuse**: Retrieves application secrets stored in Azure Key Vault.
-  - **StorageAccountAbuse**: Retrieves application certificates and private keys from Azure Storage.
+  - **ManagedIdentityTheft**: Exploits access to Azure resources with managed identities to steal tokens and pivot to other resources.
+  - **KeyVaultSecretTheft**: Retrieves application secrets stored in Azure Key Vault through direct access.
+  - **StorageCertificateTheft**: Retrieves application certificates and private keys from Azure Storage through direct access.
 
 - **method**: The method used to assign privileges to applications:
   - **AzureADRole**: Assigns Entra ID roles to applications.
@@ -113,12 +114,24 @@ The `attack_paths` section defines different attack paths to simulate within the
 
 ### Principal Types
 
-For **KeyVaultAbuse** and **StorageAccountAbuse** attack paths, specify the type of principal that will access the Azure resources:
+For **KeyVaultSecretTheft** and **StorageCertificateTheft** attack paths, specify the type of principal that will access the Azure resources:
 
-- **principal_type**: The type of identity granted access:
+- **principal_type**: The type of identity granted direct access:
   - **user**: A regular user account.
   - **service_principal**: An application's service principal.
-  - **managed_identity**: A virtual machine's managed identity.
+
+**Note**: For managed identity scenarios, use **ManagedIdentityTheft** instead.
+
+### Managed Identity Configuration
+
+For **ManagedIdentityTheft** attack paths, specify the source and target resources:
+
+- **source_type**: The type of Azure resource with the managed identity:
+  - **virtual_machine**: A VM with system-assigned managed identity.
+
+- **target_resource_type**: The type of resource the managed identity can access:
+  - **key_vault**: Managed identity has access to Key Vault secrets.
+  - **storage_account**: Managed identity has access to Storage Account certificates.
 
 ### API Permission Configuration
 
@@ -174,20 +187,34 @@ Simulates an attacker with the Application Administrator role who can manage any
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the target application
 
-### KeyVaultAbuse
-Simulates an attacker with access to Azure Key Vault who retrieves application secrets to authenticate as the application.
+### ManagedIdentityTheft
+Simulates an attacker who exploits access to Azure resources with managed identities to steal identity tokens and pivot to other cloud resources.
 
 **Required fields:**
-- `privilege_escalation: KeyVaultAbuse`
-- `principal_type`: user, service_principal, or managed_identity
+- `privilege_escalation: ManagedIdentityTheft`
+- `source_type`: virtual_machine
+- `target_resource_type`: key_vault or storage_account
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the application
 
-### StorageAccountAbuse
-Simulates an attacker with access to Azure Storage who retrieves application certificates and private keys to authenticate as the application.
+### KeyVaultSecretTheft
+Simulates an attacker with direct access to Azure Key Vault who retrieves application secrets to authenticate as the application.
 
 **Required fields:**
-- `privilege_escalation: StorageAccountAbuse`
-- `principal_type`: user, service_principal, or managed_identity
+- `privilege_escalation: KeyVaultSecretTheft`
+- `principal_type`: user or service_principal
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the application
+
+**Note**: For managed identity scenarios, use `ManagedIdentityTheft` with `target_resource_type: key_vault`.
+
+### StorageCertificateTheft
+Simulates an attacker with direct access to Azure Storage who retrieves application certificates and private keys to authenticate as the application.
+
+**Required fields:**
+- `privilege_escalation: StorageCertificateTheft`
+- `principal_type`: user or service_principal
+- `method`: AzureADRole or APIPermission
+- `entra_role` or `app_role`: The privileges assigned to the application
+
+**Note**: For managed identity scenarios, use `ManagedIdentityTheft` with `target_resource_type: storage_account`.
