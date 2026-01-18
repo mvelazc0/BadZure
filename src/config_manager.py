@@ -244,7 +244,7 @@ class ConfigManager:
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ManagedIdentityTheft requires at least one application")
         if 'users' not in entities or not entities['users']:
-            errors.append(f"{path_name}: ManagedIdentityTheft requires at least one user for VM Contributor access")
+            errors.append(f"{path_name}: ManagedIdentityTheft requires at least one user for Contributor access")
         if 'resource_groups' not in entities or not entities['resource_groups']:
             errors.append(f"{path_name}: ManagedIdentityTheft requires at least one resource_group")
         
@@ -263,9 +263,12 @@ class ConfigManager:
             errors.append(f"{path_name}: Invalid target_resource_type '{target_resource_type}'. Must be one of: {', '.join(MI_TARGET_RESOURCE_TYPES)}")
         
         # Validate required entities based on source_type
-        if source_type == 'virtual_machine':
+        if source_type == 'vm':
             if 'virtual_machines' not in entities or not entities['virtual_machines']:
-                errors.append(f"{path_name}: source_type 'virtual_machine' requires at least one virtual_machine")
+                errors.append(f"{path_name}: source_type 'vm' requires at least one virtual_machine")
+        elif source_type == 'logic_app':
+            if 'logic_apps' not in entities or not entities['logic_apps']:
+                errors.append(f"{path_name}: source_type 'logic_app' requires at least one logic_app")
         
         # Validate required entities based on target_resource_type
         if target_resource_type == 'key_vault':

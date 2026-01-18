@@ -47,6 +47,7 @@ class TerraformManager:
         key_vaults: Dict,
         storage_accounts: Dict,
         virtual_machines: Dict,
+        logic_apps: Dict,
         user_group_assignments: Dict,
         user_au_assignments: Dict,
         user_role_assignments: Dict,
@@ -92,6 +93,7 @@ class TerraformManager:
             'key_vaults': key_vaults,
             'storage_accounts': storage_accounts,
             'virtual_machines': virtual_machines,
+            'logic_apps': logic_apps,
             
             # Assignments
             'user_group_assignments': user_group_assignments,

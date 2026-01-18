@@ -498,6 +498,21 @@ resource "azurerm_role_assignment" "attack_path_vm_contributor_access" {
   ]
 }
 
+# Logic App with system-assigned managed identity
+resource "azurerm_logic_app_workflow" "logic_apps" {
+  for_each = var.logic_apps
+
+  name                = each.value.name
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
 # ============================================================================
 # ManagedIdentityTheft Attack Path Resources
 # ============================================================================
@@ -592,13 +607,16 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
       (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
         azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
         azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
-      null  # Future: support for other source types like logic apps
+    each.value.source_type == "logic_app" ?
+      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+      null
   )
 
   depends_on = [
     azurerm_key_vault.kvaults,
     azurerm_linux_virtual_machine.linux_vms,
-    azurerm_windows_virtual_machine.windows_vms
+    azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps
   ]
 }
 
@@ -614,31 +632,45 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
       (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
         azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
         azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
-      null  # Future: support for other source types like logic apps
+    each.value.source_type == "logic_app" ?
+      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+      null
   )
 
   depends_on = [
     azurerm_storage_account.sas,
     azurerm_linux_virtual_machine.linux_vms,
-    azurerm_windows_virtual_machine.windows_vms
+    azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps
   ]
 }
 
 # Grant user VM Contributor access for ManagedIdentityTheft
-resource "azurerm_role_assignment" "attack_path_mi_theft_vm_contributor_access" {
-  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.source_type == "vm" }
+resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_access" {
+  for_each = var.attack_path_managed_identity_theft_assignments
 
   scope = (
-    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
-      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].id :
-      azurerm_windows_virtual_machine.windows_vms[each.value.source_name].id
+    each.value.source_type == "vm" ?
+      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].id :
+        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].id) :
+    each.value.source_type == "logic_app" ?
+      azurerm_logic_app_workflow.logic_apps[each.value.source_name].id :
+      null
   )
-  role_definition_name = "Virtual Machine Contributor"
-  principal_id         = azuread_user.users[each.value.initial_access_user].id
+  
+  role_definition_name = (
+    each.value.source_type == "vm" ? "Virtual Machine Contributor" :
+    each.value.source_type == "logic_app" ? "Logic App Contributor" :
+    null
+  )
+  
+  principal_id = azuread_user.users[each.value.initial_access_user].id
 
   depends_on = [
     azurerm_linux_virtual_machine.linux_vms,
     azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps,
     azuread_user.users
   ]
 }

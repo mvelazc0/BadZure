@@ -166,6 +166,10 @@ class OutputFormatter:
                             logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
                             logging.info(f"Source Resource: Virtual Machine - {source_name} (with VM Contributor)")
                             logging.info(f"Managed Identity: {managed_identity_name}")
+                        elif source_type == 'logic_app':
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
+                            logging.info(f"Source Resource: Logic App - {source_name} (with Logic App Contributor)")
+                            logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information
                         if target_resource_type == 'key_vault':
@@ -323,6 +327,12 @@ class OutputFormatter:
                             if initial_user in users:
                                 logging.info(f"Password: {users[initial_user]['password']}")
                             logging.info(f"Source Resource: Virtual Machine - {source_name} (with VM Contributor)")
+                            logging.info(f"Managed Identity: {managed_identity_name}")
+                        elif source_type == 'logic_app':
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
+                            if initial_user in users:
+                                logging.info(f"Password: {users[initial_user]['password']}")
+                            logging.info(f"Source Resource: Logic App - {source_name} (with Logic App Contributor)")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information

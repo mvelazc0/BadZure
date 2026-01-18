@@ -210,6 +210,7 @@ class AttackPathManager:
         storage_accounts: Dict,
         users: Dict,
         virtual_machines: Dict,
+        logic_apps: Dict,
         mode: str = 'random',
         entities: Optional[Dict] = None,
         path_name: Optional[str] = None,
@@ -258,12 +259,12 @@ class AttackPathManager:
         # Select entities based on mode
         if mode == 'random':
             app_name, target_name, source_name, user_name = self._select_random_entities_mi_theft(
-                applications, key_vaults, storage_accounts, virtual_machines, users,
+                applications, key_vaults, storage_accounts, virtual_machines, logic_apps, users,
                 source_type, target_resource_type, used_apps
             )
         else:  # targeted mode
             app_name, target_name, source_name, user_name = self._select_targeted_entities_mi_theft(
-                applications, key_vaults, storage_accounts, virtual_machines, users,
+                applications, key_vaults, storage_accounts, virtual_machines, logic_apps, users,
                 entities, source_type, target_resource_type, path_name
             )
         
@@ -599,7 +600,7 @@ class AttackPathManager:
     
     def _select_random_entities_mi_theft(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
-        virtual_machines: Dict, users: Dict, source_type: str,
+        virtual_machines: Dict, logic_apps: Dict, users: Dict, source_type: str,
         target_resource_type: str, used_apps: set = None
     ) -> Tuple[str, str, str, str]:
         """Select random entities for Managed Identity Theft."""
@@ -613,11 +614,13 @@ class AttackPathManager:
         
         app_name = random.choice(app_keys)
         
-        # Select source (VM for now, can be expanded later)
+        # Select source based on type
         if source_type == 'vm':
             source_name = random.choice(list(virtual_machines.keys()))
+        elif source_type == 'logic_app':
+            source_name = random.choice(list(logic_apps.keys()))
         else:
-            # For future expansion: logic_app, function_app, etc.
+            # Default to VM for unknown types
             source_name = random.choice(list(virtual_machines.keys()))
         
         # Select target resource
@@ -781,7 +784,7 @@ class AttackPathManager:
     
     def _select_targeted_entities_mi_theft(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
-        virtual_machines: Dict, users: Dict, entities: Dict,
+        virtual_machines: Dict, logic_apps: Dict, users: Dict, entities: Dict,
         source_type: str, target_resource_type: str, path_name: str
     ) -> Tuple[str, str, str, str]:
         """Select targeted entities for Managed Identity Theft."""
@@ -794,7 +797,7 @@ class AttackPathManager:
         if app_name == 'random':
             app_name = random.choice(list(applications.keys()))
         
-        # Get source resource (VM for now)
+        # Get source resource
         if source_type == 'vm':
             vm_list = list(entities.get('virtual_machines', []))
             if not vm_list:
@@ -803,8 +806,16 @@ class AttackPathManager:
             source_name = vm_spec.get('name', 'random')
             if source_name == 'random':
                 source_name = random.choice(list(virtual_machines.keys()))
+        elif source_type == 'logic_app':
+            la_list = list(entities.get('logic_apps', []))
+            if not la_list:
+                raise ValueError(f"{path_name}: source_type 'logic_app' requires logic_apps")
+            la_spec = la_list[0]
+            source_name = la_spec.get('name', 'random')
+            if source_name == 'random':
+                source_name = random.choice(list(logic_apps.keys()))
         else:
-            # For future expansion
+            # Default to VM for unknown types
             source_name = random.choice(list(virtual_machines.keys()))
         
         # Get target resource

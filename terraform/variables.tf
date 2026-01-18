@@ -169,6 +169,16 @@ variable "virtual_machines" {
   }))
 }
 
+variable "logic_apps" {
+  description = "A map of Logic Apps to create"
+  type = map(object({
+    name                = string
+    location            = string
+    resource_group_name = string
+  }))
+  default = {}
+}
+
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
     key_vault      = string

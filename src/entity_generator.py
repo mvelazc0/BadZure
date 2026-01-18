@@ -13,6 +13,10 @@ class EntityGenerator:
     def __init__(self, data_dir: str = "entity_data"):
         self.data_dir = data_dir
         self._name_cache = {}
+        # Cache app naming components for reuse
+        self.app_prefixes = None
+        self.app_core_names = None
+        self.app_suffixes = None
     
     def _read_names_from_file(self, filename: str) -> List[str]:
         """Read names from file with caching."""
@@ -118,9 +122,13 @@ class EntityGenerator:
     def generate_applications(self, count: int) -> Dict:
         """Generate random applications."""
         applications = {}
-        prefixes = self._read_names_from_file('app-prefixes.txt')
-        core_names = self._read_names_from_file('app-core-names.txt')
-        suffixes = self._read_names_from_file('app-sufixes.txt')
+        self.app_prefixes = self._read_names_from_file('app-prefixes.txt')
+        self.app_core_names = self._read_names_from_file('app-core-names.txt')
+        self.app_suffixes = self._read_names_from_file('app-sufixes.txt')
+        
+        prefixes = self.app_prefixes
+        core_names = self.app_core_names
+        suffixes = self.app_suffixes
         
         app_names = set()
         while len(app_names) < count:
@@ -383,3 +391,66 @@ class EntityGenerator:
             }
         
         return vms
+    
+    # Logic App generation
+    def generate_logic_apps(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random Logic Apps."""
+        logic_apps = {}
+        
+        if count == 0 or not resource_groups:
+            return logic_apps
+        
+        # Load Logic App names from file
+        logic_app_names = self._read_names_from_file('logic-apps.txt')
+        
+        # Shuffle and select the required number of names
+        random.shuffle(logic_app_names)
+        selected_names = logic_app_names[:count]
+        
+        rg_list = list(resource_groups.keys())
+        
+        for name in selected_names:
+            rg_name = random.choice(rg_list)
+            
+            logic_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return logic_apps
+    
+    def generate_logic_apps_targeted(self, logic_app_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Logic Apps from targeted specifications."""
+        logic_apps = {}
+        
+        # Load Logic App names from file
+        logic_app_names = self._read_names_from_file('logic-apps.txt')
+        
+        for spec in logic_app_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            
+            if name == 'random':
+                # Select random name from file
+                base_name = random.choice(logic_app_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            logic_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return logic_apps
