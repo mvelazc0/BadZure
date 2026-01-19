@@ -535,8 +535,11 @@ class EntityGenerator:
         
         rg_list = list(resource_groups.keys())
         
-        for name in selected_names:
+        for base_name in selected_names:
             rg_name = random.choice(rg_list)
+            # Add random suffix for global uniqueness (Function App names must be globally unique)
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            name = f"{base_name}-{random_suffix}"
             
             function_apps[name] = {
                 'name': name,

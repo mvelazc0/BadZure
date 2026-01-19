@@ -6,7 +6,7 @@ terraform {
     }
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "4.18.0" 
+      version = "4.57.0" 
     }    
   }
 }
@@ -174,7 +174,7 @@ resource "azurerm_key_vault" "kvaults" {
   resource_group_name = each.value.resource_group_name
   sku_name = each.value.sku_name
   tenant_id = var.tenant_id
-  enable_rbac_authorization = true
+  rbac_authorization_enabled = true
 
   depends_on = [azurerm_resource_group.rgroups]
 
@@ -542,84 +542,59 @@ resource "azurerm_storage_account" "function_storage" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
-# App Service Plan for Linux Function Apps
-resource "azurerm_service_plan" "function_plan_linux" {
-  for_each = { for k, v in var.function_apps : k => v if v.os_type == "linux" }
+# Storage Container for Function App (required for Flex Consumption)
+resource "azurerm_storage_container" "function_container" {
+  for_each = var.function_apps
+
+  name                  = "${each.value.name}-container"
+  storage_account_id    = azurerm_storage_account.function_storage[each.key].id
+  container_access_type = "private"
+
+  depends_on = [azurerm_storage_account.function_storage]
+}
+
+# Service Plan for Flex Consumption Function Apps
+resource "azurerm_service_plan" "function_plan" {
+  for_each = var.function_apps
 
   name                = "${each.value.name}-plan"
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
-  os_type             = "Linux"
-  sku_name            = "FC1"  # Flex Consumption - no quota required!
+  os_type             = each.value.os_type == "linux" ? "Linux" : "Windows"
+  sku_name            = "FC1"
 
   depends_on = [azurerm_resource_group.rgroups]
 }
 
-# App Service Plan for Windows Function Apps
-resource "azurerm_service_plan" "function_plan_windows" {
-  for_each = { for k, v in var.function_apps : k => v if v.os_type == "windows" }
+# Function App with Flex Consumption (supports both Linux and Windows)
+resource "azurerm_function_app_flex_consumption" "function_apps" {
+  for_each = var.function_apps
 
-  name                = "${each.value.name}-plan"
-  location            = each.value.location
+  name                = each.value.name
   resource_group_name = each.value.resource_group_name
-  os_type             = "Windows"
-  sku_name            = "FC1"  # Flex Consumption - no quota required!
+  location            = each.value.location
+  service_plan_id     = azurerm_service_plan.function_plan[each.key].id
 
-  depends_on = [azurerm_resource_group.rgroups]
-}
+  # Storage configuration
+  storage_container_type      = "blobContainer"
+  storage_container_endpoint  = "${azurerm_storage_account.function_storage[each.key].primary_blob_endpoint}${azurerm_storage_container.function_container[each.key].name}"
+  storage_authentication_type = "StorageAccountConnectionString"
+  storage_access_key          = azurerm_storage_account.function_storage[each.key].primary_access_key
 
-# Linux Function App with system-assigned managed identity (Flex Consumption)
-resource "azurerm_linux_function_app" "function_apps_linux" {
-  for_each = { for k, v in var.function_apps : k => v if v.os_type == "linux" }
+  # Runtime configuration
+  runtime_name    = each.value.os_type == "linux" ? "python" : "dotnet-isolated"
+  runtime_version = each.value.os_type == "linux" ? "3.11" : "8.0"
 
-  name                       = each.value.name
-  location                   = each.value.location
-  resource_group_name        = each.value.resource_group_name
-  service_plan_id            = azurerm_service_plan.function_plan_linux[each.key].id
-  storage_account_name       = azurerm_storage_account.function_storage[each.key].name
-  storage_account_access_key = azurerm_storage_account.function_storage[each.key].primary_access_key
+  # Required site_config block
+  site_config {}
 
   identity {
     type = "SystemAssigned"
   }
 
-  site_config {
-    application_stack {
-      python_version = "3.11"
-    }
-  }
-
   depends_on = [
-    azurerm_service_plan.function_plan_linux,
-    azurerm_storage_account.function_storage
-  ]
-}
-
-# Windows Function App with system-assigned managed identity (Flex Consumption)
-resource "azurerm_windows_function_app" "function_apps_windows" {
-  for_each = { for k, v in var.function_apps : k => v if v.os_type == "windows" }
-
-  name                       = each.value.name
-  location                   = each.value.location
-  resource_group_name        = each.value.resource_group_name
-  service_plan_id            = azurerm_service_plan.function_plan_windows[each.key].id
-  storage_account_name       = azurerm_storage_account.function_storage[each.key].name
-  storage_account_access_key = azurerm_storage_account.function_storage[each.key].primary_access_key
-
-  identity {
-    type = "SystemAssigned"
-  }
-
-  site_config {
-    application_stack {
-      dotnet_version              = "v8.0"
-      use_dotnet_isolated_runtime = true
-    }
-  }
-
-  depends_on = [
-    azurerm_service_plan.function_plan_windows,
-    azurerm_storage_account.function_storage
+    azurerm_service_plan.function_plan,
+    azurerm_storage_container.function_container
   ]
 }
 
@@ -722,9 +697,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
     each.value.source_type == "automation_account" ?
       azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "function_app" ?
-      (contains(keys(azurerm_linux_function_app.function_apps_linux), each.value.source_name) ?
-        azurerm_linux_function_app.function_apps_linux[each.value.source_name].identity[0].principal_id :
-        azurerm_windows_function_app.function_apps_windows[each.value.source_name].identity[0].principal_id) :
+      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
       null
   )
 
@@ -734,8 +707,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
-    azurerm_linux_function_app.function_apps_linux,
-    azurerm_windows_function_app.function_apps_windows
+    azurerm_function_app_flex_consumption.function_apps
   ]
 }
 
@@ -756,9 +728,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
     each.value.source_type == "automation_account" ?
       azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "function_app" ?
-      (contains(keys(azurerm_linux_function_app.function_apps_linux), each.value.source_name) ?
-        azurerm_linux_function_app.function_apps_linux[each.value.source_name].identity[0].principal_id :
-        azurerm_windows_function_app.function_apps_windows[each.value.source_name].identity[0].principal_id) :
+      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
       null
   )
 
@@ -768,8 +738,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
-    azurerm_linux_function_app.function_apps_linux,
-    azurerm_windows_function_app.function_apps_windows
+    azurerm_function_app_flex_consumption.function_apps
   ]
 }
 
@@ -787,9 +756,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     each.value.source_type == "automation_account" ?
       azurerm_automation_account.automation_accounts[each.value.source_name].id :
     each.value.source_type == "function_app" ?
-      (contains(keys(azurerm_linux_function_app.function_apps_linux), each.value.source_name) ?
-        azurerm_linux_function_app.function_apps_linux[each.value.source_name].id :
-        azurerm_windows_function_app.function_apps_windows[each.value.source_name].id) :
+      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].id :
       null
   )
   
@@ -808,8 +775,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
-    azurerm_linux_function_app.function_apps_linux,
-    azurerm_windows_function_app.function_apps_windows,
+    azurerm_function_app_flex_consumption.function_apps,
     azuread_user.users
   ]
 }
