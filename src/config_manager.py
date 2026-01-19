@@ -12,7 +12,8 @@ from src.constants import (
     HIGH_PRIVILEGED_ENTRA_ROLES,
     VALID_TECHNIQUES,
     MANAGED_IDENTITY_SOURCE_TYPES,
-    MI_TARGET_RESOURCE_TYPES
+    MI_TARGET_RESOURCE_TYPES,
+    FUNCTION_APP_OS_TYPES
 )
 
 
@@ -272,6 +273,14 @@ class ConfigManager:
         elif source_type == 'automation_account':
             if 'automation_accounts' not in entities or not entities['automation_accounts']:
                 errors.append(f"{path_name}: source_type 'automation_account' requires at least one automation_account")
+        elif source_type == 'function_app':
+            if 'function_apps' not in entities or not entities['function_apps']:
+                errors.append(f"{path_name}: source_type 'function_app' requires at least one function_app")
+            
+            # Validate function_app_os if specified
+            function_app_os = path_config.get('function_app_os', 'linux')
+            if function_app_os not in FUNCTION_APP_OS_TYPES:
+                errors.append(f"{path_name}: Invalid function_app_os '{function_app_os}'. Must be one of: {', '.join(FUNCTION_APP_OS_TYPES)}")
         
         # Validate required entities based on target_resource_type
         if target_resource_type == 'key_vault':

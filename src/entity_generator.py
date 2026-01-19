@@ -517,3 +517,69 @@ class EntityGenerator:
             }
         
         return automation_accounts
+    
+    # Function App generation
+    def generate_function_apps(self, count: int, resource_groups: Dict, os_type: str = 'linux') -> Dict:
+        """Generate random Function Apps with specified OS type (default: linux)."""
+        function_apps = {}
+        
+        if count == 0 or not resource_groups:
+            return function_apps
+        
+        # Load Function App names from file
+        function_app_names = self._read_names_from_file('function-apps.txt')
+        
+        # Shuffle and select the required number of names
+        random.shuffle(function_app_names)
+        selected_names = function_app_names[:count]
+        
+        rg_list = list(resource_groups.keys())
+        
+        for name in selected_names:
+            rg_name = random.choice(rg_list)
+            
+            function_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'os_type': os_type
+            }
+        
+        return function_apps
+    
+    def generate_function_apps_targeted(self, function_app_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Function Apps from targeted specifications."""
+        function_apps = {}
+        
+        # Load Function App names from file
+        function_app_names = self._read_names_from_file('function-apps.txt')
+        
+        for spec in function_app_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            os_type = spec.get('os_type', 'linux')  # Default to linux if not specified
+            
+            if name == 'random':
+                # Select random name from file
+                base_name = random.choice(function_app_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            function_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'os_type': os_type
+            }
+        
+        return function_apps

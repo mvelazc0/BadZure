@@ -189,6 +189,17 @@ variable "automation_accounts" {
   default = {}
 }
 
+variable "function_apps" {
+  description = "A map of Function Apps to create"
+  type = map(object({
+    name                = string
+    location            = string
+    resource_group_name = string
+    os_type             = string  # "linux" or "windows"
+  }))
+  default = {}
+}
+
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
     key_vault      = string
@@ -216,7 +227,7 @@ variable "attack_path_managed_identity_theft_assignments" {
   description = "A map of managed identity theft assignments for attack paths"
   default = {}
   type = map(object({
-    source_type              = string  # "vm", "logic_app", etc.
+    source_type              = string  # "vm", "logic_app", "automation_account", "function_app"
     source_name              = string  # Name of the source resource (VM name, etc.)
     target_resource_type     = string  # "key_vault" or "storage_account"
     target_name              = string  # Name of the target resource
@@ -225,6 +236,7 @@ variable "attack_path_managed_identity_theft_assignments" {
     managed_identity_name    = string  # Name of the managed identity
     certificate_path         = optional(string, "")  # Required for storage_account targets
     private_key_path         = optional(string, "")  # Required for storage_account targets
+    os_type                  = optional(string, "linux")  # OS type for function_app source type
   }))
 }
 

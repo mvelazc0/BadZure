@@ -2554,6 +2554,12 @@ MANAGED_IDENTITY_SOURCE_TYPES = [
     'app_service'
 ]
 
+# Function App OS types
+FUNCTION_APP_OS_TYPES = [
+    'linux',
+    'windows'
+]
+
 # Target resource types for ManagedIdentityTheft
 MI_TARGET_RESOURCE_TYPES = [
     'key_vault',

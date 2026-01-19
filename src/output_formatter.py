@@ -174,6 +174,13 @@ class OutputFormatter:
                             logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
                             logging.info(f"Source Resource: Automation Account - {source_name} (with Automation Contributor)")
                             logging.info(f"Managed Identity: {managed_identity_name}")
+                        elif source_type == 'function_app':
+                            # Get OS type from assignment if available
+                            os_type = assignment.get('os_type', 'linux')
+                            os_display = f" ({os_type.capitalize()})" if os_type else ""
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
+                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with Website Contributor)")
+                            logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information
                         if target_resource_type == 'key_vault':
@@ -343,6 +350,15 @@ class OutputFormatter:
                             if initial_user in users:
                                 logging.info(f"Password: {users[initial_user]['password']}")
                             logging.info(f"Source Resource: Automation Account - {source_name} (with Automation Contributor)")
+                            logging.info(f"Managed Identity: {managed_identity_name}")
+                        elif source_type == 'function_app':
+                            # Get OS type from assignment if available
+                            os_type = assignment.get('os_type', 'linux')
+                            os_display = f" ({os_type.capitalize()})" if os_type else ""
+                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
+                            if initial_user in users:
+                                logging.info(f"Password: {users[initial_user]['password']}")
+                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with Website Contributor)")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information

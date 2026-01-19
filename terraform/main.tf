@@ -529,6 +529,100 @@ resource "azurerm_automation_account" "automation_accounts" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
+# Storage Account for Function App (required dependency)
+resource "azurerm_storage_account" "function_storage" {
+  for_each = var.function_apps
+
+  name                     = replace("${each.value.name}sa", "-", "")
+  location                 = each.value.location
+  resource_group_name      = each.value.resource_group_name
+  account_tier             = "Standard"
+  account_replication_type = "LRS"
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
+# App Service Plan for Linux Function Apps
+resource "azurerm_service_plan" "function_plan_linux" {
+  for_each = { for k, v in var.function_apps : k => v if v.os_type == "linux" }
+
+  name                = "${each.value.name}-plan"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  os_type             = "Linux"
+  sku_name            = "FC1"  # Flex Consumption - no quota required!
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
+# App Service Plan for Windows Function Apps
+resource "azurerm_service_plan" "function_plan_windows" {
+  for_each = { for k, v in var.function_apps : k => v if v.os_type == "windows" }
+
+  name                = "${each.value.name}-plan"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  os_type             = "Windows"
+  sku_name            = "FC1"  # Flex Consumption - no quota required!
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
+# Linux Function App with system-assigned managed identity (Flex Consumption)
+resource "azurerm_linux_function_app" "function_apps_linux" {
+  for_each = { for k, v in var.function_apps : k => v if v.os_type == "linux" }
+
+  name                       = each.value.name
+  location                   = each.value.location
+  resource_group_name        = each.value.resource_group_name
+  service_plan_id            = azurerm_service_plan.function_plan_linux[each.key].id
+  storage_account_name       = azurerm_storage_account.function_storage[each.key].name
+  storage_account_access_key = azurerm_storage_account.function_storage[each.key].primary_access_key
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  site_config {
+    application_stack {
+      python_version = "3.11"
+    }
+  }
+
+  depends_on = [
+    azurerm_service_plan.function_plan_linux,
+    azurerm_storage_account.function_storage
+  ]
+}
+
+# Windows Function App with system-assigned managed identity (Flex Consumption)
+resource "azurerm_windows_function_app" "function_apps_windows" {
+  for_each = { for k, v in var.function_apps : k => v if v.os_type == "windows" }
+
+  name                       = each.value.name
+  location                   = each.value.location
+  resource_group_name        = each.value.resource_group_name
+  service_plan_id            = azurerm_service_plan.function_plan_windows[each.key].id
+  storage_account_name       = azurerm_storage_account.function_storage[each.key].name
+  storage_account_access_key = azurerm_storage_account.function_storage[each.key].primary_access_key
+
+  identity {
+    type = "SystemAssigned"
+  }
+
+  site_config {
+    application_stack {
+      dotnet_version              = "v8.0"
+      use_dotnet_isolated_runtime = true
+    }
+  }
+
+  depends_on = [
+    azurerm_service_plan.function_plan_windows,
+    azurerm_storage_account.function_storage
+  ]
+}
+
 # ============================================================================
 # ManagedIdentityTheft Attack Path Resources
 # ============================================================================
@@ -627,6 +721,10 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
       azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "automation_account" ?
       azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "function_app" ?
+      (contains(keys(azurerm_linux_function_app.function_apps_linux), each.value.source_name) ?
+        azurerm_linux_function_app.function_apps_linux[each.value.source_name].identity[0].principal_id :
+        azurerm_windows_function_app.function_apps_windows[each.value.source_name].identity[0].principal_id) :
       null
   )
 
@@ -635,7 +733,9 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
     azurerm_linux_virtual_machine.linux_vms,
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
-    azurerm_automation_account.automation_accounts
+    azurerm_automation_account.automation_accounts,
+    azurerm_linux_function_app.function_apps_linux,
+    azurerm_windows_function_app.function_apps_windows
   ]
 }
 
@@ -655,6 +755,10 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
       azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "automation_account" ?
       azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "function_app" ?
+      (contains(keys(azurerm_linux_function_app.function_apps_linux), each.value.source_name) ?
+        azurerm_linux_function_app.function_apps_linux[each.value.source_name].identity[0].principal_id :
+        azurerm_windows_function_app.function_apps_windows[each.value.source_name].identity[0].principal_id) :
       null
   )
 
@@ -663,7 +767,9 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
     azurerm_linux_virtual_machine.linux_vms,
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
-    azurerm_automation_account.automation_accounts
+    azurerm_automation_account.automation_accounts,
+    azurerm_linux_function_app.function_apps_linux,
+    azurerm_windows_function_app.function_apps_windows
   ]
 }
 
@@ -680,6 +786,10 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
       azurerm_logic_app_workflow.logic_apps[each.value.source_name].id :
     each.value.source_type == "automation_account" ?
       azurerm_automation_account.automation_accounts[each.value.source_name].id :
+    each.value.source_type == "function_app" ?
+      (contains(keys(azurerm_linux_function_app.function_apps_linux), each.value.source_name) ?
+        azurerm_linux_function_app.function_apps_linux[each.value.source_name].id :
+        azurerm_windows_function_app.function_apps_windows[each.value.source_name].id) :
       null
   )
   
@@ -687,6 +797,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     each.value.source_type == "vm" ? "Virtual Machine Contributor" :
     each.value.source_type == "logic_app" ? "Logic App Contributor" :
     each.value.source_type == "automation_account" ? "Automation Contributor" :
+    each.value.source_type == "function_app" ? "Website Contributor" :
     null
   )
   
@@ -697,6 +808,8 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
+    azurerm_linux_function_app.function_apps_linux,
+    azurerm_windows_function_app.function_apps_windows,
     azuread_user.users
   ]
 }

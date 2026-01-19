@@ -84,6 +84,7 @@ The `tenant` section defines the Azure AD tenant details and the number of entit
 - `virtual_machines`: The number of virtual machines to deploy (Linux VMs with networking).
 - `logic_apps`: The number of Logic Apps to create (with system-assigned managed identities).
 - `automation_accounts`: The number of Automation Accounts to create (with system-assigned managed identities).
+- `function_apps`: The number of Function Apps to create (with system-assigned managed identities).
 
 ## Attack Paths Configuration
 
@@ -132,6 +133,11 @@ For **ManagedIdentityTheft** attack paths, specify the source and target resourc
   - **vm**: A VM with system-assigned managed identity (requires VM Contributor role).
   - **logic_app**: A Logic App with system-assigned managed identity (requires Logic App Contributor role).
   - **automation_account**: An Automation Account with system-assigned managed identity (requires Automation Contributor role).
+  - **function_app**: A Function App with system-assigned managed identity (requires Website Contributor role).
+
+- **function_app_os** (optional, only for function_app source type): The operating system type for Function Apps:
+  - **linux**: Python-based Function App (default if not specified).
+  - **windows**: C#/.NET-based Function App.
 
 - **target_resource_type**: The type of resource the managed identity can access:
   - **key_vault**: Managed identity has access to Key Vault secrets.
@@ -205,6 +211,10 @@ Simulates an attacker who exploits access to Azure resources with managed identi
 - `vm`: Virtual Machine with VM Contributor role
 - `logic_app`: Logic App with Logic App Contributor role
 - `automation_account`: Automation Account with Automation Contributor role
+- `function_app`: Function App with Website Contributor role (supports both Linux and Windows)
+
+**Optional fields:**
+- `function_app_os`: linux (default) or windows - Specifies the OS type for Function Apps
 
 ### KeyVaultSecretTheft
 Simulates an attacker with direct access to Azure Key Vault who retrieves application secrets to authenticate as the application.
