@@ -133,11 +133,7 @@ For **ManagedIdentityTheft** attack paths, specify the source and target resourc
   - **vm**: A VM with system-assigned managed identity (requires VM Contributor role).
   - **logic_app**: A Logic App with system-assigned managed identity (requires Logic App Contributor role).
   - **automation_account**: An Automation Account with system-assigned managed identity (requires Automation Contributor role).
-  - **function_app**: A Function App with system-assigned managed identity (requires Website Contributor role).
-
-- **function_app_os** (optional, only for function_app source type): The operating system type for Function Apps:
-  - **linux**: Python-based Function App (default if not specified).
-  - **windows**: C#/.NET-based Function App.
+  - **function_app**: A Function App with system-assigned managed identity (requires Website Contributor role). Note: Function Apps use Linux/Python runtime.
 
 - **target_resource_type**: The type of resource the managed identity can access:
   - **key_vault**: Managed identity has access to Key Vault secrets.
@@ -202,7 +198,7 @@ Simulates an attacker who exploits access to Azure resources with managed identi
 
 **Required fields:**
 - `privilege_escalation: ManagedIdentityTheft`
-- `source_type`: vm, logic_app, or automation_account
+- `source_type`: vm, logic_app, automation_account, or function_app
 - `target_resource_type`: key_vault or storage_account
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the application
@@ -211,10 +207,7 @@ Simulates an attacker who exploits access to Azure resources with managed identi
 - `vm`: Virtual Machine with VM Contributor role
 - `logic_app`: Logic App with Logic App Contributor role
 - `automation_account`: Automation Account with Automation Contributor role
-- `function_app`: Function App with Website Contributor role (supports both Linux and Windows)
-
-**Optional fields:**
-- `function_app_os`: linux (default) or windows - Specifies the OS type for Function Apps
+- `function_app`: Function App with Website Contributor role (Linux/Python runtime)
 
 ### KeyVaultSecretTheft
 Simulates an attacker with direct access to Azure Key Vault who retrieves application secrets to authenticate as the application.

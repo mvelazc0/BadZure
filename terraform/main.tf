@@ -533,7 +533,7 @@ resource "azurerm_automation_account" "automation_accounts" {
 resource "azurerm_storage_account" "function_storage" {
   for_each = var.function_apps
 
-  name                     = replace("${each.value.name}sa", "-", "")
+  name                     = lower(replace(replace(each.value.name, "func-", "fc"), "-", ""))
   location                 = each.value.location
   resource_group_name      = each.value.resource_group_name
   account_tier             = "Standard"
