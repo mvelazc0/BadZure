@@ -90,10 +90,12 @@ variable "app_api_permission_assignments" {
 }
 
 variable "attack_path_user_role_assignments" {
-  description = "A map of user role assignments in an attack path"
+  description = "A map of principal role assignments in an attack path (supports both users and service principals)"
   type = map(object({
-    user_name         = string
+    identity_type      = optional(string, "user")  # "user" or "service_principal"
+    principal_name     = string  # user name or service principal name
     role_definition_id = string
+    entry_point        = optional(string, "compromised_identity")
   }))
 }
 
@@ -117,11 +119,13 @@ variable "attack_path_application_api_permission_assignments" {
 }
 
 variable "attack_path_application_owner_assignments" {
-  description = "A map of application owner assignments used in an attack path"
+  description = "A map of application owner assignments used in an attack path (supports both users and service principals)"
   default = {}
   type = map(object({
-    app_name = string
-    user_principal_name = string
+    app_name       = string
+    identity_type  = optional(string, "user")  # "user" or "service_principal"
+    principal_name = string  # user name or service principal name
+    entry_point    = optional(string, "compromised_identity")
   }))
 }
 

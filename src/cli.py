@@ -161,8 +161,14 @@ class BuildCommand:
                 # Track used resources from owner assignments
                 for assignment in ap_app_owner.values():
                     used_apps.add(assignment['app_name'])
+                    # Track principal (user or service principal)
+                    if 'principal_name' in assignment:
+                        used_users.add(assignment['principal_name'])
                 for assignment in ap_user_role.values():
-                    used_users.add(assignment['user_name'])
+                    if 'principal_name' in assignment:
+                        used_users.add(assignment['principal_name'])
+                    elif 'user_name' in assignment:
+                        used_users.add(assignment['user_name'])
             
             elif priv_esc == 'ApplicationOwnershipAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
@@ -180,8 +186,14 @@ class BuildCommand:
                 # Track used resources from owner assignments
                 for assignment in ap_app_owner.values():
                     used_apps.add(assignment['app_name'])
+                    # Track principal (user or service principal)
+                    if 'principal_name' in assignment:
+                        used_users.add(assignment['principal_name'])
                 for assignment in ap_user_role.values():
-                    used_users.add(assignment['user_name'])
+                    if 'principal_name' in assignment:
+                        used_users.add(assignment['principal_name'])
+                    elif 'user_name' in assignment:
+                        used_users.add(assignment['user_name'])
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
@@ -201,7 +213,10 @@ class BuildCommand:
                 for assignment in ap_app_api_permission.values():
                     used_apps.add(assignment['app_name'])
                 for assignment in ap_user_role.values():
-                    used_users.add(assignment['user_name'])
+                    if 'principal_name' in assignment:
+                        used_users.add(assignment['principal_name'])
+                    elif 'user_name' in assignment:
+                        used_users.add(assignment['user_name'])
             
             elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")

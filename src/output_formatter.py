@@ -57,8 +57,16 @@ class OutputFormatter:
                 for key, assignment in attack_path_application_owner_assignments.items():
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
+                        
+                        # Display initial access based on identity_type
                         if attack_path_name in user_creds:
-                            logging.info(f"Initial Access Identity: User - {user_creds[attack_path_name]['user_principal_name']}")
+                            creds = user_creds[attack_path_name]
+                            identity_type = creds.get('identity_type', 'user')
+                            if identity_type == 'user':
+                                logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
+                            elif identity_type == 'service_principal':
+                                logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
+                        
                         logging.info(f"Owned Application: {assignment['app_name']}")
                         
                         # Show what privileges the application has
@@ -80,9 +88,17 @@ class OutputFormatter:
                 for key, assignment in attack_path_user_role_assignments.items():
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
+                        
+                        # Display initial access based on identity_type
                         if attack_path_name in user_creds:
-                            logging.info(f"Initial Access Identity: User - {user_creds[attack_path_name]['user_principal_name']}")
-                        logging.info(f"User Role: Application Administrator")
+                            creds = user_creds[attack_path_name]
+                            identity_type = creds.get('identity_type', 'user')
+                            if identity_type == 'user':
+                                logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
+                            elif identity_type == 'service_principal':
+                                logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
+                        
+                        logging.info(f"Principal Role: Application Administrator")
                         
                         # Find target application from app_roles or app_api_permissions
                         if key in attack_path_application_role_assignments:
@@ -250,8 +266,17 @@ class OutputFormatter:
                     if path_name in key and path_name in user_creds:
                         logging.info(f"Attack Path ID: {key}")
                         logging.info(f"Privilege Escalation: {priv_esc}")
-                        logging.info(f"Initial Access Identity: User - {user_creds[path_name]['user_principal_name']}")
-                        logging.info(f"Password: {user_creds[path_name]['password']}")
+                        
+                        # Display initial access based on identity_type
+                        creds = user_creds[path_name]
+                        identity_type = creds.get('identity_type', 'user')
+                        if identity_type == 'user':
+                            logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
+                            if 'password' in creds:
+                                logging.info(f"Password: {creds['password']}")
+                        elif identity_type == 'service_principal':
+                            logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
+                        
                         logging.info(f"Owned Application: {assignment['app_name']}")
                         
                         if key in assignments.get('app_roles', {}):
@@ -268,9 +293,18 @@ class OutputFormatter:
                         if path_name in key:
                             logging.info(f"Attack Path ID: {key}")
                             logging.info(f"Privilege Escalation: ApplicationAdministratorAbuse")
-                            logging.info(f"Initial Access Identity: User - {user_creds[path_name]['user_principal_name']}")
-                            logging.info(f"Password: {user_creds[path_name]['password']}")
-                            logging.info(f"User Role: Application Administrator")
+                            
+                            # Display initial access based on identity_type
+                            creds = user_creds[path_name]
+                            identity_type = creds.get('identity_type', 'user')
+                            if identity_type == 'user':
+                                logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
+                                if 'password' in creds:
+                                    logging.info(f"Password: {creds['password']}")
+                            elif identity_type == 'service_principal':
+                                logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
+                            
+                            logging.info(f"Principal Role: Application Administrator")
                             
                             # Find target application from app_roles or app_api_permissions
                             if key in assignments.get('app_roles', {}):

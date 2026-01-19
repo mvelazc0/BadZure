@@ -17,30 +17,41 @@ BadZure organizes attack paths into two main categories:
 
 **Category**: Identity-Based Privilege Escalation
 
-**Description**: This attack path simulates scenarios where an attacker exploits application ownership privileges to escalate privileges within an Azure AD tenant. The attack leverages the common misconfiguration where users are granted ownership of application registrations that have excessive permissions.
+**Description**: This attack path simulates scenarios where an attacker exploits application ownership privileges to escalate privileges within an Azure AD tenant. The attack leverages the common misconfiguration where users or service principals are granted ownership of application registrations that have excessive permissions.
 
-**Attack Scenario**: 
-- An attacker gains initial access to a user account through credential compromise or social engineering
-- The compromised user account has been granted ownership of an application registration
+**Attack Scenario**:
+- An attacker gains initial access to a user account or service principal through credential compromise or social engineering
+- The compromised identity has been granted ownership of an application registration
 - The application has been assigned high-privileged Azure AD roles or API permissions
 - The attacker generates new client credentials for the owned application and uses them to access resources with elevated privileges
 
 **Technical Implementation**:
-- Creates a user account with password or token-based authentication
-- Assigns the user as owner of a randomly selected application registration
+- Creates a user account or service principal with password or token-based authentication
+- Assigns the identity as owner of a randomly selected application registration
 - Grants the application either Azure AD directory roles or API application permissions (Microsoft Graph, Exchange Online, etc.)
-- Supports both direct access scenarios and helpdesk administrator privilege escalation paths
+- Supports both direct access scenarios and helpdesk administrator privilege escalation paths (helpdesk only for users)
+
+**Identity Types**:
+- **user**: Regular user account as application owner (default)
+- **service_principal**: Application service principal as application owner
 
 **Configuration Options**:
 ```yaml
 privilege_escalation: ApplicationOwnershipAbuse
+identity_type: user | service_principal  # Type of identity that owns the application
 method: AzureADRole | APIPermission
-scenario: direct | helpdesk
+scenario: direct | helpdesk  # helpdesk only available with identity_type: user
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
 app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
 ```
+
+**Attack Variations by Identity Type**:
+
+1. **User**: Simulates scenarios where a user account with application ownership is compromised. The attacker uses the user's credentials to add new credentials to the owned application.
+
+2. **Service Principal**: Simulates scenarios where an application's service principal that owns another application is compromised. This is common in CI/CD pipelines or automation scenarios where service principals are granted application ownership for deployment purposes.
 
 **Real-World Relevance**: This attack path is based on common misconfigurations where developers or administrators are granted application ownership without proper governance, leading to potential privilege escalation vectors. It simulates scenarios where compromised developer accounts or service accounts with application ownership can be leveraged for privilege escalation.
 
@@ -53,18 +64,22 @@ api_type: graph | exchange  # Only for APIPermission method
 **Description**: This attack path simulates scenarios where an attacker exploits the Application Administrator Entra ID role to manage any application in the tenant and escalate privileges. Unlike ApplicationOwnershipAbuse which targets specific owned applications, this technique leverages broad administrative privileges over all applications.
 
 **Attack Scenario**:
-- An attacker gains initial access to a user account with the Application Administrator role
+- An attacker gains initial access to a user account or service principal with the Application Administrator role
 - The Application Administrator role grants the ability to manage any application registration in the tenant
 - The attacker identifies or creates an application with high-privileged Azure AD roles or API permissions
 - The attacker adds new client credentials to the privileged application
 - The attacker uses these credentials to authenticate as the application and leverage its elevated privileges
 
 **Technical Implementation**:
-- Creates a user account with password or token-based authentication
-- Assigns the Application Administrator Entra ID role to the user
+- Creates a user account or service principal with password or token-based authentication
+- Assigns the Application Administrator Entra ID role to the identity
 - Grants a target application either Azure AD directory roles or API application permissions
-- The user can manage any application in the tenant, not just owned applications
+- The identity can manage any application in the tenant, not just owned applications
 - Supports multiple API types including Microsoft Graph and Exchange Online
+
+**Identity Types**:
+- **user**: Regular user account with Application Administrator role (default)
+- **service_principal**: Application service principal with Application Administrator role
 
 **Key Differences from ApplicationOwnershipAbuse**:
 - **Scope**: Can manage ANY application in the tenant vs. only owned applications
@@ -75,12 +90,19 @@ api_type: graph | exchange  # Only for APIPermission method
 **Configuration Options**:
 ```yaml
 privilege_escalation: ApplicationAdministratorAbuse
+identity_type: user | service_principal  # Type of identity with Application Administrator role
 method: AzureADRole | APIPermission
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
 app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
 ```
+
+**Attack Variations by Identity Type**:
+
+1. **User**: Simulates scenarios where a user account with the Application Administrator role is compromised. The attacker uses the user's credentials to manage any application in the tenant.
+
+2. **Service Principal**: Simulates scenarios where an application's service principal with the Application Administrator role is compromised. This is common in automation scenarios where service principals are granted administrative roles for application lifecycle management.
 
 **Note**: This technique does not support the `scenario` parameter as it focuses on direct exploitation of the Application Administrator role.
 

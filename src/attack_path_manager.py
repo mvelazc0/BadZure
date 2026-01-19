@@ -43,14 +43,24 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (initial_access_user, app_owner_assignments, 
-                     user_role_assignments, app_role_assignments, 
+            Tuple of (initial_access, app_owner_assignments,
+                     user_role_assignments, app_role_assignments,
                      app_api_permission_assignments)
         """
         app_owner_assignments = {}
         user_role_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
+        
+        # Get identity_type and entry_point from config
+        identity_type = attack_config.get('identity_type', 'user')
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        scenario = attack_config.get('scenario', 'direct')
+        
+        # Validate: helpdesk scenario only works with user identity_type
+        if scenario == 'helpdesk' and identity_type == 'service_principal':
+            logging.warning(f"{path_name}: Helpdesk scenario is not supported with service_principal identity_type. Falling back to user.")
+            identity_type = 'user'
         
         # Generate attack path key
         attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
@@ -62,55 +72,79 @@ class AttackPathManager:
         else:
             key = f"attack-path-{attack_path_id}"
         
-        # Select entities based on mode
+        # Select entities based on mode and identity_type
         if mode == 'random':
-            app_name, user_name, second_user_name = self._select_random_entities_app_ownership(
-                users, applications, attack_config.get('scenario', 'direct'),
+            app_name, principal_name, second_user_name = self._select_random_entities_app_ownership(
+                users, applications, scenario, identity_type,
                 used_apps, used_users
             )
         else:  # targeted mode
-            app_name, user_name, second_user_name = self._select_targeted_entities_app_ownership(
-                users, applications, entities, attack_config.get('scenario', 'direct'), path_name
+            app_name, principal_name, second_user_name = self._select_targeted_entities_app_ownership(
+                users, applications, entities, scenario, identity_type, path_name
             )
         
-        # Create assignments
-        scenario = attack_config.get('scenario', 'direct')
-        user_principal_name = f"{user_name}@{domain}"
-        password = users[user_name]['password']
-        
-        if scenario == "direct":
-            initial_access_user = {
-                "user_principal_name": user_principal_name,
-                "password": password
-            }
-        elif scenario == "helpdesk":
-            helpdesk_admin_role_id = "729827e3-9c14-49f7-bb1b-9608f156bbb8"
-            second_user_principal_name = f"{second_user_name}@{domain}"
-            second_user_password = users[second_user_name]['password']
+        # Create initial access credentials based on identity_type
+        if identity_type == 'user':
+            user_principal_name = f"{principal_name}@{domain}"
+            password = users[principal_name]['password']
             
-            initial_access_user = {
-                "user_principal_name": second_user_principal_name,
-                "password": second_user_password
+            if scenario == "direct":
+                initial_access = {
+                    "identity_type": "user",
+                    "user_principal_name": user_principal_name,
+                    "password": password,
+                    "entry_point": entry_point
+                }
+            elif scenario == "helpdesk":
+                helpdesk_admin_role_id = "729827e3-9c14-49f7-bb1b-9608f156bbb8"
+                second_user_principal_name = f"{second_user_name}@{domain}"
+                second_user_password = users[second_user_name]['password']
+                
+                initial_access = {
+                    "identity_type": "user",
+                    "user_principal_name": second_user_principal_name,
+                    "password": second_user_password,
+                    "entry_point": entry_point
+                }
+                
+                user_role_assignments[key] = {
+                    'identity_type': 'user',
+                    'principal_name': second_user_name,
+                    'role_definition_id': helpdesk_admin_role_id,
+                    'entry_point': entry_point
+                }
+            
+            # App owner assignment for user
+            app_owner_assignments[key] = {
+                'app_name': app_name,
+                'identity_type': 'user',
+                'principal_name': principal_name,
+                'entry_point': entry_point
+            }
+        else:  # service_principal
+            # For service principal, we need to generate credentials
+            initial_access = {
+                "identity_type": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point
             }
             
-            user_role_assignments[key] = {
-                'user_name': second_user_name,
-                'role_definition_id': helpdesk_admin_role_id
+            # App owner assignment for service principal
+            app_owner_assignments[key] = {
+                'app_name': app_name,
+                'identity_type': 'service_principal',
+                'principal_name': principal_name,
+                'entry_point': entry_point
             }
-        
-        app_owner_assignments[key] = {
-            'app_name': app_name,
-            'user_principal_name': user_principal_name,
-        }
         
         # Assign privileges
         self._assign_app_privileges(
-            attack_config, app_name, key, 
+            attack_config, app_name, key,
             app_role_assignments, app_api_permission_assignments
         )
         
         return (
-            initial_access_user,
+            initial_access,
             app_owner_assignments,
             user_role_assignments,
             app_role_assignments,
@@ -145,12 +179,16 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (initial_access_user, user_role_assignments,
+            Tuple of (initial_access, user_role_assignments,
                      app_role_assignments, app_api_permission_assignments)
         """
         user_role_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
+        
+        # Get identity_type and entry_point from config
+        identity_type = attack_config.get('identity_type', 'user')
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
         
         # Generate attack path key
         attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
@@ -162,32 +200,53 @@ class AttackPathManager:
         else:
             key = f"attack-path-{attack_path_id}"
         
-        # Select entities based on mode
+        # Select entities based on mode and identity_type
         if mode == 'random':
-            app_name, user_name = self._select_random_entities_app_administrator(
-                users, applications, used_apps, used_users
+            app_name, principal_name = self._select_random_entities_app_administrator(
+                users, applications, identity_type, used_apps, used_users
             )
         else:  # targeted mode
-            app_name, user_name = self._select_targeted_entities_app_administrator(
-                users, applications, entities, path_name
+            app_name, principal_name = self._select_targeted_entities_app_administrator(
+                users, applications, entities, identity_type, path_name
             )
         
-        # Create assignments
-        user_principal_name = f"{user_name}@{domain}"
-        password = users[user_name]['password']
-        
-        initial_access_user = {
-            "user_principal_name": user_principal_name,
-            "password": password
-        }
-        
-        # Assign Application Administrator role to user
         # Application Administrator role ID: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
         app_admin_role_id = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
-        user_role_assignments[key] = {
-            'user_name': user_name,
-            'role_definition_id': app_admin_role_id
-        }
+        
+        # Create initial access credentials based on identity_type
+        if identity_type == 'user':
+            user_principal_name = f"{principal_name}@{domain}"
+            password = users[principal_name]['password']
+            
+            initial_access = {
+                "identity_type": "user",
+                "user_principal_name": user_principal_name,
+                "password": password,
+                "entry_point": entry_point
+            }
+            
+            # Assign Application Administrator role to user
+            user_role_assignments[key] = {
+                'identity_type': 'user',
+                'principal_name': principal_name,
+                'role_definition_id': app_admin_role_id,
+                'entry_point': entry_point
+            }
+        else:  # service_principal
+            # For service principal, we need to generate credentials
+            initial_access = {
+                "identity_type": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point
+            }
+            
+            # Assign Application Administrator role to service principal
+            user_role_assignments[key] = {
+                'identity_type': 'service_principal',
+                'principal_name': principal_name,
+                'role_definition_id': app_admin_role_id,
+                'entry_point': entry_point
+            }
         
         # Assign privileges to the target application
         self._assign_app_privileges(
@@ -196,7 +255,7 @@ class AttackPathManager:
         )
         
         return (
-            initial_access_user,
+            initial_access,
             user_role_assignments,
             app_role_assignments,
             app_api_permission_assignments
@@ -505,10 +564,22 @@ class AttackPathManager:
     # ========================================================================
     
     def _select_random_entities_app_ownership(
-        self, users: Dict, applications: Dict, scenario: str,
+        self, users: Dict, applications: Dict, scenario: str, identity_type: str,
         used_apps: set = None, used_users: set = None
     ) -> Tuple[str, str, str]:
-        """Select random entities for Application Ownership Abuse."""
+        """Select random entities for Application Ownership Abuse.
+        
+        Args:
+            users: Dictionary of users
+            applications: Dictionary of applications
+            scenario: 'direct' or 'helpdesk'
+            identity_type: 'user' or 'service_principal'
+            used_apps: Set of already-used application names
+            used_users: Set of already-used user/principal names
+        
+        Returns:
+            Tuple of (app_name, principal_name, second_user_name)
+        """
         app_keys = list(applications.keys())
         
         # Exclude used applications
@@ -519,24 +590,45 @@ class AttackPathManager:
         
         app_name = random.choice(app_keys)
         
-        user_keys = list(users.keys())
+        if identity_type == 'user':
+            user_keys = list(users.keys())
+            
+            # Exclude used users
+            if used_users:
+                available_users = [user for user in user_keys if user not in used_users]
+                if available_users:
+                    user_keys = available_users
+            
+            principal_name = random.choice(user_keys)
+            second_user_name = random.choice(user_keys) if scenario == "helpdesk" else principal_name
+        else:  # service_principal
+            # For service principal, select a different application as the owner
+            sp_keys = [k for k in applications.keys() if k != app_name]
+            if sp_keys:
+                principal_name = random.choice(sp_keys)
+            else:
+                # Fallback to the same app if no other apps available
+                principal_name = app_name
+            second_user_name = principal_name  # Not used for service_principal
         
-        # Exclude used users
-        if used_users:
-            available_users = [user for user in user_keys if user not in used_users]
-            if available_users:
-                user_keys = available_users
-        
-        user_name = random.choice(user_keys)
-        second_user_name = random.choice(user_keys) if scenario == "helpdesk" else user_name
-        
-        return app_name, user_name, second_user_name
+        return app_name, principal_name, second_user_name
     
     def _select_random_entities_app_administrator(
-        self, users: Dict, applications: Dict,
+        self, users: Dict, applications: Dict, identity_type: str,
         used_apps: set = None, used_users: set = None
     ) -> Tuple[str, str]:
-        """Select random entities for Application Administrator Abuse."""
+        """Select random entities for Application Administrator Abuse.
+        
+        Args:
+            users: Dictionary of users
+            applications: Dictionary of applications
+            identity_type: 'user' or 'service_principal'
+            used_apps: Set of already-used application names
+            used_users: Set of already-used user/principal names
+        
+        Returns:
+            Tuple of (app_name, principal_name)
+        """
         app_keys = list(applications.keys())
         
         # Exclude used applications
@@ -547,17 +639,26 @@ class AttackPathManager:
         
         app_name = random.choice(app_keys)
         
-        user_keys = list(users.keys())
+        if identity_type == 'user':
+            user_keys = list(users.keys())
+            
+            # Exclude used users
+            if used_users:
+                available_users = [user for user in user_keys if user not in used_users]
+                if available_users:
+                    user_keys = available_users
+            
+            principal_name = random.choice(user_keys)
+        else:  # service_principal
+            # For service principal, select a different application
+            sp_keys = [k for k in applications.keys() if k != app_name]
+            if sp_keys:
+                principal_name = random.choice(sp_keys)
+            else:
+                # Fallback to the same app if no other apps available
+                principal_name = app_name
         
-        # Exclude used users
-        if used_users:
-            available_users = [user for user in user_keys if user not in used_users]
-            if available_users:
-                user_keys = available_users
-        
-        user_name = random.choice(user_keys)
-        
-        return app_name, user_name
+        return app_name, principal_name
     
     def _select_random_entities_kv_secret_theft(
         self, applications: Dict, keyvaults: Dict, users: Dict,
@@ -694,20 +795,22 @@ class AttackPathManager:
     
     def _select_targeted_entities_app_ownership(
         self, users: Dict, applications: Dict, entities: Dict,
-        scenario: str, path_name: str
+        scenario: str, identity_type: str, path_name: str
     ) -> Tuple[str, str, str]:
-        """Select targeted entities for Application Ownership Abuse."""
-        # Get user
-        user_list = list(entities.get('users', []))
-        if not user_list:
-            raise ValueError(f"{path_name}: No users specified")
+        """Select targeted entities for Application Ownership Abuse.
         
-        user_spec = user_list[0]
-        user_name = user_spec.get('name', 'random')
-        if user_name == 'random':
-            user_name = random.choice(list(users.keys()))
+        Args:
+            users: Dictionary of users
+            applications: Dictionary of applications
+            entities: Entity specifications from config
+            scenario: 'direct' or 'helpdesk'
+            identity_type: 'user' or 'service_principal'
+            path_name: Attack path name for error messages
         
-        # Get application
+        Returns:
+            Tuple of (app_name, principal_name, second_user_name)
+        """
+        # Get application (target app that will be owned)
         app_list = list(entities.get('applications', []))
         if not app_list:
             raise ValueError(f"{path_name}: No applications specified")
@@ -717,37 +820,64 @@ class AttackPathManager:
         if app_name == 'random':
             app_name = random.choice(list(applications.keys()))
         
-        # Get second user for helpdesk scenario
-        if scenario == 'helpdesk':
-            if len(user_list) > 1:
-                second_user_spec = user_list[1]
-                second_user_name = second_user_spec.get('name', 'random')
-                if second_user_name == 'random':
-                    user_keys = list(users.keys())
-                    second_user_name = user_keys[1] if len(user_keys) > 1 else user_keys[0]
+        if identity_type == 'user':
+            # Get user as owner
+            user_list = list(entities.get('users', []))
+            if not user_list:
+                raise ValueError(f"{path_name}: identity_type 'user' requires users")
+            
+            user_spec = user_list[0]
+            principal_name = user_spec.get('name', 'random')
+            if principal_name == 'random':
+                principal_name = random.choice(list(users.keys()))
+            
+            # Get second user for helpdesk scenario
+            if scenario == 'helpdesk':
+                if len(user_list) > 1:
+                    second_user_spec = user_list[1]
+                    second_user_name = second_user_spec.get('name', 'random')
+                    if second_user_name == 'random':
+                        user_keys = list(users.keys())
+                        second_user_name = user_keys[1] if len(user_keys) > 1 else user_keys[0]
+                else:
+                    logging.warning(f"{path_name}: Helpdesk scenario requires 2 users, only 1 defined. Reusing first user.")
+                    second_user_name = principal_name
             else:
-                logging.warning(f"{path_name}: Helpdesk scenario requires 2 users, only 1 defined. Reusing first user.")
-                second_user_name = user_name
-        else:
-            second_user_name = user_name
+                second_user_name = principal_name
+        else:  # service_principal
+            # Get service principal as owner
+            sp_list = list(entities.get('service_principals', []))
+            if sp_list:
+                sp_spec = sp_list[0]
+                principal_name = sp_spec.get('name', 'random')
+                if principal_name == 'random':
+                    # Use a random application as service principal (different from target)
+                    sp_keys = [k for k in applications.keys() if k != app_name]
+                    principal_name = random.choice(sp_keys) if sp_keys else app_name
+            else:
+                # Default to using a different application as service principal
+                sp_keys = [k for k in applications.keys() if k != app_name]
+                principal_name = random.choice(sp_keys) if sp_keys else app_name
+            second_user_name = principal_name  # Not used for service_principal
         
-        return app_name, user_name, second_user_name
+        return app_name, principal_name, second_user_name
     
     def _select_targeted_entities_app_administrator(
-        self, users: Dict, applications: Dict, entities: Dict, path_name: str
+        self, users: Dict, applications: Dict, entities: Dict, identity_type: str, path_name: str
     ) -> Tuple[str, str]:
-        """Select targeted entities for Application Administrator Abuse."""
-        # Get user
-        user_list = list(entities.get('users', []))
-        if not user_list:
-            raise ValueError(f"{path_name}: No users specified")
+        """Select targeted entities for Application Administrator Abuse.
         
-        user_spec = user_list[0]
-        user_name = user_spec.get('name', 'random')
-        if user_name == 'random':
-            user_name = random.choice(list(users.keys()))
+        Args:
+            users: Dictionary of users
+            applications: Dictionary of applications
+            entities: Entity specifications from config
+            identity_type: 'user' or 'service_principal'
+            path_name: Attack path name for error messages
         
-        # Get application
+        Returns:
+            Tuple of (app_name, principal_name)
+        """
+        # Get application (target app with privileges)
         app_list = list(entities.get('applications', []))
         if not app_list:
             raise ValueError(f"{path_name}: No applications specified")
@@ -757,7 +887,32 @@ class AttackPathManager:
         if app_name == 'random':
             app_name = random.choice(list(applications.keys()))
         
-        return app_name, user_name
+        if identity_type == 'user':
+            # Get user with Application Administrator role
+            user_list = list(entities.get('users', []))
+            if not user_list:
+                raise ValueError(f"{path_name}: identity_type 'user' requires users")
+            
+            user_spec = user_list[0]
+            principal_name = user_spec.get('name', 'random')
+            if principal_name == 'random':
+                principal_name = random.choice(list(users.keys()))
+        else:  # service_principal
+            # Get service principal with Application Administrator role
+            sp_list = list(entities.get('service_principals', []))
+            if sp_list:
+                sp_spec = sp_list[0]
+                principal_name = sp_spec.get('name', 'random')
+                if principal_name == 'random':
+                    # Use a random application as service principal (different from target)
+                    sp_keys = [k for k in applications.keys() if k != app_name]
+                    principal_name = random.choice(sp_keys) if sp_keys else app_name
+            else:
+                # Default to using a different application as service principal
+                sp_keys = [k for k in applications.keys() if k != app_name]
+                principal_name = random.choice(sp_keys) if sp_keys else app_name
+        
+        return app_name, principal_name
     
     def _select_targeted_entities_kv_secret_theft(
         self, applications: Dict, keyvaults: Dict, users: Dict,

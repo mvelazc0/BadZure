@@ -27,9 +27,10 @@ tenant:
 attack_paths:
   attack_path_1:
     enabled: true
-    initial_access: password 
+    initial_access: password
     scenario: direct
     privilege_escalation: ApplicationOwnershipAbuse
+    identity_type: user
     method: AzureADRole
     entra_role: random
 
@@ -37,6 +38,7 @@ attack_paths:
     enabled: true
     initial_access: token
     privilege_escalation: ApplicationAdministratorAbuse
+    identity_type: service_principal
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40
@@ -114,9 +116,10 @@ The `attack_paths` section defines different attack paths to simulate within the
   - **password**: Assigns a password to the user for initial access, simulating scenarios where an attacker has obtained valid credentials.
   - **token**: Generates JWT access tokens for initial access, simulating scenarios where an attacker uses stolen tokens.
 
-- **scenario**: The scenario type (optional, only for ApplicationOwnershipAbuse).
+- **scenario**: The scenario type (optional, only for ApplicationOwnershipAbuse with identity_type: user).
   - **direct**: The user directly owns the application.
   - **helpdesk**: The user has Helpdesk Administrator role and can reset the application owner's password.
+  - **Note**: The helpdesk scenario is only available when identity_type is 'user'.
 
 - **privilege_escalation**: The privilege escalation technique. Available options:
   - **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to privileged applications.
@@ -131,13 +134,20 @@ The `attack_paths` section defines different attack paths to simulate within the
 
 ### Identity Types
 
-For **KeyVaultSecretTheft**, **StorageCertificateTheft**, and **ManagedIdentityTheft** attack paths, specify the type of identity that will be used for initial access:
+For all attack paths, you can specify the type of identity that will be used for initial access:
 
 - **identity_type**: The type of identity used for initial access:
   - **user**: A regular user account (default).
   - **service_principal**: An application's service principal.
 
-**Note**: For managed identity scenarios accessing Azure resources, use **ManagedIdentityTheft** instead of KeyVaultSecretTheft or StorageCertificateTheft.
+**Supported Attack Paths**:
+- **ApplicationOwnershipAbuse**: User or service principal as application owner
+- **ApplicationAdministratorAbuse**: User or service principal with Application Administrator role
+- **KeyVaultSecretTheft**: User or service principal with Key Vault access
+- **StorageCertificateTheft**: User or service principal with Storage access
+- **ManagedIdentityTheft**: User or service principal with Contributor access to source resource
+
+**Note**: The `helpdesk` scenario for ApplicationOwnershipAbuse is only available when `identity_type: user`.
 
 ### Managed Identity Configuration
 
@@ -204,7 +214,19 @@ Simulates an attacker who owns an application and can add credentials to it. The
 - `entra_role` or `app_role`: The privileges assigned to the application
 
 **Optional fields:**
-- `scenario`: direct (default) or helpdesk
+- `identity_type`: user (default) or service_principal
+- `scenario`: direct (default) or helpdesk (only available with identity_type: user)
+
+**Example with service principal owner:**
+```yaml
+attack_path_sp_owner:
+  enabled: true
+  initial_access: token
+  privilege_escalation: ApplicationOwnershipAbuse
+  identity_type: service_principal
+  method: AzureADRole
+  entra_role: e8611ab8-c189-46e8-94e1-60213ab1f814
+```
 
 ### ApplicationAdministratorAbuse
 Simulates an attacker with the Application Administrator role who can manage any application in the tenant and add credentials to privileged applications.
@@ -213,6 +235,21 @@ Simulates an attacker with the Application Administrator role who can manage any
 - `privilege_escalation: ApplicationAdministratorAbuse`
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the target application
+
+**Optional fields:**
+- `identity_type`: user (default) or service_principal
+
+**Example with service principal:**
+```yaml
+attack_path_sp_admin:
+  enabled: true
+  initial_access: token
+  privilege_escalation: ApplicationAdministratorAbuse
+  identity_type: service_principal
+  method: APIPermission
+  api_type: graph
+  app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+```
 
 ### ManagedIdentityTheft
 Simulates an attacker who exploits access to Azure resources with managed identities to steal identity tokens and pivot to other cloud resources.

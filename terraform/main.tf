@@ -115,8 +115,12 @@ resource "azuread_app_role_assignment" "app_api_permission_assignments" {
 resource "azuread_directory_role_assignment" "attack_path_user_role_assignments" {
   for_each = var.attack_path_user_role_assignments
 
-  principal_object_id = azuread_user.users[each.value.user_name].id
-  role_id             = each.value.role_definition_id
+  principal_object_id = (
+    lookup(each.value, "identity_type", "user") == "user" ?
+      azuread_user.users[each.value.principal_name].id :
+      azuread_service_principal.spns[each.value.principal_name].id
+  )
+  role_id = each.value.role_definition_id
 }
 
 resource "azuread_directory_role_assignment" "attack_path_application_role_assignments" {
@@ -155,8 +159,12 @@ resource "azuread_app_role_assignment" "attack_path_application_api_permission_a
 resource "azuread_application_owner" "attack_path_application_owner_assignments" {
   for_each = var.attack_path_application_owner_assignments
 
-  application_id    = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
-  owner_object_id   = azuread_user.users[replace(each.value.user_principal_name, "@${var.domain}", "")].object_id
+  application_id  = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
+  owner_object_id = (
+    lookup(each.value, "identity_type", "user") == "user" ?
+      azuread_user.users[each.value.principal_name].object_id :
+      azuread_service_principal.spns[each.value.principal_name].object_id
+  )
 }
 
 resource "azurerm_resource_group" "rgroups" {
