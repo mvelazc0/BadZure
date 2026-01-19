@@ -701,6 +701,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
       null
   )
 
+
   depends_on = [
     azurerm_key_vault.kvaults,
     azurerm_linux_virtual_machine.linux_vms,

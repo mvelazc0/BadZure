@@ -202,24 +202,23 @@ variable "function_apps" {
 
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
-    key_vault      = string
-    principal_type = string  # Options: "user", "service_principal", "managed_identity"
-    principal_name = string  # Name of the principal
-    virtual_machine = string # Optional for managed identity
-    app_name         = string  # The application to which a secret will be added
-
+    key_vault       = string
+    principal_type  = string  # Options: "user", "service_principal", "managed_identity"
+    principal_name  = string  # Name of the principal
+    virtual_machine = optional(string, "")  # Optional for managed identity
+    app_name        = string  # The application to which a secret will be added
   }))
 }
 
 variable "attack_path_storage_abuse_assignments" {
   type = map(object({
-    app_name          = string
-    certificate_path  = string
-    private_key_path  = string
-    storage_account   = string
-    principal_type    = string  # Options: "user", "service_principal", "managed_identity"
-    principal_name    = string  # Name of the principal
-    virtual_machine   = string
+    app_name         = string
+    certificate_path = string
+    private_key_path = string
+    storage_account  = string
+    principal_type   = string  # Options: "user", "service_principal", "managed_identity"
+    principal_name   = string  # Name of the principal
+    virtual_machine  = optional(string, "")  # Optional for managed identity
   }))
 }
 
