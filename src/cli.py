@@ -247,10 +247,15 @@ class BuildCommand:
                 attack_path_application_role_assignments.update(mi_app_role)
                 attack_path_app_api_permission_assignments.update(mi_app_api_permission)
                 attack_path_vm_contributor_assignments.update(mi_vm_contributor)
-                # Track used apps and users
+                # Track used apps and users/service principals
                 for assignment in mi_theft.values():
                     used_apps.add(assignment['app_name'])
-                    used_users.add(assignment['initial_access_user'])
+                    # Track initial access principal (user or service principal)
+                    if 'initial_access_principal' in assignment:
+                        used_users.add(assignment['initial_access_principal'])
+                    elif 'initial_access_user' in assignment:
+                        # Backward compatibility
+                        used_users.add(assignment['initial_access_user'])
         
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(

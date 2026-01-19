@@ -95,7 +95,7 @@ api_type: graph | exchange  # Only for APIPermission method
 **Description**: This attack path simulates scenarios where an attacker exploits access to Azure resources with managed identities to steal identity tokens and pivot to other cloud resources. This technique represents the identity theft component of cloud-native privilege escalation attacks.
 
 **Attack Scenario**:
-- An attacker gains initial access to a user account with contributor access to an Azure resource (e.g., Virtual Machine, Logic App, or Automation Account)
+- An attacker gains initial access to a user or service principal account with contributor access to an Azure resource (e.g., Virtual Machine, Logic App, Automation Account, or Function App)
 - The Azure resource has a system-assigned managed identity with permissions to access other cloud resources
 - The attacker leverages their access to the source resource to extract the managed identity token
 - The attacker uses the stolen managed identity token to access the target resource (Key Vault or Storage Account)
@@ -104,7 +104,7 @@ api_type: graph | exchange  # Only for APIPermission method
 
 **Technical Implementation**:
 - Creates an Azure resource with system-assigned managed identity
-- Assigns the user appropriate Contributor role on the resource (VM Contributor, Logic App Contributor, or Automation Contributor)
+- Assigns the initial access principal (user or service principal) appropriate Contributor role on the resource (VM Contributor, Logic App Contributor, Automation Contributor, or Website Contributor)
 - Grants the managed identity access to target resources (Key Vault or Storage Account)
 - Stores application credentials in the target resource
 - Configures the target application with high-privileged Azure AD roles or API permissions
@@ -113,16 +113,26 @@ api_type: graph | exchange  # Only for APIPermission method
 - **vm**: Virtual Machine with system-assigned managed identity (requires VM Contributor role)
 - **logic_app**: Logic App with system-assigned managed identity (requires Logic App Contributor role)
 - **automation_account**: Automation Account with system-assigned managed identity (requires Automation Contributor role)
+- **function_app**: Function App with system-assigned managed identity (requires Website Contributor role)
 
 **Target Resource Types**:
 - **key_vault**: Managed identity has Key Vault Contributor access to retrieve secrets
 - **storage_account**: Managed identity has Storage Blob Data Reader access to retrieve certificates
 
+**Identity Types**:
+- **user**: Regular user account with Contributor access to the source resource (default)
+- **service_principal**: Application service principal with Contributor access to the source resource
+
+**Entry Point Types**:
+- **compromised_identity**: Attacker has compromised credentials for the initial access principal (default)
+
 **Configuration Options**:
 ```yaml
 privilege_escalation: ManagedIdentityTheft
-source_type: vm | logic_app | automation_account
+source_type: vm | logic_app | automation_account | function_app
 target_resource_type: key_vault | storage_account
+entry_point: compromised_identity  # How attacker gains initial access
+identity_type: user | service_principal  # Type of initial access principal
 method: AzureADRole | APIPermission
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
@@ -138,7 +148,15 @@ api_type: graph | exchange  # Only for APIPermission method
 
 3. **Automation Account**: Attacker with Automation Contributor can create or modify runbooks to extract managed identity tokens and execute arbitrary code in the automation context.
 
-**Real-World Relevance**: This attack path reflects scenarios where managed identities are overprivileged or where users have excessive permissions on Azure resources. It's particularly relevant for testing the security of managed identity configurations and resource access controls in cloud-native environments.
+4. **Function App**: Attacker with Website Contributor can modify function code or configuration to extract managed identity tokens through the IMDS endpoint.
+
+**Attack Variations by Identity Type**:
+
+1. **User**: Simulates scenarios where a user account with resource contributor access is compromised. The attacker uses the user's credentials to access the Azure resource and extract the managed identity token.
+
+2. **Service Principal**: Simulates scenarios where an application's service principal with resource contributor access is compromised. This is common in CI/CD pipelines or automation scenarios where service principals are granted contributor access to Azure resources.
+
+**Real-World Relevance**: This attack path reflects scenarios where managed identities are overprivileged or where users/service principals have excessive permissions on Azure resources. It's particularly relevant for testing the security of managed identity configurations and resource access controls in cloud-native environments.
 
 ---
 
@@ -162,16 +180,16 @@ api_type: graph | exchange  # Only for APIPermission method
 - Generates and stores application client secrets in the Key Vault
 - Configures the target application with high-privileged Azure AD roles or API permissions
 
-**Principal Types**:
-- **User**: Regular user account with Key Vault access
-- **Service Principal**: Application service principal with Key Vault permissions
+**Identity Types**:
+- **user**: Regular user account with Key Vault access
+- **service_principal**: Application service principal with Key Vault permissions
 
 **Note**: For scenarios involving managed identity token theft to access Key Vault, use the `ManagedIdentityTheft` technique with `target_resource_type: key_vault`.
 
 **Configuration Options**:
 ```yaml
 privilege_escalation: KeyVaultSecretTheft
-principal_type: user | service_principal
+identity_type: user | service_principal
 method: AzureADRole | APIPermission
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
@@ -211,16 +229,16 @@ api_type: graph | exchange  # Only for APIPermission method
 - Stores certificates in dedicated storage containers with private access
 - Registers certificates with applications using Terraform automation
 
-**Principal Types**:
-- **User**: Regular user account with storage access
-- **Service Principal**: Application service principal with storage permissions
+**Identity Types**:
+- **user**: Regular user account with storage access
+- **service_principal**: Application service principal with storage permissions
 
 **Note**: For scenarios involving managed identity token theft to access Storage Account, use the `ManagedIdentityTheft` technique with `target_resource_type: storage_account`.
 
 **Configuration Options**:
 ```yaml
 privilege_escalation: StorageCertificateTheft
-principal_type: user | service_principal
+identity_type: user | service_principal
 method: AzureADRole | APIPermission
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]

@@ -52,8 +52,6 @@ BadZure supports five distinct privilege escalation attack paths that introduce 
 - **KeyVaultSecretTheft**: Direct privilege escalation through Azure Key Vault access to retrieve application secrets
 - **StorageCertificateTheft**: Direct privilege escalation through Azure Storage Account access to retrieve application certificates
 
-**Note:** The legacy `ServicePrincipalAbuse` name is still supported for backward compatibility but is deprecated. Please use `ApplicationOwnershipAbuse` instead.
-
 Each attack path can be configured with specific or random role assignments and supports various principal types depending on the technique. For detailed configuration options and attack path descriptions, refer to the project [Wiki](https://github.com/mvelazc0/BadZure/wiki/Supported-Attack-Paths).
 
 A BloodHound-generated graph, showcasing the attack paths BadZure can create, is shown below.

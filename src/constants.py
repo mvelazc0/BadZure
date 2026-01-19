@@ -2567,3 +2567,28 @@ MI_TARGET_RESOURCE_TYPES = [
     'subscription',
     'resource_group'
 ]
+
+# ============================================================================
+# Initial Access Parameter Constants
+# ============================================================================
+
+# Entry point types for attack paths
+# - compromised_identity: Attacker has compromised a user or service principal
+# - vulnerability: (Future) Attacker exploits a vulnerability in a resource
+ENTRY_POINT_TYPES = ['compromised_identity', 'vulnerability']
+
+# Identity types for compromised_identity entry point
+IDENTITY_TYPES = ['user', 'service_principal']
+
+# Techniques that support service_principal identity type
+TECHNIQUES_SUPPORTING_SERVICE_PRINCIPAL = [
+    'KeyVaultSecretTheft',
+    'StorageCertificateTheft',
+    'ManagedIdentityTheft'
+]
+
+# Techniques that only support user identity type
+TECHNIQUES_USER_ONLY = [
+    'ApplicationOwnershipAbuse',
+    'ApplicationAdministratorAbuse'
+]

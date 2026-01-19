@@ -45,7 +45,7 @@ attack_paths:
     enabled: true
     initial_access: password
     privilege_escalation: KeyVaultSecretTheft
-    principal_type: user
+    identity_type: user
     method: APIPermission
     api_type: graph
     app_role: random
@@ -54,12 +54,26 @@ attack_paths:
     enabled: true
     initial_access: password
     privilege_escalation: ManagedIdentityTheft
-    source_type: virtual_machine
+    source_type: vm
     target_resource_type: storage_account
+    entry_point: compromised_identity
+    identity_type: user
     method: AzureADRole
     entra_role:
       - e8611ab8-c189-46e8-94e1-60213ab1f814  # Privileged Role Administrator
       - 7be44c8a-adaf-4e2a-84d6-ab2649e08a13  # Privileged Authentication Administrator
+
+  attack_path_5:
+    enabled: true
+    initial_access: token
+    privilege_escalation: ManagedIdentityTheft
+    source_type: logic_app
+    target_resource_type: key_vault
+    entry_point: compromised_identity
+    identity_type: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 ## Tenant Configuration
@@ -115,19 +129,19 @@ The `attack_paths` section defines different attack paths to simulate within the
   - **AzureADRole**: Assigns Entra ID roles to applications.
   - **APIPermission**: Assigns API permissions to applications (supports Microsoft Graph and Exchange Online).
 
-### Principal Types
+### Identity Types
 
-For **KeyVaultSecretTheft** and **StorageCertificateTheft** attack paths, specify the type of principal that will access the Azure resources:
+For **KeyVaultSecretTheft**, **StorageCertificateTheft**, and **ManagedIdentityTheft** attack paths, specify the type of identity that will be used for initial access:
 
-- **principal_type**: The type of identity granted direct access:
-  - **user**: A regular user account.
+- **identity_type**: The type of identity used for initial access:
+  - **user**: A regular user account (default).
   - **service_principal**: An application's service principal.
 
-**Note**: For managed identity scenarios, use **ManagedIdentityTheft** instead.
+**Note**: For managed identity scenarios accessing Azure resources, use **ManagedIdentityTheft** instead of KeyVaultSecretTheft or StorageCertificateTheft.
 
 ### Managed Identity Configuration
 
-For **ManagedIdentityTheft** attack paths, specify the source and target resources:
+For **ManagedIdentityTheft** attack paths, specify the source and target resources, as well as the initial access identity:
 
 - **source_type**: The type of Azure resource with the managed identity:
   - **vm**: A VM with system-assigned managed identity (requires VM Contributor role).
@@ -138,6 +152,13 @@ For **ManagedIdentityTheft** attack paths, specify the source and target resourc
 - **target_resource_type**: The type of resource the managed identity can access:
   - **key_vault**: Managed identity has access to Key Vault secrets.
   - **storage_account**: Managed identity has access to Storage Account certificates.
+
+- **entry_point**: How the attacker gains initial access (optional, defaults to `compromised_identity`):
+  - **compromised_identity**: The attacker has compromised a user or service principal with Contributor access to the source resource.
+
+- **identity_type**: The type of identity with Contributor access to the source resource:
+  - **user**: A user account with Contributor role on the source resource (default).
+  - **service_principal**: A service principal with Contributor role on the source resource.
 
 ### API Permission Configuration
 
@@ -203,18 +224,37 @@ Simulates an attacker who exploits access to Azure resources with managed identi
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the application
 
+**Optional fields:**
+- `entry_point`: compromised_identity (default) - how the attacker gains initial access
+- `identity_type`: user (default) or service_principal - the type of identity with Contributor access
+
 **Supported Source Types:**
 - `vm`: Virtual Machine with VM Contributor role
 - `logic_app`: Logic App with Logic App Contributor role
 - `automation_account`: Automation Account with Automation Contributor role
 - `function_app`: Function App with Website Contributor role (Linux/Python runtime)
 
+**Example with service principal initial access:**
+```yaml
+attack_path_mi_sp:
+  enabled: true
+  initial_access: token
+  privilege_escalation: ManagedIdentityTheft
+  source_type: logic_app
+  target_resource_type: key_vault
+  entry_point: compromised_identity
+  identity_type: service_principal
+  method: APIPermission
+  api_type: graph
+  app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
+```
+
 ### KeyVaultSecretTheft
 Simulates an attacker with direct access to Azure Key Vault who retrieves application secrets to authenticate as the application.
 
 **Required fields:**
 - `privilege_escalation: KeyVaultSecretTheft`
-- `principal_type`: user or service_principal
+- `identity_type`: user or service_principal
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the application
 
@@ -225,7 +265,7 @@ Simulates an attacker with direct access to Azure Storage who retrieves applicat
 
 **Required fields:**
 - `privilege_escalation: StorageCertificateTheft`
-- `principal_type`: user or service_principal
+- `identity_type`: user or service_principal
 - `method`: AzureADRole or APIPermission
 - `entra_role` or `app_role`: The privileges assigned to the application
 

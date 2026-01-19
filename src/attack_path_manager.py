@@ -255,32 +255,38 @@ class AttackPathManager:
         else:
             key = f"attack-path-{attack_path_id}"
         
-        # Get source_type and target_resource_type from config
+        # Get source_type, target_resource_type, entry_point, and identity_type from config
         source_type = attack_config.get('source_type', 'vm')
         target_resource_type = attack_config.get('target_resource_type')
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        identity_type = attack_config.get('identity_type', 'user')
         
         # Select entities based on mode
         if mode == 'random':
-            app_name, target_name, source_name, user_name = self._select_random_entities_mi_theft(
+            app_name, target_name, source_name, principal_name = self._select_random_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
-                automation_accounts, function_apps, users, source_type, target_resource_type, used_apps, used_users
+                automation_accounts, function_apps, users, source_type, target_resource_type,
+                identity_type, used_apps, used_users
             )
         else:  # targeted mode
-            app_name, target_name, source_name, user_name = self._select_targeted_entities_mi_theft(
+            app_name, target_name, source_name, principal_name = self._select_targeted_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
-                automation_accounts, function_apps, users, entities, source_type, target_resource_type, path_name
+                automation_accounts, function_apps, users, entities, source_type, target_resource_type,
+                identity_type, path_name
             )
         
         # Create MI theft assignment
-        # Note: VM Contributor assignment is handled directly by Terraform
-        # from the initial_access_user field in this assignment
+        # Note: Source Contributor assignment is handled directly by Terraform
+        # from the initial_access_principal field in this assignment
         mi_theft_assignment = {
             'source_type': source_type,
             'source_name': source_name,
             'target_resource_type': target_resource_type,
             'target_name': target_name,
             'app_name': app_name,
-            'initial_access_user': user_name,
+            'entry_point': entry_point,
+            'identity_type': identity_type,
+            'initial_access_principal': principal_name,
             'managed_identity_name': source_name  # For VMs, MI name = VM name
         }
         
@@ -325,7 +331,7 @@ class AttackPathManager:
         """
         Create Key Vault Secret Theft attack path.
         
-        This technique only supports principal_type 'user' or 'service_principal'.
+        This technique only supports identity_type 'user' or 'service_principal'.
         For managed identity scenarios, use ManagedIdentityTheft instead.
         
         Args:
@@ -343,11 +349,11 @@ class AttackPathManager:
             Tuple of (kv_abuse_assignments, app_role_assignments,
                      app_api_permission_assignments, vm_contributor_assignments)
         """
-        # Validate principal_type
-        principal_type = attack_config.get('principal_type', 'user')
-        if principal_type == 'managed_identity':
+        # Validate identity_type
+        identity_type = attack_config.get('identity_type', 'user')
+        if identity_type == 'managed_identity':
             raise ValueError(
-                "KeyVaultSecretTheft does not support principal_type 'managed_identity'. "
+                "KeyVaultSecretTheft does not support identity_type 'managed_identity'. "
                 "Use 'ManagedIdentityTheft' with target_resource_type 'key_vault' instead."
             )
         
@@ -371,17 +377,17 @@ class AttackPathManager:
         if mode == 'random':
             app_name, kv_name, principal_name = self._select_random_entities_kv_secret_theft(
                 applications, keyvaults, users, service_principals,
-                principal_type, used_apps
+                identity_type, used_apps
             )
         else:  # targeted mode
             app_name, kv_name, principal_name = self._select_targeted_entities_kv_secret_theft(
                 applications, keyvaults, users,
-                entities, principal_type, path_name
+                entities, identity_type, path_name
             )
         
         attack_path_kv_abuse_assignments[key] = {
             "key_vault": kv_name,
-            "principal_type": principal_type,
+            "identity_type": identity_type,
             "principal_name": principal_name,
             "app_name": app_name
         }
@@ -415,7 +421,7 @@ class AttackPathManager:
         """
         Create Storage Certificate Theft attack path.
         
-        This technique only supports principal_type 'user' or 'service_principal'.
+        This technique only supports identity_type 'user' or 'service_principal'.
         For managed identity scenarios, use ManagedIdentityTheft instead.
         
         Args:
@@ -433,11 +439,11 @@ class AttackPathManager:
             Tuple of (storage_abuse_assignments, app_role_assignments,
                      app_api_permission_assignments, vm_contributor_assignments)
         """
-        # Validate principal_type
-        principal_type = attack_config.get('principal_type', 'user')
-        if principal_type == 'managed_identity':
+        # Validate identity_type
+        identity_type = attack_config.get('identity_type', 'user')
+        if identity_type == 'managed_identity':
             raise ValueError(
-                "StorageCertificateTheft does not support principal_type 'managed_identity'. "
+                "StorageCertificateTheft does not support identity_type 'managed_identity'. "
                 "Use 'ManagedIdentityTheft' with target_resource_type 'storage_account' instead."
             )
         
@@ -461,12 +467,12 @@ class AttackPathManager:
         if mode == 'random':
             app_name, sa_name, principal_name = self._select_random_entities_storage_cert_theft(
                 applications, storage_accounts, users, service_principals,
-                principal_type, used_apps
+                identity_type, used_apps
             )
         else:  # targeted mode
             app_name, sa_name, principal_name = self._select_targeted_entities_storage_cert_theft(
                 applications, storage_accounts, users,
-                entities, principal_type, path_name
+                entities, identity_type, path_name
             )
         
         # Generate certificate
@@ -475,7 +481,7 @@ class AttackPathManager:
         attack_path_storage_abuse_assignments[key] = {
             "app_name": app_name,
             "storage_account": sa_name,
-            "principal_type": principal_type,
+            "identity_type": identity_type,
             "principal_name": principal_name,
             'certificate_path': cert_path,
             'private_key_path': key_path
@@ -555,7 +561,7 @@ class AttackPathManager:
     
     def _select_random_entities_kv_secret_theft(
         self, applications: Dict, keyvaults: Dict, users: Dict,
-        service_principals: Dict, principal_type: str,
+        service_principals: Dict, identity_type: str,
         used_apps: set = None
     ) -> Tuple[str, str, str]:
         """Select random entities for Key Vault Secret Theft."""
@@ -570,16 +576,16 @@ class AttackPathManager:
         app_name = random.choice(app_keys)
         kv_name = random.choice(list(keyvaults.keys()))
         
-        if principal_type == "user":
+        if identity_type == "user":
             principal_name = random.choice(list(users.keys()))
-        elif principal_type == "service_principal":
+        elif identity_type == "service_principal":
             principal_name = random.choice(list(service_principals.keys()))
         
         return app_name, kv_name, principal_name
     
     def _select_random_entities_storage_cert_theft(
         self, applications: Dict, storage_accounts: Dict, users: Dict,
-        service_principals: Dict, principal_type: str,
+        service_principals: Dict, identity_type: str,
         used_apps: set = None
     ) -> Tuple[str, str, str]:
         """Select random entities for Storage Certificate Theft."""
@@ -594,9 +600,9 @@ class AttackPathManager:
         app_name = random.choice(app_keys)
         sa_name = random.choice(list(storage_accounts.keys()))
         
-        if principal_type == "user":
+        if identity_type == "user":
             principal_name = random.choice(list(users.keys()))
-        elif principal_type == "service_principal":
+        elif identity_type == "service_principal":
             principal_name = random.choice(list(service_principals.keys()))
         
         return app_name, sa_name, principal_name
@@ -604,9 +610,29 @@ class AttackPathManager:
     def _select_random_entities_mi_theft(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
-        source_type: str, target_resource_type: str, used_apps: set = None, used_users: set = None
+        source_type: str, target_resource_type: str, identity_type: str,
+        used_apps: set = None, used_users: set = None
     ) -> Tuple[str, str, str, str]:
-        """Select random entities for Managed Identity Theft."""
+        """Select random entities for Managed Identity Theft.
+        
+        Args:
+            applications: Dictionary of applications
+            key_vaults: Dictionary of key vaults
+            storage_accounts: Dictionary of storage accounts
+            virtual_machines: Dictionary of virtual machines
+            logic_apps: Dictionary of logic apps
+            automation_accounts: Dictionary of automation accounts
+            function_apps: Dictionary of function apps
+            users: Dictionary of users (used when identity_type is 'user')
+            source_type: Type of source resource ('vm', 'logic_app', etc.)
+            target_resource_type: Type of target resource ('key_vault', 'storage_account')
+            identity_type: Type of initial access identity ('user' or 'service_principal')
+            used_apps: Set of already-used application names
+            used_users: Set of already-used user names
+        
+        Returns:
+            Tuple of (app_name, target_name, source_name, principal_name)
+        """
         app_keys = list(applications.keys())
         
         # Exclude used applications
@@ -639,18 +665,28 @@ class AttackPathManager:
             # For future expansion: subscription, resource_group
             target_name = random.choice(list(key_vaults.keys()))
         
-        # Select user for Contributor access
-        user_keys = list(users.keys())
+        # Select principal for Contributor access based on identity_type
+        if identity_type == 'user':
+            user_keys = list(users.keys())
+            # Exclude used users
+            if used_users:
+                available_users = [user for user in user_keys if user not in used_users]
+                if available_users:
+                    user_keys = available_users
+            principal_name = random.choice(user_keys)
+        elif identity_type == 'service_principal':
+            # For service_principal, use a random application (different from target app)
+            sp_keys = [k for k in applications.keys() if k != app_name]
+            if sp_keys:
+                principal_name = random.choice(sp_keys)
+            else:
+                # Fallback to the same app if no other apps available
+                principal_name = app_name
+        else:
+            # Default to user
+            principal_name = random.choice(list(users.keys()))
         
-        # Exclude used users
-        if used_users:
-            available_users = [user for user in user_keys if user not in used_users]
-            if available_users:
-                user_keys = available_users
-        
-        user_name = random.choice(user_keys)
-        
-        return app_name, target_name, source_name, user_name
+        return app_name, target_name, source_name, principal_name
     
     # ========================================================================
     # Targeted Mode Entity Selection
@@ -725,7 +761,7 @@ class AttackPathManager:
     
     def _select_targeted_entities_kv_secret_theft(
         self, applications: Dict, keyvaults: Dict, users: Dict,
-        entities: Dict, principal_type: str, path_name: str
+        entities: Dict, identity_type: str, path_name: str
     ) -> Tuple[str, str, str]:
         """Select targeted entities for Key Vault Secret Theft."""
         # Get application
@@ -747,22 +783,22 @@ class AttackPathManager:
             kv_name = random.choice(list(keyvaults.keys()))
         
         # Get principal based on type
-        if principal_type == 'user':
+        if identity_type == 'user':
             user_list = list(entities.get('users', []))
             if not user_list:
-                raise ValueError(f"{path_name}: principal_type 'user' requires users")
+                raise ValueError(f"{path_name}: identity_type 'user' requires users")
             user_spec = user_list[0]
             principal_name = user_spec.get('name', 'random')
             if principal_name == 'random':
                 principal_name = random.choice(list(users.keys()))
-        elif principal_type == 'service_principal':
+        elif identity_type == 'service_principal':
             principal_name = app_name
         
         return app_name, kv_name, principal_name
     
     def _select_targeted_entities_storage_cert_theft(
         self, applications: Dict, storage_accounts: Dict, users: Dict,
-        entities: Dict, principal_type: str, path_name: str
+        entities: Dict, identity_type: str, path_name: str
     ) -> Tuple[str, str, str]:
         """Select targeted entities for Storage Certificate Theft."""
         # Get application
@@ -784,15 +820,15 @@ class AttackPathManager:
             sa_name = random.choice(list(storage_accounts.keys()))
         
         # Get principal based on type
-        if principal_type == 'user':
+        if identity_type == 'user':
             user_list = list(entities.get('users', []))
             if not user_list:
-                raise ValueError(f"{path_name}: principal_type 'user' requires users")
+                raise ValueError(f"{path_name}: identity_type 'user' requires users")
             user_spec = user_list[0]
             principal_name = user_spec.get('name', 'random')
             if principal_name == 'random':
                 principal_name = random.choice(list(users.keys()))
-        elif principal_type == 'service_principal':
+        elif identity_type == 'service_principal':
             principal_name = app_name
         
         return app_name, sa_name, principal_name
@@ -800,9 +836,28 @@ class AttackPathManager:
     def _select_targeted_entities_mi_theft(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
-        entities: Dict, source_type: str, target_resource_type: str, path_name: str
+        entities: Dict, source_type: str, target_resource_type: str, identity_type: str, path_name: str
     ) -> Tuple[str, str, str, str]:
-        """Select targeted entities for Managed Identity Theft."""
+        """Select targeted entities for Managed Identity Theft.
+        
+        Args:
+            applications: Dictionary of applications
+            key_vaults: Dictionary of key vaults
+            storage_accounts: Dictionary of storage accounts
+            virtual_machines: Dictionary of virtual machines
+            logic_apps: Dictionary of logic apps
+            automation_accounts: Dictionary of automation accounts
+            function_apps: Dictionary of function apps
+            users: Dictionary of users
+            entities: Entity specifications from config
+            source_type: Type of source resource ('vm', 'logic_app', etc.)
+            target_resource_type: Type of target resource ('key_vault', 'storage_account')
+            identity_type: Type of initial access identity ('user' or 'service_principal')
+            path_name: Attack path name for error messages
+        
+        Returns:
+            Tuple of (app_name, target_name, source_name, principal_name)
+        """
         # Get application
         app_list = list(entities.get('applications', []))
         if not app_list:
@@ -870,16 +925,41 @@ class AttackPathManager:
             # For future expansion
             target_name = random.choice(list(key_vaults.keys()))
         
-        # Get user for VM Contributor
-        user_list = list(entities.get('users', []))
-        if not user_list:
-            raise ValueError(f"{path_name}: ManagedIdentityTheft requires users for VM Contributor")
-        user_spec = user_list[0]
-        user_name = user_spec.get('name', 'random')
-        if user_name == 'random':
-            user_name = random.choice(list(users.keys()))
+        # Get principal for Contributor access based on identity_type
+        if identity_type == 'user':
+            user_list = list(entities.get('users', []))
+            if not user_list:
+                raise ValueError(f"{path_name}: identity_type 'user' requires users")
+            user_spec = user_list[0]
+            principal_name = user_spec.get('name', 'random')
+            if principal_name == 'random':
+                principal_name = random.choice(list(users.keys()))
+        elif identity_type == 'service_principal':
+            # For service_principal, use a specified service principal or the target app
+            sp_list = list(entities.get('service_principals', []))
+            if sp_list:
+                sp_spec = sp_list[0]
+                principal_name = sp_spec.get('name', 'random')
+                if principal_name == 'random':
+                    # Use a random application as service principal
+                    sp_keys = [k for k in applications.keys() if k != app_name]
+                    principal_name = random.choice(sp_keys) if sp_keys else app_name
+            else:
+                # Default to using a different application as service principal
+                sp_keys = [k for k in applications.keys() if k != app_name]
+                principal_name = random.choice(sp_keys) if sp_keys else app_name
+        else:
+            # Default to user
+            user_list = list(entities.get('users', []))
+            if user_list:
+                user_spec = user_list[0]
+                principal_name = user_spec.get('name', 'random')
+                if principal_name == 'random':
+                    principal_name = random.choice(list(users.keys()))
+            else:
+                principal_name = random.choice(list(users.keys()))
         
-        return app_name, target_name, source_name, user_name
+        return app_name, target_name, source_name, principal_name
     
     # ========================================================================
     # Privilege Assignment (Shared Logic)

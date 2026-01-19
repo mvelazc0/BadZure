@@ -203,9 +203,8 @@ variable "function_apps" {
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
     key_vault       = string
-    principal_type  = string  # Options: "user", "service_principal", "managed_identity"
+    identity_type   = string  # Options: "user", "service_principal"
     principal_name  = string  # Name of the principal
-    virtual_machine = optional(string, "")  # Optional for managed identity
     app_name        = string  # The application to which a secret will be added
   }))
 }
@@ -216,9 +215,8 @@ variable "attack_path_storage_abuse_assignments" {
     certificate_path = string
     private_key_path = string
     storage_account  = string
-    principal_type   = string  # Options: "user", "service_principal", "managed_identity"
+    identity_type    = string  # Options: "user", "service_principal"
     principal_name   = string  # Name of the principal
-    virtual_machine  = optional(string, "")  # Optional for managed identity
   }))
 }
 
@@ -231,7 +229,9 @@ variable "attack_path_managed_identity_theft_assignments" {
     target_resource_type     = string  # "key_vault" or "storage_account"
     target_name              = string  # Name of the target resource
     app_name                 = string  # The application to which credentials will be added
-    initial_access_user      = string  # User with access to the source resource
+    entry_point              = string  # "compromised_identity" (future: "vulnerability")
+    identity_type            = string  # "user" or "service_principal"
+    initial_access_principal = string  # Name of user or service principal with access to source
     managed_identity_name    = string  # Name of the managed identity
     certificate_path         = optional(string, "")  # Required for storage_account targets
     private_key_path         = optional(string, "")  # Required for storage_account targets

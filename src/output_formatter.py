@@ -109,14 +109,14 @@ class OutputFormatter:
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        principal_type = assignment['principal_type']
+                        identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         key_vault = assignment['key_vault']
                         
-                        if principal_type == "user":
+                        if identity_type == "user":
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                        elif principal_type == "service_principal":
+                        elif identity_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         
@@ -131,14 +131,14 @@ class OutputFormatter:
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        principal_type = assignment['principal_type']
+                        identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         storage_account = assignment['storage_account']
                         
-                        if principal_type == "user":
+                        if identity_type == "user":
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                        elif principal_type == "service_principal":
+                        elif identity_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                         
@@ -157,29 +157,40 @@ class OutputFormatter:
                         source_name = assignment['source_name']
                         target_resource_type = assignment['target_resource_type']
                         target_name = assignment['target_name']
-                        initial_user = assignment.get('initial_access_user')
+                        identity_type = assignment.get('identity_type', 'user')
+                        initial_access_principal = assignment.get('initial_access_principal')
                         app_name = assignment.get('app_name')
                         managed_identity_name = assignment.get('managed_identity_name')
                         
+                        # Get the appropriate role name based on source type
+                        role_name = {
+                            'vm': 'VM Contributor',
+                            'logic_app': 'Logic App Contributor',
+                            'automation_account': 'Automation Contributor',
+                            'function_app': 'Website Contributor'
+                        }.get(source_type, 'Contributor')
+                        
+                        # Display initial access identity based on identity_type
+                        if identity_type == 'user':
+                            logging.info(f"Initial Access Identity: User - {initial_access_principal}@{domain}")
+                        elif identity_type == 'service_principal':
+                            logging.info(f"Initial Access Identity: Service Principal - {initial_access_principal}")
+                        
                         # Display source information
                         if source_type == 'vm':
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with VM Contributor)")
+                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'logic_app':
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            logging.info(f"Source Resource: Logic App - {source_name} (with Logic App Contributor)")
+                            logging.info(f"Source Resource: Logic App - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'automation_account':
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            logging.info(f"Source Resource: Automation Account - {source_name} (with Automation Contributor)")
+                            logging.info(f"Source Resource: Automation Account - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'function_app':
                             # Get OS type from assignment if available
                             os_type = assignment.get('os_type', 'linux')
                             os_display = f" ({os_type.capitalize()})" if os_type else ""
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with Website Contributor)")
+                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information
@@ -278,16 +289,16 @@ class OutputFormatter:
                     if path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        principal_type = assignment['principal_type']
+                        identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         key_vault = assignment['key_vault']
                         
-                        if principal_type == 'user':
+                        if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
                             if principal_name in users:
                                 logging.info(f"Password: {users[principal_name]['password']}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                        elif principal_type == 'service_principal':
+                        elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         
@@ -300,16 +311,16 @@ class OutputFormatter:
                     if path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        principal_type = assignment['principal_type']
+                        identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         storage_account = assignment['storage_account']
                         
-                        if principal_type == 'user':
+                        if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
                             if principal_name in users:
                                 logging.info(f"Password: {users[principal_name]['password']}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                        elif principal_type == 'service_principal':
+                        elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                         
@@ -328,37 +339,42 @@ class OutputFormatter:
                         source_name = assignment['source_name']
                         target_resource_type = assignment['target_resource_type']
                         target_name = assignment['target_name']
-                        initial_user = assignment.get('initial_access_user')
+                        identity_type = assignment.get('identity_type', 'user')
+                        initial_access_principal = assignment.get('initial_access_principal')
                         app_name = assignment.get('app_name')
                         managed_identity_name = assignment.get('managed_identity_name')
                         
+                        # Get the appropriate role name based on source type
+                        role_name = {
+                            'vm': 'VM Contributor',
+                            'logic_app': 'Logic App Contributor',
+                            'automation_account': 'Automation Contributor',
+                            'function_app': 'Website Contributor'
+                        }.get(source_type, 'Contributor')
+                        
+                        # Display initial access identity based on identity_type
+                        if identity_type == 'user':
+                            logging.info(f"Initial Access Identity: User - {initial_access_principal}@{domain}")
+                            if initial_access_principal in users:
+                                logging.info(f"Password: {users[initial_access_principal]['password']}")
+                        elif identity_type == 'service_principal':
+                            logging.info(f"Initial Access Identity: Service Principal - {initial_access_principal}")
+                        
                         # Display source information
                         if source_type == 'vm':
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            if initial_user in users:
-                                logging.info(f"Password: {users[initial_user]['password']}")
-                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with VM Contributor)")
+                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'logic_app':
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            if initial_user in users:
-                                logging.info(f"Password: {users[initial_user]['password']}")
-                            logging.info(f"Source Resource: Logic App - {source_name} (with Logic App Contributor)")
+                            logging.info(f"Source Resource: Logic App - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'automation_account':
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            if initial_user in users:
-                                logging.info(f"Password: {users[initial_user]['password']}")
-                            logging.info(f"Source Resource: Automation Account - {source_name} (with Automation Contributor)")
+                            logging.info(f"Source Resource: Automation Account - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'function_app':
                             # Get OS type from assignment if available
                             os_type = assignment.get('os_type', 'linux')
                             os_display = f" ({os_type.capitalize()})" if os_type else ""
-                            logging.info(f"Initial Access Identity: User - {initial_user}@{domain}")
-                            if initial_user in users:
-                                logging.info(f"Password: {users[initial_user]['password']}")
-                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with Website Contributor)")
+                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information

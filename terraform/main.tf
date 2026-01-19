@@ -441,19 +441,15 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
   role_definition_name = "Key Vault Contributor"
 
   principal_id = (
-    each.value.principal_type == "user" ? 
+    each.value.identity_type == "user" ?
       azuread_user.users[each.value.principal_name].id :
-    each.value.principal_type == "service_principal" ? 
-      azuread_service_principal.spns[each.value.principal_name].id :
-    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ? 
-      azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id :
-      azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
+      azuread_service_principal.spns[each.value.principal_name].id
   )
 
   depends_on = [
-    azurerm_key_vault.kvaults, 
-    azurerm_linux_virtual_machine.linux_vms, 
-    azurerm_windows_virtual_machine.windows_vms
+    azurerm_key_vault.kvaults,
+    azuread_user.users,
+    azuread_service_principal.spns
   ]
 }
 
@@ -464,19 +460,15 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
   role_definition_name = "Storage Blob Data Reader"
 
   principal_id = (
-    each.value.principal_type == "user" ?
+    each.value.identity_type == "user" ?
       azuread_user.users[each.value.principal_name].id :
-    each.value.principal_type == "service_principal" ?
-      azuread_service_principal.spns[each.value.principal_name].id :
-    contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ?
-      azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].identity[0].principal_id :
-      azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].identity[0].principal_id
+      azuread_service_principal.spns[each.value.principal_name].id
   )
 
   depends_on = [
     azurerm_storage_account.sas,
-    azurerm_linux_virtual_machine.linux_vms,
-    azurerm_windows_virtual_machine.windows_vms
+    azuread_user.users,
+    azuread_service_principal.spns
   ]
 }
 
@@ -743,7 +735,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
   ]
 }
 
-# Grant user VM Contributor access for ManagedIdentityTheft
+# Grant user or service principal Contributor access for ManagedIdentityTheft
 resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_access" {
   for_each = var.attack_path_managed_identity_theft_assignments
 
@@ -769,7 +761,12 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     null
   )
   
-  principal_id = azuread_user.users[each.value.initial_access_user].id
+  # Support both user and service_principal identity types
+  principal_id = (
+    each.value.identity_type == "user" ?
+      azuread_user.users[each.value.initial_access_principal].id :
+      azuread_service_principal.spns[each.value.initial_access_principal].id
+  )
 
   depends_on = [
     azurerm_linux_virtual_machine.linux_vms,
@@ -777,6 +774,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
     azurerm_function_app_flex_consumption.function_apps,
-    azuread_user.users
+    azuread_user.users,
+    azuread_service_principal.spns
   ]
 }
