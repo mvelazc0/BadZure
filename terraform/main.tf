@@ -27,6 +27,9 @@ provider "azurerm" {
   }
 
   subscription_id = var.subscription_id
+  
+  # Use Azure AD authentication for storage accounts (required when shared_access_key_enabled = false)
+  storage_use_azuread = true
 }
 
 data "azuread_domains" "example" {
@@ -220,6 +223,11 @@ resource "azurerm_storage_account" "sas" {
   resource_group_name      = each.value.resource_group_name
   account_tier             = each.value.account_tier
   account_replication_type = each.value.account_replication_type
+  
+  # Azure Policy compliance: Disable ALL forms of public access
+  public_network_access_enabled = false
+  shared_access_key_enabled     = false
+  allow_nested_items_to_be_public = false  # CRITICAL: Prevents public access to blobs/containers
 
   depends_on = [azurerm_resource_group.rgroups]
 }
@@ -533,11 +541,18 @@ resource "azurerm_automation_account" "automation_accounts" {
 resource "azurerm_storage_account" "function_storage" {
   for_each = var.function_apps
 
-  name                     = lower(replace(replace(each.value.name, "func-", "fc"), "-", ""))
+  # Azure storage account names must be 3-24 characters, lowercase letters and numbers only
+  # Transform: remove "func-" prefix, remove all hyphens, truncate to 24 chars
+  name                     = substr(lower(replace(replace(each.value.name, "func-", "fc"), "-", "")), 0, 24)
   location                 = each.value.location
   resource_group_name      = each.value.resource_group_name
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  
+  # Azure Policy compliance: Disable ALL forms of public access
+  public_network_access_enabled = false
+  shared_access_key_enabled     = false
+  allow_nested_items_to_be_public = false  # CRITICAL: Prevents public access to blobs/containers
 
   depends_on = [azurerm_resource_group.rgroups]
 }
@@ -575,11 +590,10 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
   location            = each.value.location
   service_plan_id     = azurerm_service_plan.function_plan[each.key].id
 
-  # Storage configuration
+  # Storage configuration - Using System-Assigned Managed Identity for policy compliance
   storage_container_type      = "blobContainer"
   storage_container_endpoint  = "${azurerm_storage_account.function_storage[each.key].primary_blob_endpoint}${azurerm_storage_container.function_container[each.key].name}"
-  storage_authentication_type = "StorageAccountConnectionString"
-  storage_access_key          = azurerm_storage_account.function_storage[each.key].primary_access_key
+  storage_authentication_type = "SystemAssignedIdentity"
 
   # Runtime configuration
   runtime_name    = each.value.os_type == "linux" ? "python" : "dotnet-isolated"
@@ -595,6 +609,20 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
   depends_on = [
     azurerm_service_plan.function_plan,
     azurerm_storage_container.function_container
+  ]
+}
+
+# Grant Function App managed identity access to its storage account
+resource "azurerm_role_assignment" "function_storage_access" {
+  for_each = var.function_apps
+
+  scope                = azurerm_storage_account.function_storage[each.key].id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = azurerm_function_app_flex_consumption.function_apps[each.key].identity[0].principal_id
+
+  depends_on = [
+    azurerm_storage_account.function_storage,
+    azurerm_function_app_flex_consumption.function_apps
   ]
 }
 
@@ -624,6 +652,21 @@ resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_secrets" {
   depends_on = [
     azurerm_key_vault.kvaults,
     azuread_application_password.attack_path_mi_theft_kv_secrets,
+    azurerm_role_assignment.attack_path_mi_theft_kv_access
+  ]
+}
+
+# Store application client_id (app_id) as a separate secret in Key Vault for ManagedIdentityTheft
+resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_app_ids" {
+  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "key_vault" }
+
+  name         = "mi-client-id-${each.value.app_name}"
+  value        = azuread_application_registration.spns[each.value.app_name].client_id
+  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azuread_application_registration.spns,
     azurerm_role_assignment.attack_path_mi_theft_kv_access
   ]
 }
