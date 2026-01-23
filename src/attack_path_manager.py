@@ -314,11 +314,12 @@ class AttackPathManager:
         else:
             key = f"attack-path-{attack_path_id}"
         
-        # Get source_type, target_resource_type, entry_point, and identity_type from config
+        # Get source_type, target_resource_type, entry_point, identity_type, and credential_type from config
         source_type = attack_config.get('source_type', 'vm')
         target_resource_type = attack_config.get('target_resource_type')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         identity_type = attack_config.get('identity_type', 'user')
+        credential_type = attack_config.get('credential_type', 'secret')
         
         # Select entities based on mode
         if mode == 'random':
@@ -349,15 +350,27 @@ class AttackPathManager:
             'managed_identity_name': source_name  # For VMs, MI name = VM name
         }
         
-        # Generate certificate for storage account targets
+        # Generate certificate for storage account targets or key vault with certificate credential_type
         if target_resource_type == 'storage_account':
-            cert_path, key_path = generate_certificate_and_key(app_name)
+            # Always use certificates for storage accounts
+            cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
             mi_theft_assignment['certificate_path'] = cert_path
             mi_theft_assignment['private_key_path'] = key_path
+            mi_theft_assignment['pfx_path'] = pfx_path
+            mi_theft_assignment['credential_type'] = 'certificate'
+        elif target_resource_type == 'key_vault' and credential_type == 'certificate':
+            # Generate certificates for key vault when requested
+            cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
+            mi_theft_assignment['certificate_path'] = cert_path
+            mi_theft_assignment['private_key_path'] = key_path
+            mi_theft_assignment['pfx_path'] = pfx_path
+            mi_theft_assignment['credential_type'] = 'certificate'
         else:
-            # For key_vault targets, these are optional (not used)
+            # Default: Use secrets for key vault
             mi_theft_assignment['certificate_path'] = ''
             mi_theft_assignment['private_key_path'] = ''
+            mi_theft_assignment['pfx_path'] = ''
+            mi_theft_assignment['credential_type'] = 'secret'
         
         mi_theft_assignments[key] = mi_theft_assignment
         
@@ -535,7 +548,7 @@ class AttackPathManager:
             )
         
         # Generate certificate
-        cert_path, key_path = generate_certificate_and_key(app_name)
+        cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
         
         attack_path_storage_abuse_assignments[key] = {
             "app_name": app_name,
@@ -543,7 +556,8 @@ class AttackPathManager:
             "identity_type": identity_type,
             "principal_name": principal_name,
             'certificate_path': cert_path,
-            'private_key_path': key_path
+            'private_key_path': key_path,
+            'pfx_path': pfx_path
         }
         
         # Assign privileges
