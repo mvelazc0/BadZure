@@ -350,23 +350,16 @@ class AttackPathManager:
             'managed_identity_name': source_name  # For VMs, MI name = VM name
         }
         
-        # Generate certificate for storage account targets or key vault with certificate credential_type
-        if target_resource_type == 'storage_account':
-            # Always use certificates for storage accounts
-            cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
-            mi_theft_assignment['certificate_path'] = cert_path
-            mi_theft_assignment['private_key_path'] = key_path
-            mi_theft_assignment['pfx_path'] = pfx_path
-            mi_theft_assignment['credential_type'] = 'certificate'
-        elif target_resource_type == 'key_vault' and credential_type == 'certificate':
-            # Generate certificates for key vault when requested
+        # Generate certificate based on credential_type for both key_vault and storage_account
+        if credential_type == 'certificate':
+            # Generate certificates when requested (for both key_vault and storage_account)
             cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
             mi_theft_assignment['certificate_path'] = cert_path
             mi_theft_assignment['private_key_path'] = key_path
             mi_theft_assignment['pfx_path'] = pfx_path
             mi_theft_assignment['credential_type'] = 'certificate'
         else:
-            # Default: Use secrets for key vault
+            # Use secrets (app ID and secret) - no certificate generation needed
             mi_theft_assignment['certificate_path'] = ''
             mi_theft_assignment['private_key_path'] = ''
             mi_theft_assignment['pfx_path'] = ''

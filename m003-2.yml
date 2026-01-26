@@ -1,9 +1,9 @@
 mode: targeted
 
 tenant:
-  tenant_id: 3cd87a41-1f61-4aef-a212-cefdecd9a2d1
-  domain: DefenderATEVET17.onmicrosoft.com
-  subscription_id: 9b00bc5e-9abc-45de-9958-02a9d9277b16
+  tenant_id: 
+  domain: 
+  subscription_id: 
 
   # Identity resources
   users: 1                     # Add 1 user to pass validation (won't be used)

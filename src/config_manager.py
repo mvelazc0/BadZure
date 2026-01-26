@@ -263,14 +263,10 @@ class ConfigManager:
         elif target_resource_type not in MI_TARGET_RESOURCE_TYPES:
             errors.append(f"{path_name}: Invalid target_resource_type '{target_resource_type}'. Must be one of: {', '.join(MI_TARGET_RESOURCE_TYPES)}")
         
-        # Validate credential_type parameter (only for key_vault targets)
+        # Validate credential_type parameter (applies to both key_vault and storage_account targets)
         credential_type = path_config.get('credential_type', 'secret')
         if credential_type not in ['secret', 'certificate']:
             errors.append(f"{path_name}: credential_type must be 'secret' or 'certificate', got '{credential_type}'")
-        
-        # credential_type only applies to key_vault targets
-        if credential_type != 'secret' and target_resource_type != 'key_vault':
-            errors.append(f"{path_name}: credential_type can only be specified for target_resource_type 'key_vault' (storage_account always uses certificates)")
         
         # Validate required entities based on source_type
         if source_type == 'vm':
