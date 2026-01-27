@@ -212,8 +212,26 @@ class OutputFormatter:
                         # Display target information
                         if target_resource_type == 'key_vault':
                             logging.info(f"Target Resource: Key Vault - {target_name} (Key Vault Contributor)")
+                            # Show credential storage location based on credential_type
+                            credential_type = assignment.get('credential_type', 'secret')
+                            if credential_type == 'certificate':
+                                logging.info(f"Certificate stored in: {target_name}/mi-certificate-{app_name}")
+                                logging.info(f"Private key stored in: {target_name}/mi-private-key-{app_name}")
+                                logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
+                            else:
+                                logging.info(f"Client secret stored in: {target_name}/mi-client-secret-{app_name}")
+                                logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
                         elif target_resource_type == 'storage_account':
                             logging.info(f"Target Resource: Storage Account - {target_name} (Storage Blob Data Reader)")
+                            # Show credential storage location based on credential_type
+                            credential_type = assignment.get('credential_type', 'secret')
+                            if credential_type == 'certificate':
+                                logging.info(f"Certificate stored in: {target_name}/mi-credentials/{app_name}-certificate.pem")
+                                logging.info(f"Private key stored in: {target_name}/mi-credentials/{app_name}-private-key.key")
+                                logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
+                            else:
+                                logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
+                                logging.info(f"Secret stored in: {target_name}/mi-credentials/{app_name}-secret.txt")
                         
                         # Display application with privileges
                         logging.info(f"Target Application: {app_name}")
@@ -414,15 +432,29 @@ class OutputFormatter:
                         # Display target information
                         if target_resource_type == 'key_vault':
                             logging.info(f"Target Resource: Key Vault - {target_name} (Key Vault Contributor)")
+                            # Show credential storage location based on credential_type
+                            credential_type = assignment.get('credential_type', 'secret')
+                            if credential_type == 'certificate':
+                                logging.info(f"Certificate stored in: {target_name}/mi-certificate-{app_name}")
+                                logging.info(f"Private key stored in: {target_name}/mi-private-key-{app_name}")
+                                logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
+                            else:
+                                logging.info(f"Client secret stored in: {target_name}/mi-client-secret-{app_name}")
+                                logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
                         elif target_resource_type == 'storage_account':
                             logging.info(f"Target Resource: Storage Account - {target_name} (Storage Blob Data Reader)")
+                            # Show credential storage location based on credential_type
+                            credential_type = assignment.get('credential_type', 'secret')
+                            if credential_type == 'certificate':
+                                logging.info(f"Certificate stored in: {target_name}/mi-credentials/{app_name}-certificate.pem")
+                                logging.info(f"Private key stored in: {target_name}/mi-credentials/{app_name}-private-key.key")
+                                logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
+                            else:
+                                logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
+                                logging.info(f"Secret stored in: {target_name}/mi-credentials/{app_name}-secret.txt")
                         
                         # Display application with privileges
                         logging.info(f"Target Application: {app_name}")
-                        
-                        # Show certificate location for storage accounts
-                        if target_resource_type == 'storage_account':
-                            logging.info(f"Certificate stored in: {target_name}/cert-container/")
                         break
         
         logging.info("\n" + "=" * 60)

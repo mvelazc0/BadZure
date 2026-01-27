@@ -4,6 +4,7 @@ Handles generation of all Entra ID and Azure resource entities.
 """
 import random
 import string
+import logging
 from typing import Dict, List
 
 
@@ -224,6 +225,18 @@ class EntityGenerator:
     def generate_key_vaults(self, count: int, resource_groups: Dict) -> Dict:
         """Generate random key vaults."""
         kvs = {}
+        
+        # Early return if no resource groups available
+        if count == 0:
+            return kvs
+        
+        if not resource_groups:
+            logging.warning(
+                f"Cannot create {count} key vault(s): No resource groups available. "
+                f"Set 'resource_groups' to at least 1 in tenant configuration."
+            )
+            return kvs
+        
         kv_names = self._read_names_from_file('keyvaults.txt')
         selected_kvs = random.sample(kv_names, count)
         
@@ -278,6 +291,18 @@ class EntityGenerator:
     def generate_storage_accounts(self, count: int, resource_groups: Dict) -> Dict:
         """Generate random storage accounts."""
         sas = {}
+        
+        # Early return if no resource groups available
+        if count == 0:
+            return sas
+        
+        if not resource_groups:
+            logging.warning(
+                f"Cannot create {count} storage account(s): No resource groups available. "
+                f"Set 'resource_groups' to at least 1 in tenant configuration."
+            )
+            return sas
+        
         sa_names = self._read_names_from_file('storage-accounts.txt')
         selected_sas = random.sample(sa_names, count)
         
@@ -334,6 +359,18 @@ class EntityGenerator:
     def generate_virtual_machines(self, count: int, resource_groups: Dict) -> Dict:
         """Generate random virtual machines."""
         vms = {}
+        
+        # Early return if no resource groups available
+        if count == 0:
+            return vms
+        
+        if not resource_groups:
+            logging.warning(
+                f"Cannot create {count} virtual machine(s): No resource groups available. "
+                f"Set 'resource_groups' to at least 1 in tenant configuration."
+            )
+            return vms
+        
         vm_names = self._read_names_from_file('virtual-machines.txt')
         selected_vms = random.sample(vm_names, count)
         

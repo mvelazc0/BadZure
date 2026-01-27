@@ -117,10 +117,21 @@ class BuildCommand:
         logging.info(f"Generating {max_function_apps} function apps")
         function_apps = self.generator.generate_function_apps(max_function_apps, resource_groups)
         
+        # Check if there are any enabled attack paths
+        enabled_attack_paths = [
+            path for path in config.get('attack_paths', {}).values()
+            if path.get('enabled', False)
+        ]
+        
+        # Only show warnings if we have enabled attack paths or if users/apps are configured
+        show_warnings = len(enabled_attack_paths) > 0 or max_users > 0 or max_apps > 0
+        
         # Create random assignments
         (user_group_assignments, user_au_assignments, user_role_assignments,
          app_role_assignments, app_api_permission_assignments) = \
-            self.assignment_mgr.create_random_assignments(users, groups, administrative_units, applications)
+            self.assignment_mgr.create_random_assignments(
+                users, groups, administrative_units, applications, show_warnings=show_warnings
+            )
         
         # Create attack paths
         attack_path_application_owner_assignments = {}
@@ -355,23 +366,29 @@ class BuildCommand:
         # Generate entities
         logging.info("Generating entity details")
         users = self.generator.generate_users_targeted(all_entities.get('users', []))
+        logging.info(f"Generated {len(users)} user(s)")
         groups = self.generator.generate_groups_targeted(all_entities.get('groups', []))
+        logging.info(f"Generated {len(groups)} group(s)")
         applications = self.generator.generate_applications_targeted(all_entities.get('applications', []))
+        logging.info(f"Generated {len(applications)} application(s)")
         administrative_units = self.generator.generate_administrative_units_targeted(
             all_entities.get('administrative_units', [])
         )
         resource_groups = self.generator.generate_resource_groups_targeted(
             all_entities.get('resource_groups', [])
         )
+        logging.info(f"Generated {len(resource_groups)} resource group(s)")
         key_vaults = self.generator.generate_key_vaults_targeted(
             all_entities.get('key_vaults', []), resource_groups
         )
+        logging.info(f"Generated {len(key_vaults)} key vault(s)")
         storage_accounts = self.generator.generate_storage_accounts_targeted(
             all_entities.get('storage_accounts', []), resource_groups
         )
         virtual_machines = self.generator.generate_virtual_machines_targeted(
             all_entities.get('virtual_machines', []), resource_groups
         )
+        logging.info(f"Generated {len(virtual_machines)} virtual machine(s)")
         logic_apps = self.generator.generate_logic_apps_targeted(
             all_entities.get('logic_apps', []), resource_groups
         )
@@ -575,6 +592,12 @@ class BuildCommand:
                             
                             seen_names[entity_type].add(entity_name)
                             all_entities[entity_type].append(entity)
+        
+        # Log collected entity counts for debugging
+        logging.info("Collected entities from attack paths:")
+        for entity_type, entities in all_entities.items():
+            if entities:
+                logging.info(f"  - {entity_type}: {len(entities)} entity specification(s)")
         
         return all_entities
     

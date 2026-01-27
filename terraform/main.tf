@@ -6,8 +6,8 @@ terraform {
     }
     azurerm = {
       source  = "hashicorp/azurerm"
-      version = "4.57.0" 
-    }    
+      version = "4.57.0"
+    }
   }
 }
 
@@ -27,6 +27,9 @@ provider "azurerm" {
   }
 
   subscription_id = var.subscription_id
+  
+  # Use Azure AD authentication for storage accounts (required when shared_access_key_enabled = false)
+  storage_use_azuread = true
 }
 
 data "azuread_domains" "example" {
@@ -220,8 +223,34 @@ resource "azurerm_storage_account" "sas" {
   resource_group_name      = each.value.resource_group_name
   account_tier             = each.value.account_tier
   account_replication_type = each.value.account_replication_type
+  
+  # Enable public network access to allow Terraform to connect, use Azure AD auth instead of keys
+  public_network_access_enabled = true
+  shared_access_key_enabled     = true  # Needed to access SAS key in storage account for M003-V4
+  allow_nested_items_to_be_public = false  # CRITICAL: Prevents public access to blobs/containers
 
   depends_on = [azurerm_resource_group.rgroups]
+}
+
+# Get the current client (Terraform's service principal or user identity)
+data "azurerm_client_config" "current" {}
+
+# Grant Terraform's service principal access to storage accounts for blob uploads
+resource "azurerm_role_assignment" "terraform_storage_access" {
+  for_each = var.storage_accounts
+
+  scope                = azurerm_storage_account.sas[each.key].id
+  role_definition_name = "Storage Blob Data Contributor"
+  principal_id         = data.azurerm_client_config.current.object_id
+
+  depends_on = [azurerm_storage_account.sas]
+}
+
+# Add delay to allow role assignment to propagate
+resource "time_sleep" "wait_for_rbac" {
+  depends_on = [azurerm_role_assignment.terraform_storage_access]
+  
+  create_duration = "180s"  # Increased from 120s to 180s for better RBAC propagation
 }
 
 resource "azuread_application_certificate" "attack_path_storage_certificates" {
@@ -258,7 +287,8 @@ resource "azurerm_storage_blob" "attack_path_storage_key_upload" {
 
   depends_on = [
     azurerm_storage_container.attack_path_storage_containers,
-    azuread_application_certificate.attack_path_storage_certificates
+    azuread_application_certificate.attack_path_storage_certificates,
+    time_sleep.wait_for_rbac
   ]
 }
 
@@ -274,7 +304,28 @@ resource "azurerm_storage_blob" "attack_path_storage_pem_upload" {
 
   depends_on = [
     azurerm_storage_container.attack_path_storage_containers,
-    azuread_application_certificate.attack_path_storage_certificates
+    azuread_application_certificate.attack_path_storage_certificates,
+    time_sleep.wait_for_rbac
+  ]
+}
+
+# Upload the PFX certificate (single file for easy download and authentication)
+resource "azurerm_storage_blob" "attack_path_storage_pfx_upload" {
+  for_each = {
+    for k, v in var.attack_path_storage_abuse_assignments : k => v
+    if lookup(v, "pfx_path", "") != ""
+  }
+
+  name                   = "${each.value.app_name}-certificate.pfx"
+  storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
+  storage_container_name = azurerm_storage_container.attack_path_storage_containers[each.key].name
+  type                   = "Block"
+  source                 = each.value.pfx_path  # Uploads the .pfx file
+
+  depends_on = [
+    azurerm_storage_container.attack_path_storage_containers,
+    azuread_application_certificate.attack_path_storage_certificates,
+    time_sleep.wait_for_rbac
   ]
 }
 
@@ -533,11 +584,18 @@ resource "azurerm_automation_account" "automation_accounts" {
 resource "azurerm_storage_account" "function_storage" {
   for_each = var.function_apps
 
-  name                     = lower(replace(replace(each.value.name, "func-", "fc"), "-", ""))
+  # Azure storage account names must be 3-24 characters, lowercase letters and numbers only
+  # Transform: remove "func-" prefix, remove all hyphens, truncate to 24 chars
+  name                     = substr(lower(replace(replace(each.value.name, "func-", "fc"), "-", "")), 0, 24)
   location                 = each.value.location
   resource_group_name      = each.value.resource_group_name
   account_tier             = "Standard"
   account_replication_type = "LRS"
+  
+  # Azure Policy compliance: Disable ALL forms of public access
+  public_network_access_enabled = false
+  shared_access_key_enabled     = true
+  allow_nested_items_to_be_public = false  # CRITICAL: Prevents public access to blobs/containers
 
   depends_on = [azurerm_resource_group.rgroups]
 }
@@ -575,11 +633,10 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
   location            = each.value.location
   service_plan_id     = azurerm_service_plan.function_plan[each.key].id
 
-  # Storage configuration
+  # Storage configuration - Using System-Assigned Managed Identity for policy compliance
   storage_container_type      = "blobContainer"
   storage_container_endpoint  = "${azurerm_storage_account.function_storage[each.key].primary_blob_endpoint}${azurerm_storage_container.function_container[each.key].name}"
-  storage_authentication_type = "StorageAccountConnectionString"
-  storage_access_key          = azurerm_storage_account.function_storage[each.key].primary_access_key
+  storage_authentication_type = "SystemAssignedIdentity"
 
   # Runtime configuration
   runtime_name    = each.value.os_type == "linux" ? "python" : "dotnet-isolated"
@@ -602,9 +659,12 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
 # ManagedIdentityTheft Attack Path Resources
 # ============================================================================
 
-# Create application passwords for ManagedIdentityTheft targeting Key Vaults
+# Create application passwords for ManagedIdentityTheft targeting Key Vaults with secrets
 resource "azuread_application_password" "attack_path_mi_theft_kv_secrets" {
-  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "key_vault" }
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "secret"
+  }
 
   application_id    = azuread_application_registration.spns[each.value.app_name].id
   display_name      = "BadZureMITheftSecret"
@@ -615,7 +675,10 @@ resource "azuread_application_password" "attack_path_mi_theft_kv_secrets" {
 
 # Store application passwords as secrets in Key Vault for ManagedIdentityTheft
 resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_secrets" {
-  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "key_vault" }
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "secret"
+  }
 
   name         = "mi-client-secret-${each.value.app_name}"
   value        = azuread_application_password.attack_path_mi_theft_kv_secrets[each.key].value
@@ -628,55 +691,294 @@ resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_secrets" {
   ]
 }
 
-# Create application certificates for ManagedIdentityTheft targeting Storage Accounts
-resource "azuread_application_certificate" "attack_path_mi_theft_storage_certificates" {
-  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "storage_account" }
+# Store application client_id (app_id) as a separate secret in Key Vault for ManagedIdentityTheft (secrets)
+resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_app_ids" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "secret"
+  }
+
+  name         = "mi-client-id-${each.value.app_name}"
+  value        = azuread_application_registration.spns[each.value.app_name].client_id
+  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azuread_application_registration.spns,
+    azurerm_role_assignment.attack_path_mi_theft_kv_access
+  ]
+}
+
+# ============================================================================
+# ManagedIdentityTheft - Key Vault Certificate Support
+# ============================================================================
+
+# Create application certificates for ManagedIdentityTheft targeting Key Vaults with certificates
+resource "azuread_application_certificate" "attack_path_mi_theft_kv_certificates" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+  }
 
   application_id = azuread_application_registration.spns[each.value.app_name].id
   type           = "AsymmetricX509Cert"
   value          = file(each.value.certificate_path)
 }
 
-# Create storage containers for ManagedIdentityTheft certificates
-resource "azurerm_storage_container" "attack_path_mi_theft_storage_containers" {
-  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "storage_account" }
+# Store certificate in Key Vault as a secret (PEM format)
+resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_pem" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+  }
 
-  name                  = "mi-cert-container-${replace(each.key, "_", "-")}"
+  name         = "mi-certificate-${each.value.app_name}"
+  value        = file(each.value.certificate_path)
+  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
+  content_type = "application/x-pem-file"
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azuread_application_certificate.attack_path_mi_theft_kv_certificates,
+    azurerm_role_assignment.attack_path_mi_theft_kv_access
+  ]
+}
+
+# Store private key in Key Vault as a secret
+resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_key" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  name         = "mi-private-key-${each.value.app_name}"
+  value        = file(each.value.private_key_path)
+  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
+  content_type = "application/x-pem-file"
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azuread_application_certificate.attack_path_mi_theft_kv_certificates,
+    azurerm_role_assignment.attack_path_mi_theft_kv_access
+  ]
+}
+
+# Store application client_id as a separate secret (needed for cert-based auth)
+resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_app_ids" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  name         = "mi-client-id-${each.value.app_name}"
+  value        = azuread_application_registration.spns[each.value.app_name].client_id
+  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azuread_application_registration.spns,
+    azurerm_role_assignment.attack_path_mi_theft_kv_access
+  ]
+}
+
+# Store PFX certificate in Key Vault (single file for easy download and authentication)
+resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_pfx" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate" && v.pfx_path != ""
+  }
+
+  name         = "mi-certificate-pfx-${each.value.app_name}"
+  value        = filebase64(each.value.pfx_path)
+  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
+  content_type = "application/x-pkcs12"
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azuread_application_certificate.attack_path_mi_theft_kv_certificates,
+    azurerm_role_assignment.attack_path_mi_theft_kv_access
+  ]
+}
+
+# ============================================================================
+# ManagedIdentityTheft - Storage Account Secret Support
+# ============================================================================
+
+# Create application password/secret for ManagedIdentityTheft targeting Storage Accounts with secrets
+resource "azuread_application_password" "attack_path_mi_theft_storage_secrets" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "secret"
+  }
+
+  application_id    = azuread_application_registration.spns[each.value.app_name].id
+  display_name      = "BadZureMITheftSecret"
+  end_date_relative = "8760h" # 1 year
+
+  depends_on = [azuread_application_registration.spns]
+}
+
+# Create storage containers for ManagedIdentityTheft credentials (secrets)
+resource "azurerm_storage_container" "attack_path_mi_theft_storage_secret_containers" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "secret"
+  }
+
+  name                  = "mi-credentials"
   storage_account_id    = azurerm_storage_account.sas[each.value.target_name].id
   container_access_type = "private"
 
   depends_on = [azurerm_storage_account.sas]
 }
 
-# Upload private key for ManagedIdentityTheft
-resource "azurerm_storage_blob" "attack_path_mi_theft_storage_key_upload" {
-  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "storage_account" }
+# Upload app ID for ManagedIdentityTheft (secrets)
+resource "azurerm_storage_blob" "attack_path_mi_theft_storage_secret_appid_upload" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "secret"
+  }
 
-  name                   = "${each.value.app_name}-mi-private-key.key"
+  name                   = "${each.value.app_name}-app-id.txt"
   storage_account_name   = azurerm_storage_account.sas[each.value.target_name].name
-  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_containers[each.key].name
+  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_secret_containers[each.key].name
   type                   = "Block"
-  source                 = each.value.private_key_path
+  source_content         = azuread_application_registration.spns[each.value.app_name].client_id
 
   depends_on = [
-    azurerm_storage_container.attack_path_mi_theft_storage_containers,
-    azuread_application_certificate.attack_path_mi_theft_storage_certificates
+    azurerm_storage_container.attack_path_mi_theft_storage_secret_containers,
+    azuread_application_password.attack_path_mi_theft_storage_secrets,
+    time_sleep.wait_for_rbac
   ]
 }
 
-# Upload certificate for ManagedIdentityTheft
-resource "azurerm_storage_blob" "attack_path_mi_theft_storage_pem_upload" {
-  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "storage_account" }
+# Upload secret for ManagedIdentityTheft (secrets)
+resource "azurerm_storage_blob" "attack_path_mi_theft_storage_secret_upload" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "secret"
+  }
 
-  name                   = "${each.value.app_name}-mi-certificate.pem"
+  name                   = "${each.value.app_name}-secret.txt"
   storage_account_name   = azurerm_storage_account.sas[each.value.target_name].name
-  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_containers[each.key].name
+  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_secret_containers[each.key].name
+  type                   = "Block"
+  source_content         = azuread_application_password.attack_path_mi_theft_storage_secrets[each.key].value
+
+  depends_on = [
+    azurerm_storage_container.attack_path_mi_theft_storage_secret_containers,
+    azuread_application_password.attack_path_mi_theft_storage_secrets,
+    time_sleep.wait_for_rbac
+  ]
+}
+
+# ============================================================================
+# ManagedIdentityTheft - Storage Account Certificate Support
+# ============================================================================
+
+# Create application certificates for ManagedIdentityTheft targeting Storage Accounts with certificates
+resource "azuread_application_certificate" "attack_path_mi_theft_storage_certificates" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  application_id = azuread_application_registration.spns[each.value.app_name].id
+  type           = "AsymmetricX509Cert"
+  value          = file(each.value.certificate_path)
+}
+
+# Create storage containers for ManagedIdentityTheft credentials (certificates)
+resource "azurerm_storage_container" "attack_path_mi_theft_storage_cert_containers" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  name                  = "mi-credentials"
+  storage_account_id    = azurerm_storage_account.sas[each.value.target_name].id
+  container_access_type = "private"
+
+  depends_on = [azurerm_storage_account.sas]
+}
+
+# Upload certificate (PEM) for ManagedIdentityTheft
+resource "azurerm_storage_blob" "attack_path_mi_theft_storage_cert_pem_upload" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  name                   = "${each.value.app_name}-certificate.pem"
+  storage_account_name   = azurerm_storage_account.sas[each.value.target_name].name
+  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_cert_containers[each.key].name
   type                   = "Block"
   source                 = each.value.certificate_path
 
   depends_on = [
-    azurerm_storage_container.attack_path_mi_theft_storage_containers,
-    azuread_application_certificate.attack_path_mi_theft_storage_certificates
+    azurerm_storage_container.attack_path_mi_theft_storage_cert_containers,
+    azuread_application_certificate.attack_path_mi_theft_storage_certificates,
+    time_sleep.wait_for_rbac
+  ]
+}
+
+# Upload private key for ManagedIdentityTheft
+resource "azurerm_storage_blob" "attack_path_mi_theft_storage_cert_key_upload" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  name                   = "${each.value.app_name}-private-key.key"
+  storage_account_name   = azurerm_storage_account.sas[each.value.target_name].name
+  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_cert_containers[each.key].name
+  type                   = "Block"
+  source                 = each.value.private_key_path
+
+  depends_on = [
+    azurerm_storage_container.attack_path_mi_theft_storage_cert_containers,
+    azuread_application_certificate.attack_path_mi_theft_storage_certificates,
+    time_sleep.wait_for_rbac
+  ]
+}
+
+# Upload PFX certificate for ManagedIdentityTheft (single file for easy download)
+resource "azurerm_storage_blob" "attack_path_mi_theft_storage_cert_pfx_upload" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "certificate" && v.pfx_path != ""
+  }
+
+  name                   = "${each.value.app_name}-certificate.pfx"
+  storage_account_name   = azurerm_storage_account.sas[each.value.target_name].name
+  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_cert_containers[each.key].name
+  type                   = "Block"
+  source                 = each.value.pfx_path
+
+  depends_on = [
+    azurerm_storage_container.attack_path_mi_theft_storage_cert_containers,
+    azuread_application_certificate.attack_path_mi_theft_storage_certificates,
+    time_sleep.wait_for_rbac
+  ]
+}
+
+# Upload app ID for ManagedIdentityTheft (certificates) - needed for cert-based auth
+resource "azurerm_storage_blob" "attack_path_mi_theft_storage_cert_appid_upload" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "storage_account" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  name                   = "${each.value.app_name}-app-id.txt"
+  storage_account_name   = azurerm_storage_account.sas[each.value.target_name].name
+  storage_container_name = azurerm_storage_container.attack_path_mi_theft_storage_cert_containers[each.key].name
+  type                   = "Block"
+  source_content         = azuread_application_registration.spns[each.value.app_name].client_id
+
+  depends_on = [
+    azurerm_storage_container.attack_path_mi_theft_storage_cert_containers,
+    azuread_application_certificate.attack_path_mi_theft_storage_certificates,
+    time_sleep.wait_for_rbac
   ]
 }
 
@@ -712,12 +1014,108 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
   ]
 }
 
+
+# Harcoded roles to support M003 scenario, will change later
+
+# Grant managed identity "Key Vault Secrets User" role on Key Vault
+resource "azurerm_role_assignment" "attack_path_mi_theft_kv_secrets_user" {
+  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "key_vault" }
+
+  scope                = azurerm_key_vault.kvaults[each.value.target_name].id
+  role_definition_name = "Key Vault Secrets User"
+
+  principal_id = (
+    each.value.source_type == "vm" ?
+      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    each.value.source_type == "logic_app" ?
+      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "automation_account" ?
+      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "function_app" ?
+      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+      null
+  )
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azurerm_linux_virtual_machine.linux_vms,
+    azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts,
+    azurerm_function_app_flex_consumption.function_apps
+  ]
+}
+
+# Grant managed identity "Key Vault Reader" role on Key Vault
+resource "azurerm_role_assignment" "attack_path_mi_theft_kv_reader" {
+  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "key_vault" }
+
+  scope                = azurerm_key_vault.kvaults[each.value.target_name].id
+  role_definition_name = "Key Vault Reader"
+
+  principal_id = (
+    each.value.source_type == "vm" ?
+      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    each.value.source_type == "logic_app" ?
+      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "automation_account" ?
+      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "function_app" ?
+      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+      null
+  )
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azurerm_linux_virtual_machine.linux_vms,
+    azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts,
+    azurerm_function_app_flex_consumption.function_apps
+  ]
+}
+
 # Grant VM managed identity access to Storage Account
 resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
   for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "storage_account" }
 
   scope                = azurerm_storage_account.sas[each.value.target_name].id
   role_definition_name = "Storage Blob Data Reader"
+
+  principal_id = (
+    each.value.source_type == "vm" ?
+      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    each.value.source_type == "logic_app" ?
+      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "automation_account" ?
+      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "function_app" ?
+      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+      null
+  )
+
+  depends_on = [
+    azurerm_storage_account.sas,
+    azurerm_linux_virtual_machine.linux_vms,
+    azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts,
+    azurerm_function_app_flex_consumption.function_apps
+  ]
+}
+
+# Grant managed identity "Storage Account Contributor" role to enable key theft
+resource "azurerm_role_assignment" "attack_path_mi_theft_storage_contributor" {
+  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "storage_account" }
+
+  scope                = azurerm_storage_account.sas[each.value.target_name].id
+  role_definition_name = "Storage Account Contributor"
 
   principal_id = (
     each.value.source_type == "vm" ?

@@ -237,8 +237,10 @@ variable "attack_path_managed_identity_theft_assignments" {
     identity_type            = string  # "user" or "service_principal"
     initial_access_principal = string  # Name of user or service principal with access to source
     managed_identity_name    = string  # Name of the managed identity
-    certificate_path         = optional(string, "")  # Required for storage_account targets
-    private_key_path         = optional(string, "")  # Required for storage_account targets
+    certificate_path         = optional(string, "")  # Required for storage_account targets or key_vault with certificate
+    private_key_path         = optional(string, "")  # Required for storage_account targets or key_vault with certificate
+    pfx_path                 = optional(string, "")  # PFX file path for convenient authentication
+    credential_type          = optional(string, "secret")  # "secret" or "certificate" (only for key_vault targets)
     os_type                  = optional(string, "linux")  # OS type for function_app source type
   }))
 }
