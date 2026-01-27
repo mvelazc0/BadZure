@@ -215,9 +215,8 @@ class OutputFormatter:
                             # Show credential storage location based on credential_type
                             credential_type = assignment.get('credential_type', 'secret')
                             if credential_type == 'certificate':
-                                logging.info(f"Certificate stored in: {target_name}/mi-certificate-{app_name}")
-                                logging.info(f"Private key stored in: {target_name}/mi-private-key-{app_name}")
-                                logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
+                                logging.info(f"Certificate stored in: {target_name}/certificates/mi-certificate-{app_name}")
+                                logging.info(f"Client ID stored in: {target_name}/secrets/mi-client-id-{app_name}")
                             else:
                                 logging.info(f"Client secret stored in: {target_name}/mi-client-secret-{app_name}")
                                 logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
@@ -435,9 +434,8 @@ class OutputFormatter:
                             # Show credential storage location based on credential_type
                             credential_type = assignment.get('credential_type', 'secret')
                             if credential_type == 'certificate':
-                                logging.info(f"Certificate stored in: {target_name}/mi-certificate-{app_name}")
-                                logging.info(f"Private key stored in: {target_name}/mi-private-key-{app_name}")
-                                logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
+                                logging.info(f"Certificate stored in: {target_name}/certificates/mi-certificate-{app_name}")
+                                logging.info(f"Client ID stored in: {target_name}/secrets/mi-client-id-{app_name}")
                             else:
                                 logging.info(f"Client secret stored in: {target_name}/mi-client-secret-{app_name}")
                                 logging.info(f"Client ID stored in: {target_name}/mi-client-id-{app_name}")
