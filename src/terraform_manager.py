@@ -62,14 +62,22 @@ class TerraformManager:
         attack_path_kv_abuse_assignments: Dict,
         attack_path_storage_abuse_assignments: Dict,
         attack_path_managed_identity_theft_assignments: Dict,
-        attack_path_vm_contributor_assignments: Dict
+        attack_path_vm_contributor_assignments: Dict,
+        attack_path_group_memberships: Dict = None
     ) -> Dict:
         """
         Build Terraform variables dictionary.
         
+        Args:
+            attack_path_group_memberships: Group membership assignments for attack paths.
+                                          Maps attack path keys to group membership info.
+        
         Returns:
             Dictionary of Terraform variables
         """
+        # Initialize optional parameters
+        attack_path_group_memberships = attack_path_group_memberships or {}
+        
         # Convert entity dictionaries to Terraform format
         user_vars = {user['user_principal_name']: user for user in users.values()}
         group_vars = {group['display_name']: group for group in groups.values()}
@@ -114,7 +122,8 @@ class TerraformManager:
             'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
             'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments,
             'attack_path_managed_identity_theft_assignments': attack_path_managed_identity_theft_assignments,
-            'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments
+            'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments,
+            'attack_path_group_memberships': attack_path_group_memberships
         }
         
         return tf_vars

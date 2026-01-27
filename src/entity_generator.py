@@ -119,6 +119,30 @@ class EntityGenerator:
         
         return groups
     
+    def generate_attack_path_group(self) -> Dict:
+        """
+        Generate a dedicated group for an attack path using realistic names.
+        
+        Groups created for attack paths are flagged with 'is_attack_path_group': True
+        to prevent random user assignments in random mode.
+        
+        Returns:
+            Dictionary with group specification including:
+            - display_name: Realistic group name with random suffix for uniqueness
+            - is_attack_path_group: True (flag to prevent random user assignment)
+        """
+        group_names = self._read_names_from_file('group-names.txt')
+        
+        # Select a random realistic name and add suffix for uniqueness
+        base_name = random.choice(group_names)
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+        group_name = f"{base_name}-{random_suffix}"
+        
+        return {
+            'display_name': group_name,
+            'is_attack_path_group': True  # Flag to prevent random user assignment
+        }
+    
     # Application generation
     def generate_applications(self, count: int) -> Dict:
         """Generate random applications."""

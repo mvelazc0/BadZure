@@ -13,10 +13,21 @@ from src.constants import (
     API_REGISTRY
 )
 from src.crypto import generate_certificate_and_key
+from src.entity_generator import EntityGenerator
 
 
 class AttackPathManager:
     """Manages creation of attack paths for both random and targeted modes."""
+    
+    def __init__(self, entity_generator: EntityGenerator = None):
+        """
+        Initialize AttackPathManager.
+        
+        Args:
+            entity_generator: EntityGenerator instance for creating attack path groups.
+                            If not provided, a new instance will be created.
+        """
+        self.entity_generator = entity_generator or EntityGenerator()
     
     def create_application_ownership_abuse(
         self,
@@ -29,7 +40,7 @@ class AttackPathManager:
         path_name: Optional[str] = None,
         used_apps: Optional[set] = None,
         used_users: Optional[set] = None
-    ) -> Tuple[Dict, Dict, Dict, Dict, Dict]:
+    ) -> Dict:
         """
         Create Application Ownership Abuse attack path.
         
@@ -43,19 +54,34 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (initial_access, app_owner_assignments,
-                     user_role_assignments, app_role_assignments,
-                     app_api_permission_assignments)
+            Dictionary with keys:
+                - initial_access: Initial access credentials
+                - app_owner_assignments: Application owner assignments
+                - user_role_assignments: User role assignments
+                - app_role_assignments: Application role assignments
+                - app_api_permission_assignments: API permission assignments
+                - group_assignments: Groups to create for indirect assignment
+                - group_membership_assignments: Group membership assignments
         """
         app_owner_assignments = {}
         user_role_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
+        group_assignments = {}
+        group_membership_assignments = {}
         
-        # Get identity_type and entry_point from config
+        # Get identity_type, entry_point, and assignment_type from config
         identity_type = attack_config.get('identity_type', 'user')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         scenario = attack_config.get('scenario', 'direct')
+        assignment_type = attack_config.get('assignment_type', 'direct')
+        
+        # Validate: assignment_type 'group' is NOT supported for ApplicationOwnershipAbuse
+        # Azure AD does not allow groups to be application owners
+        if assignment_type == 'group':
+            logging.warning(f"{path_name}: assignment_type 'group' is not supported for ApplicationOwnershipAbuse. "
+                          "Azure AD does not allow groups to be application owners. Falling back to 'direct'.")
+            assignment_type = 'direct'
         
         # Validate: helpdesk scenario only works with user identity_type
         if scenario == 'helpdesk' and identity_type == 'service_principal':
@@ -114,13 +140,42 @@ class AttackPathManager:
                     'entry_point': entry_point
                 }
             
-            # App owner assignment for user
-            app_owner_assignments[key] = {
-                'app_name': app_name,
-                'identity_type': 'user',
-                'principal_name': principal_name,
-                'entry_point': entry_point
-            }
+            # App owner assignment for user - handle group-based assignment
+            if assignment_type == 'group':
+                # Generate a dedicated group for this attack path
+                group_spec = self.entity_generator.generate_attack_path_group()
+                group_name = group_spec['display_name']
+                
+                # Add group to be created
+                group_assignments[group_name] = group_spec
+                
+                # Add user to group
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': 'user',
+                    'principal_name': principal_name
+                }
+                
+                # App owner assignment - group owns the application
+                app_owner_assignments[key] = {
+                    'app_name': app_name,
+                    'identity_type': 'group',
+                    'principal_name': group_name,
+                    'entry_point': entry_point,
+                    'assignment_type': 'group',
+                    'group_name': group_name,
+                    'original_principal': principal_name,
+                    'original_identity_type': 'user'
+                }
+            else:
+                # Direct assignment
+                app_owner_assignments[key] = {
+                    'app_name': app_name,
+                    'identity_type': 'user',
+                    'principal_name': principal_name,
+                    'entry_point': entry_point,
+                    'assignment_type': 'direct'
+                }
         else:  # service_principal
             # For service principal, we need to generate credentials
             initial_access = {
@@ -129,13 +184,42 @@ class AttackPathManager:
                 "entry_point": entry_point
             }
             
-            # App owner assignment for service principal
-            app_owner_assignments[key] = {
-                'app_name': app_name,
-                'identity_type': 'service_principal',
-                'principal_name': principal_name,
-                'entry_point': entry_point
-            }
+            # App owner assignment for service principal - handle group-based assignment
+            if assignment_type == 'group':
+                # Generate a dedicated group for this attack path
+                group_spec = self.entity_generator.generate_attack_path_group()
+                group_name = group_spec['display_name']
+                
+                # Add group to be created
+                group_assignments[group_name] = group_spec
+                
+                # Add service principal to group
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': 'service_principal',
+                    'principal_name': principal_name
+                }
+                
+                # App owner assignment - group owns the application
+                app_owner_assignments[key] = {
+                    'app_name': app_name,
+                    'identity_type': 'group',
+                    'principal_name': group_name,
+                    'entry_point': entry_point,
+                    'assignment_type': 'group',
+                    'group_name': group_name,
+                    'original_principal': principal_name,
+                    'original_identity_type': 'service_principal'
+                }
+            else:
+                # Direct assignment
+                app_owner_assignments[key] = {
+                    'app_name': app_name,
+                    'identity_type': 'service_principal',
+                    'principal_name': principal_name,
+                    'entry_point': entry_point,
+                    'assignment_type': 'direct'
+                }
         
         # Assign privileges
         self._assign_app_privileges(
@@ -143,13 +227,15 @@ class AttackPathManager:
             app_role_assignments, app_api_permission_assignments
         )
         
-        return (
-            initial_access,
-            app_owner_assignments,
-            user_role_assignments,
-            app_role_assignments,
-            app_api_permission_assignments
-        )
+        return {
+            'initial_access': initial_access,
+            'app_owner_assignments': app_owner_assignments,
+            'user_role_assignments': user_role_assignments,
+            'app_role_assignments': app_role_assignments,
+            'app_api_permission_assignments': app_api_permission_assignments,
+            'group_assignments': group_assignments,
+            'group_membership_assignments': group_membership_assignments
+        }
     
     def create_application_administrator_abuse(
         self,
@@ -162,7 +248,7 @@ class AttackPathManager:
         path_name: Optional[str] = None,
         used_apps: Optional[set] = None,
         used_users: Optional[set] = None
-    ) -> Tuple[Dict, Dict, Dict, Dict]:
+    ) -> Dict:
         """
         Create Application Administrator Abuse attack path.
         
@@ -179,16 +265,24 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (initial_access, user_role_assignments,
-                     app_role_assignments, app_api_permission_assignments)
+            Dictionary with keys:
+                - initial_access: Initial access credentials
+                - user_role_assignments: User role assignments
+                - app_role_assignments: Application role assignments
+                - app_api_permission_assignments: API permission assignments
+                - group_assignments: Groups to create for indirect assignment
+                - group_membership_assignments: Group membership assignments
         """
         user_role_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
+        group_assignments = {}
+        group_membership_assignments = {}
         
-        # Get identity_type and entry_point from config
+        # Get identity_type, entry_point, and assignment_type from config
         identity_type = attack_config.get('identity_type', 'user')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
+        assignment_type = attack_config.get('assignment_type', 'direct')
         
         # Generate attack path key
         attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
@@ -225,13 +319,42 @@ class AttackPathManager:
                 "entry_point": entry_point
             }
             
-            # Assign Application Administrator role to user
-            user_role_assignments[key] = {
-                'identity_type': 'user',
-                'principal_name': principal_name,
-                'role_definition_id': app_admin_role_id,
-                'entry_point': entry_point
-            }
+            # Assign Application Administrator role - handle group-based assignment
+            if assignment_type == 'group':
+                # Generate a dedicated group for this attack path
+                group_spec = self.entity_generator.generate_attack_path_group()
+                group_name = group_spec['display_name']
+                
+                # Add group to be created
+                group_assignments[group_name] = group_spec
+                
+                # Add user to group
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': 'user',
+                    'principal_name': principal_name
+                }
+                
+                # Assign Application Administrator role to group
+                user_role_assignments[key] = {
+                    'identity_type': 'group',
+                    'principal_name': group_name,
+                    'role_definition_id': app_admin_role_id,
+                    'entry_point': entry_point,
+                    'assignment_type': 'group',
+                    'group_name': group_name,
+                    'original_principal': principal_name,
+                    'original_identity_type': 'user'
+                }
+            else:
+                # Direct assignment
+                user_role_assignments[key] = {
+                    'identity_type': 'user',
+                    'principal_name': principal_name,
+                    'role_definition_id': app_admin_role_id,
+                    'entry_point': entry_point,
+                    'assignment_type': 'direct'
+                }
         else:  # service_principal
             # For service principal, we need to generate credentials
             initial_access = {
@@ -240,13 +363,42 @@ class AttackPathManager:
                 "entry_point": entry_point
             }
             
-            # Assign Application Administrator role to service principal
-            user_role_assignments[key] = {
-                'identity_type': 'service_principal',
-                'principal_name': principal_name,
-                'role_definition_id': app_admin_role_id,
-                'entry_point': entry_point
-            }
+            # Assign Application Administrator role - handle group-based assignment
+            if assignment_type == 'group':
+                # Generate a dedicated group for this attack path
+                group_spec = self.entity_generator.generate_attack_path_group()
+                group_name = group_spec['display_name']
+                
+                # Add group to be created
+                group_assignments[group_name] = group_spec
+                
+                # Add service principal to group
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': 'service_principal',
+                    'principal_name': principal_name
+                }
+                
+                # Assign Application Administrator role to group
+                user_role_assignments[key] = {
+                    'identity_type': 'group',
+                    'principal_name': group_name,
+                    'role_definition_id': app_admin_role_id,
+                    'entry_point': entry_point,
+                    'assignment_type': 'group',
+                    'group_name': group_name,
+                    'original_principal': principal_name,
+                    'original_identity_type': 'service_principal'
+                }
+            else:
+                # Direct assignment
+                user_role_assignments[key] = {
+                    'identity_type': 'service_principal',
+                    'principal_name': principal_name,
+                    'role_definition_id': app_admin_role_id,
+                    'entry_point': entry_point,
+                    'assignment_type': 'direct'
+                }
         
         # Assign privileges to the target application
         self._assign_app_privileges(
@@ -254,12 +406,14 @@ class AttackPathManager:
             app_role_assignments, app_api_permission_assignments
         )
         
-        return (
-            initial_access,
-            user_role_assignments,
-            app_role_assignments,
-            app_api_permission_assignments
-        )
+        return {
+            'initial_access': initial_access,
+            'user_role_assignments': user_role_assignments,
+            'app_role_assignments': app_role_assignments,
+            'app_api_permission_assignments': app_api_permission_assignments,
+            'group_assignments': group_assignments,
+            'group_membership_assignments': group_membership_assignments
+        }
     
     def create_managed_identity_theft(
         self,
@@ -277,7 +431,7 @@ class AttackPathManager:
         path_name: Optional[str] = None,
         used_apps: Optional[set] = None,
         used_users: Optional[set] = None
-    ) -> Tuple[Dict, Dict, Dict, Dict]:
+    ) -> Dict:
         """
         Create Managed Identity Theft attack path.
         
@@ -297,13 +451,20 @@ class AttackPathManager:
             used_apps: Set of already-used application names
         
         Returns:
-            Tuple of (mi_theft_assignments, app_role_assignments,
-                     app_api_permission_assignments, vm_contributor_assignments)
+            Dictionary with keys:
+                - mi_theft_assignments: Managed identity theft assignments
+                - app_role_assignments: Application role assignments
+                - app_api_permission_assignments: API permission assignments
+                - vm_contributor_assignments: VM contributor assignments (empty)
+                - group_assignments: Groups to create for indirect assignment
+                - group_membership_assignments: Group membership assignments
         """
         mi_theft_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
         vm_contributor_assignments = {}  # Empty - Terraform handles this directly
+        group_assignments = {}
+        group_membership_assignments = {}
         
         # Generate attack path key
         attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
@@ -314,12 +475,13 @@ class AttackPathManager:
         else:
             key = f"attack-path-{attack_path_id}"
         
-        # Get source_type, target_resource_type, entry_point, identity_type, and credential_type from config
+        # Get source_type, target_resource_type, entry_point, identity_type, credential_type, and assignment_type from config
         source_type = attack_config.get('source_type', 'vm')
         target_resource_type = attack_config.get('target_resource_type')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         identity_type = attack_config.get('identity_type', 'user')
         credential_type = attack_config.get('credential_type', 'secret')
+        assignment_type = attack_config.get('assignment_type', 'direct')
         
         # Select entities based on mode
         if mode == 'random':
@@ -350,6 +512,30 @@ class AttackPathManager:
             'managed_identity_name': source_name  # For VMs, MI name = VM name
         }
         
+        # Handle group-based assignment for the Contributor role
+        if assignment_type == 'group':
+            # Generate a dedicated group for this attack path
+            group_spec = self.entity_generator.generate_attack_path_group()
+            group_name = group_spec['display_name']
+            
+            # Add group to be created
+            group_assignments[group_name] = group_spec
+            
+            # Add principal to group
+            group_membership_assignments[key] = {
+                'group_name': group_name,
+                'identity_type': identity_type,
+                'principal_name': principal_name
+            }
+            
+            # Update MI theft assignment with group info
+            mi_theft_assignment['assignment_type'] = 'group'
+            mi_theft_assignment['group_name'] = group_name
+            mi_theft_assignment['original_principal'] = principal_name
+            mi_theft_assignment['original_identity_type'] = identity_type
+        else:
+            mi_theft_assignment['assignment_type'] = 'direct'
+        
         # Generate certificate based on credential_type for both key_vault and storage_account
         if credential_type == 'certificate':
             # Generate certificates when requested (for both key_vault and storage_account)
@@ -373,12 +559,14 @@ class AttackPathManager:
             app_role_assignments, app_api_permission_assignments
         )
         
-        return (
-            mi_theft_assignments,
-            app_role_assignments,
-            app_api_permission_assignments,
-            vm_contributor_assignments  # Always empty for ManagedIdentityTheft
-        )
+        return {
+            'mi_theft_assignments': mi_theft_assignments,
+            'app_role_assignments': app_role_assignments,
+            'app_api_permission_assignments': app_api_permission_assignments,
+            'vm_contributor_assignments': vm_contributor_assignments,
+            'group_assignments': group_assignments,
+            'group_membership_assignments': group_membership_assignments
+        }
     
     def create_keyvault_secret_theft(
         self,
@@ -392,7 +580,7 @@ class AttackPathManager:
         entities: Optional[Dict] = None,
         path_name: Optional[str] = None,
         used_apps: Optional[set] = None
-    ) -> Tuple[Dict, Dict, Dict, Dict]:
+    ) -> Dict:
         """
         Create Key Vault Secret Theft attack path.
         
@@ -411,8 +599,13 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (kv_abuse_assignments, app_role_assignments,
-                     app_api_permission_assignments, vm_contributor_assignments)
+            Dictionary with keys:
+                - kv_abuse_assignments: Key vault abuse assignments
+                - app_role_assignments: Application role assignments
+                - app_api_permission_assignments: API permission assignments
+                - vm_contributor_assignments: VM contributor assignments (empty)
+                - group_assignments: Groups to create for indirect assignment
+                - group_membership_assignments: Group membership assignments
         """
         # Validate identity_type
         identity_type = attack_config.get('identity_type', 'user')
@@ -426,6 +619,11 @@ class AttackPathManager:
         app_role_assignments = {}
         app_api_permission_assignments = {}
         vm_contributor_assignments = {}
+        group_assignments = {}
+        group_membership_assignments = {}
+        
+        # Get assignment_type from config
+        assignment_type = attack_config.get('assignment_type', 'direct')
         
         # Generate attack path key
         attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
@@ -450,12 +648,39 @@ class AttackPathManager:
                 entities, identity_type, path_name
             )
         
-        attack_path_kv_abuse_assignments[key] = {
+        # Create KV abuse assignment
+        kv_abuse_assignment = {
             "key_vault": kv_name,
             "identity_type": identity_type,
             "principal_name": principal_name,
             "app_name": app_name
         }
+        
+        # Handle group-based assignment for Key Vault access
+        if assignment_type == 'group':
+            # Generate a dedicated group for this attack path
+            group_spec = self.entity_generator.generate_attack_path_group()
+            group_name = group_spec['display_name']
+            
+            # Add group to be created
+            group_assignments[group_name] = group_spec
+            
+            # Add principal to group
+            group_membership_assignments[key] = {
+                'group_name': group_name,
+                'identity_type': identity_type,
+                'principal_name': principal_name
+            }
+            
+            # Update KV abuse assignment with group info
+            kv_abuse_assignment['assignment_type'] = 'group'
+            kv_abuse_assignment['group_name'] = group_name
+            kv_abuse_assignment['original_principal'] = principal_name
+            kv_abuse_assignment['original_identity_type'] = identity_type
+        else:
+            kv_abuse_assignment['assignment_type'] = 'direct'
+        
+        attack_path_kv_abuse_assignments[key] = kv_abuse_assignment
         
         # Assign privileges
         self._assign_app_privileges(
@@ -463,12 +688,14 @@ class AttackPathManager:
             app_role_assignments, app_api_permission_assignments
         )
         
-        return (
-            attack_path_kv_abuse_assignments,
-            app_role_assignments,
-            app_api_permission_assignments,
-            vm_contributor_assignments
-        )
+        return {
+            'kv_abuse_assignments': attack_path_kv_abuse_assignments,
+            'app_role_assignments': app_role_assignments,
+            'app_api_permission_assignments': app_api_permission_assignments,
+            'vm_contributor_assignments': vm_contributor_assignments,
+            'group_assignments': group_assignments,
+            'group_membership_assignments': group_membership_assignments
+        }
     
     def create_storage_certificate_theft(
         self,
@@ -482,7 +709,7 @@ class AttackPathManager:
         entities: Optional[Dict] = None,
         path_name: Optional[str] = None,
         used_apps: Optional[set] = None
-    ) -> Tuple[Dict, Dict, Dict, Dict]:
+    ) -> Dict:
         """
         Create Storage Certificate Theft attack path.
         
@@ -501,8 +728,13 @@ class AttackPathManager:
             path_name: Attack path name (used for targeted mode)
         
         Returns:
-            Tuple of (storage_abuse_assignments, app_role_assignments,
-                     app_api_permission_assignments, vm_contributor_assignments)
+            Dictionary with keys:
+                - storage_abuse_assignments: Storage abuse assignments
+                - app_role_assignments: Application role assignments
+                - app_api_permission_assignments: API permission assignments
+                - vm_contributor_assignments: VM contributor assignments (empty)
+                - group_assignments: Groups to create for indirect assignment
+                - group_membership_assignments: Group membership assignments
         """
         # Validate identity_type
         identity_type = attack_config.get('identity_type', 'user')
@@ -516,6 +748,11 @@ class AttackPathManager:
         app_role_assignments = {}
         app_api_permission_assignments = {}
         vm_contributor_assignments = {}
+        group_assignments = {}
+        group_membership_assignments = {}
+        
+        # Get assignment_type from config
+        assignment_type = attack_config.get('assignment_type', 'direct')
         
         # Generate attack path key
         attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
@@ -543,7 +780,8 @@ class AttackPathManager:
         # Generate certificate
         cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
         
-        attack_path_storage_abuse_assignments[key] = {
+        # Create storage abuse assignment
+        storage_abuse_assignment = {
             "app_name": app_name,
             "storage_account": sa_name,
             "identity_type": identity_type,
@@ -553,18 +791,46 @@ class AttackPathManager:
             'pfx_path': pfx_path
         }
         
+        # Handle group-based assignment for Storage Account access
+        if assignment_type == 'group':
+            # Generate a dedicated group for this attack path
+            group_spec = self.entity_generator.generate_attack_path_group()
+            group_name = group_spec['display_name']
+            
+            # Add group to be created
+            group_assignments[group_name] = group_spec
+            
+            # Add principal to group
+            group_membership_assignments[key] = {
+                'group_name': group_name,
+                'identity_type': identity_type,
+                'principal_name': principal_name
+            }
+            
+            # Update storage abuse assignment with group info
+            storage_abuse_assignment['assignment_type'] = 'group'
+            storage_abuse_assignment['group_name'] = group_name
+            storage_abuse_assignment['original_principal'] = principal_name
+            storage_abuse_assignment['original_identity_type'] = identity_type
+        else:
+            storage_abuse_assignment['assignment_type'] = 'direct'
+        
+        attack_path_storage_abuse_assignments[key] = storage_abuse_assignment
+        
         # Assign privileges
         self._assign_app_privileges(
             attack_config, app_name, key,
             app_role_assignments, app_api_permission_assignments
         )
         
-        return (
-            attack_path_storage_abuse_assignments,
-            app_role_assignments,
-            app_api_permission_assignments,
-            vm_contributor_assignments
-        )
+        return {
+            'storage_abuse_assignments': attack_path_storage_abuse_assignments,
+            'app_role_assignments': app_role_assignments,
+            'app_api_permission_assignments': app_api_permission_assignments,
+            'vm_contributor_assignments': vm_contributor_assignments,
+            'group_assignments': group_assignments,
+            'group_membership_assignments': group_membership_assignments
+        }
     
     # ========================================================================
     # Random Mode Entity Selection

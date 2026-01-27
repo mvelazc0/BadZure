@@ -17,13 +17,20 @@ class AssignmentManager:
         groups: Dict,
         administrative_units: Dict,
         applications: Dict,
-        show_warnings: bool = True
+        show_warnings: bool = True,
+        attack_path_groups: set = None
     ) -> tuple:
         """
         Create random assignments between entities.
         
         Args:
+            users: Dictionary of users
+            groups: Dictionary of groups
+            administrative_units: Dictionary of administrative units
+            applications: Dictionary of applications
             show_warnings: If False, suppress warnings about missing entities
+            attack_path_groups: Set of group names reserved for attack paths.
+                               These groups will NOT receive random user assignments.
         
         Returns:
             Tuple of (user_group_assignments, user_au_assignments,
@@ -36,8 +43,13 @@ class AssignmentManager:
         app_role_assignments = {}
         app_api_permission_assignments = {}
         
+        # Initialize attack_path_groups if not provided
+        attack_path_groups = attack_path_groups or set()
+        
         user_keys = list(users.keys())
-        group_keys = list(groups.keys())
+        # Filter out attack path groups from random assignment
+        available_groups = {k: v for k, v in groups.items() if k not in attack_path_groups}
+        group_keys = list(available_groups.keys())
         au_keys = list(administrative_units.keys())
         app_keys = list(applications.keys())
         
@@ -45,8 +57,8 @@ class AssignmentManager:
         # Set to 0 if no users exist to prevent sampling from empty list
         user_subset_size = max(1, len(user_keys) // 3) if user_keys else 0
         
-        # User to group assignments
-        if groups and user_keys:
+        # User to group assignments (only to non-attack-path groups)
+        if group_keys and user_keys:
             group_assigned_users = random.sample(user_keys, user_subset_size)
             for user in group_assigned_users:
                 group = random.choice(group_keys)
@@ -55,9 +67,15 @@ class AssignmentManager:
                     'user_name': user,
                     'group_name': group
                 }
+        elif groups and not group_keys and user_keys and show_warnings:
+            # All groups are attack path groups - no random assignment possible
+            logging.info(
+                f"All {len(groups)} group(s) are reserved for attack paths. "
+                f"No random user-to-group assignments will be created."
+            )
         elif groups and not user_keys and show_warnings:
             logging.warning(
-                f"Cannot assign users to {len(groups)} group(s): No users available. "
+                f"Cannot assign users to {len(available_groups)} group(s): No users available. "
                 f"Set 'users' to at least 1 in tenant configuration."
             )
         

@@ -2592,3 +2592,12 @@ TECHNIQUES_USER_ONLY = [
     'ApplicationOwnershipAbuse',
     'ApplicationAdministratorAbuse'
 ]
+
+# ============================================================================
+# Assignment Type Constants
+# ============================================================================
+
+# Valid assignment types for attack paths
+# - direct: Permission assigned directly to the identity (default)
+# - group: Permission assigned to a group, identity added as member
+VALID_ASSIGNMENT_TYPES = ['direct', 'group']

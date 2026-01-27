@@ -30,7 +30,8 @@ variable "users" {
 variable "groups" {
   description = "A map of groups to create"
   type = map(object({
-    display_name = string
+    display_name         = string
+    is_attack_path_group = optional(bool, false)  # If true, group will be role-assignable for Entra ID roles
   }))
 }
 
@@ -206,21 +207,30 @@ variable "function_apps" {
 
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
-    key_vault       = string
-    identity_type   = string  # Options: "user", "service_principal"
-    principal_name  = string  # Name of the principal
-    app_name        = string  # The application to which a secret will be added
+    key_vault              = string
+    identity_type          = string  # Options: "user", "service_principal"
+    principal_name         = string  # Name of the principal
+    app_name               = string  # The application to which a secret will be added
+    assignment_type        = optional(string, "direct")  # "direct" or "group"
+    group_name             = optional(string, "")  # Group name for indirect assignment
+    original_principal     = optional(string, "")  # Original principal for group assignment
+    original_identity_type = optional(string, "")  # Original identity type for group assignment
   }))
 }
 
 variable "attack_path_storage_abuse_assignments" {
   type = map(object({
-    app_name         = string
-    certificate_path = string
-    private_key_path = string
-    storage_account  = string
-    identity_type    = string  # Options: "user", "service_principal"
-    principal_name   = string  # Name of the principal
+    app_name               = string
+    certificate_path       = string
+    private_key_path       = string
+    storage_account        = string
+    identity_type          = string  # Options: "user", "service_principal"
+    principal_name         = string  # Name of the principal
+    assignment_type        = optional(string, "direct")  # "direct" or "group"
+    group_name             = optional(string, "")  # Group name for indirect assignment
+    original_principal     = optional(string, "")  # Original principal for group assignment
+    original_identity_type = optional(string, "")  # Original identity type for group assignment
+    pfx_path               = optional(string, "")  # PFX file path for convenient authentication
   }))
 }
 
@@ -242,6 +252,10 @@ variable "attack_path_managed_identity_theft_assignments" {
     pfx_path                 = optional(string, "")  # PFX file path for convenient authentication
     credential_type          = optional(string, "secret")  # "secret" or "certificate" (only for key_vault targets)
     os_type                  = optional(string, "linux")  # OS type for function_app source type
+    assignment_type          = optional(string, "direct")  # "direct" or "group" for indirect assignment
+    group_name               = optional(string, "")  # Group name for indirect assignment
+    original_principal       = optional(string, "")  # Original principal for group assignment
+    original_identity_type   = optional(string, "")  # Original identity type for group assignment
   }))
 }
 
@@ -251,5 +265,15 @@ variable "attack_path_vm_contributor_assignments" {
   type = map(object({
     user_name        = string
     virtual_machine  = string
+  }))
+}
+
+variable "attack_path_group_memberships" {
+  description = "A map of group memberships for attack path groups (indirect assignment)"
+  default = {}
+  type = map(object({
+    group_name     = string  # Name of the attack path group
+    identity_type  = string  # "user" or "service_principal"
+    principal_name = string  # Name of the user or service principal to add to the group
   }))
 }

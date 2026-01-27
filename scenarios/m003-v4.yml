@@ -1,9 +1,9 @@
 mode: targeted
 
 tenant:
-  tenant_id: 3d1aa531-a601-4caf-998b-6ae650da6eb0
-  domain: purplelabz.onmicrosoft.com
-  subscription_id: 379728ca-2448-49bd-82cd-4910d1a52d65
+  tenant_id: 
+  domain: 
+  subscription_id: 
 
 attack_paths:
   email_exfiltration_via_mi:

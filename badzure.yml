@@ -33,7 +33,7 @@ tenant:
 # Attack Path Examples
 # =============================================================================
 # Each attack path demonstrates a different privilege escalation technique.
-# Enable/disable attack paths by setting 'enabled: false/false'
+# Enable/disable attack paths by setting 'enabled: true/false'
 #
 # Supported Techniques:
 #   - ApplicationOwnershipAbuse: Exploit application ownership
@@ -45,6 +45,11 @@ tenant:
 # Identity Types:
 #   - user: Regular user account (default)
 #   - service_principal: Application service principal
+#
+# Assignment Types:
+#   - direct: Permissions assigned directly to identity (default)
+#   - group: Permissions assigned via security group membership
+#           Creates more realistic attack scenarios that mirror enterprise configs
 #
 # Methods:
 #   - AzureADRole: Assign Entra ID directory roles
@@ -252,3 +257,20 @@ attack_paths:
     credential_type: certificate
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example 13: Group-based assignment - permissions inherited via group membership
+  # Attack: User is member of group with VM Contributor, extracts MI token
+  # Note: assignment_type: group creates more realistic attack scenarios that
+  #       mirror enterprise configurations where permissions are managed via groups
+  mi_theft_vm_group:
+    enabled: false
+    initial_access: password
+    privilege_escalation: ManagedIdentityTheft
+    source_type: vm
+    target_resource_type: key_vault
+    identity_type: user
+    entry_point: compromised_identity
+    assignment_type: group  # User inherits VM Contributor through group membership
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
