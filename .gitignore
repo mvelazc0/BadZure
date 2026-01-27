@@ -145,3 +145,5 @@ tokens.txt
 *.pem
 *.key
 *.pfx
+
+.plans/
