@@ -42,6 +42,7 @@ identity_type: user | service_principal  # Type of identity that owns the applic
 method: AzureADRole | APIPermission
 scenario: direct | helpdesk  # helpdesk only available with identity_type: user
 initial_access: password | token
+entry_point: compromised_identity  # Default, how attacker gains initial access
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
 app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
@@ -93,6 +94,7 @@ privilege_escalation: ApplicationAdministratorAbuse
 identity_type: user | service_principal  # Type of identity with Application Administrator role
 method: AzureADRole | APIPermission
 initial_access: password | token
+entry_point: compromised_identity  # Default, how attacker gains initial access
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
 app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
@@ -121,14 +123,18 @@ api_type: graph | exchange  # Only for APIPermission method
 - The Azure resource has a system-assigned managed identity with permissions to access other cloud resources
 - The attacker leverages their access to the source resource to extract the managed identity token
 - The attacker uses the stolen managed identity token to access the target resource (Key Vault or Storage Account)
-- The attacker retrieves application credentials from the target resource
+- The attacker retrieves application credentials (secrets or certificates) from the target resource
 - The application has high-privileged permissions that enable further privilege escalation
 
 **Technical Implementation**:
 - Creates an Azure resource with system-assigned managed identity
-- Assigns the initial access principal (user or service principal) appropriate Contributor role on the resource (VM Contributor, Logic App Contributor, Automation Contributor, or Website Contributor)
+- Assigns the initial access principal (user or service principal) appropriate Contributor role on the resource:
+  - VM Contributor for Virtual Machines
+  - Logic App Contributor for Logic Apps
+  - Automation Contributor for Automation Accounts
+  - Website Contributor for Function Apps
 - Grants the managed identity access to target resources (Key Vault or Storage Account)
-- Stores application credentials in the target resource
+- Stores application credentials (secrets or certificates) in the target resource
 - Configures the target application with high-privileged Azure AD roles or API permissions
 
 **Source Types**:
@@ -136,10 +142,15 @@ api_type: graph | exchange  # Only for APIPermission method
 - **logic_app**: Logic App with system-assigned managed identity (requires Logic App Contributor role)
 - **automation_account**: Automation Account with system-assigned managed identity (requires Automation Contributor role)
 - **function_app**: Function App with system-assigned managed identity (requires Website Contributor role)
+  - **Note**: Function Apps use Linux OS with Python runtime
 
 **Target Resource Types**:
-- **key_vault**: Managed identity has Key Vault Contributor access to retrieve secrets
+- **key_vault**: Managed identity has Key Vault Contributor access to retrieve secrets or certificates
 - **storage_account**: Managed identity has Storage Blob Data Reader access to retrieve certificates
+
+**Credential Types**:
+- **secret** (default): Application uses client ID and secret for authentication
+- **certificate**: Application uses certificate-based authentication (more secure, harder to detect)
 
 **Identity Types**:
 - **user**: Regular user account with Contributor access to the source resource (default)
@@ -155,6 +166,7 @@ source_type: vm | logic_app | automation_account | function_app
 target_resource_type: key_vault | storage_account
 entry_point: compromised_identity  # How attacker gains initial access
 identity_type: user | service_principal  # Type of initial access principal
+credential_type: secret | certificate  # Type of credential stored in target resource
 method: AzureADRole | APIPermission
 initial_access: password | token
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
@@ -170,7 +182,13 @@ api_type: graph | exchange  # Only for APIPermission method
 
 3. **Automation Account**: Attacker with Automation Contributor can create or modify runbooks to extract managed identity tokens and execute arbitrary code in the automation context.
 
-4. **Function App**: Attacker with Website Contributor can modify function code or configuration to extract managed identity tokens through the IMDS endpoint.
+4. **Function App**: Attacker with Website Contributor can modify function code or configuration to extract managed identity tokens through the IMDS endpoint. Function Apps are deployed with Linux OS and Python runtime.
+
+**Attack Variations by Credential Type**:
+
+1. **Secret** (default): Application credentials stored as client ID and secret. Easier to implement but secrets can be logged or cached.
+
+2. **Certificate**: Application credentials stored as X.509 certificates with private keys. More secure and harder to detect in logs, but requires certificate management.
 
 **Attack Variations by Identity Type**:
 
@@ -214,6 +232,7 @@ privilege_escalation: KeyVaultSecretTheft
 identity_type: user | service_principal
 method: AzureADRole | APIPermission
 initial_access: password | token
+entry_point: compromised_identity  # Default, how attacker gains initial access
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
 app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
@@ -263,6 +282,7 @@ privilege_escalation: StorageCertificateTheft
 identity_type: user | service_principal
 method: AzureADRole | APIPermission
 initial_access: password | token
+entry_point: compromised_identity  # Default, how attacker gains initial access
 entra_role: <role_id> | random | [<role_id1>, <role_id2>]
 app_role: <permission_id> | random | [<permission_id1>, <permission_id2>]
 api_type: graph | exchange  # Only for APIPermission method
@@ -322,5 +342,40 @@ api_type: graph | exchange  # Only for APIPermission method
 - Provides direct access to Exchange Online mailboxes and configuration
 - Useful for testing email-based attack scenarios
 - Includes permissions like full mailbox access and Exchange management
+
+## Entry Point Types
+
+BadZure uses the `entry_point` parameter to define how an attacker gains initial access to the environment. This parameter is available for all attack paths.
+
+### compromised_identity (Default)
+
+Simulates scenarios where an attacker has compromised a user account or service principal through:
+- Credential stuffing or password spraying
+- Phishing attacks
+- Token theft (reverse proxy phishing, endpoint malware, device code phishing)
+- Leaked credentials in code repositories or configuration files
+
+When using `entry_point: compromised_identity`, you must also specify:
+- `identity_type`: user or service_principal
+- `initial_access`: password or token
+
+**Example**:
+```yaml
+attack_path_1:
+  enabled: true
+  privilege_escalation: ApplicationOwnershipAbuse
+  entry_point: compromised_identity  # Default
+  identity_type: user
+  initial_access: password
+```
+
+### Future Entry Points
+
+Additional entry points may be added in future versions, such as:
+- `vulnerability`: Exploiting a vulnerability in an Azure resource
+- `insider_threat`: Simulating malicious insider scenarios
+- `supply_chain`: Compromised third-party integrations
+
+---
 
 Organizations can use these attack paths to validate their security controls, detection capabilities, and incident response procedures in a controlled environment.

@@ -4,6 +4,58 @@
 
 BadZure uses a YAML configuration file to define the setup of Entra ID tenants and Azure subscriptions, including the number of users, groups, applications, administrative units, Azure resources, and attack paths. This guide will help you understand the structure and options available in the YAML configuration file.
 
+## Configuration Modes
+
+BadZure supports two configuration modes:
+
+### Random Mode (Default)
+
+In random mode, BadZure automatically generates the specified number of entities and randomly assigns them to attack paths. This mode is ideal for quick testing and creating diverse environments.
+
+**Configuration**:
+```yaml
+# No mode specified = random mode (default)
+tenant:
+  users: 30
+  applications: 10
+  groups: 10
+  
+attack_paths:
+  attack_path_1:
+    enabled: true
+    privilege_escalation: ApplicationOwnershipAbuse
+    method: AzureADRole
+    entra_role: random
+```
+
+### Targeted Mode
+
+In targeted mode, you specify exact entities for each attack path. This mode provides precise control over the environment configuration.
+
+**Configuration**:
+```yaml
+mode: targeted  # Explicitly set targeted mode
+
+attack_paths:
+  attack_path_1:
+    enabled: true
+    privilege_escalation: ApplicationOwnershipAbuse
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    entities:
+      users:
+        - name: john.doe
+      applications:
+        - name: TargetApp
+      resource_groups:
+        - name: rg-target
+```
+
+**Entity Specification**:
+- Use `name: specific-name` to create an entity with that exact name
+- Use `name: random` to let BadZure generate a random name
+- Entities are shared across attack paths if they have the same name
+
 ## Example Configuration
 
 ```yaml
@@ -116,6 +168,10 @@ The `attack_paths` section defines different attack paths to simulate within the
   - **password**: Assigns a password to the user for initial access, simulating scenarios where an attacker has obtained valid credentials.
   - **token**: Generates JWT access tokens for initial access, simulating scenarios where an attacker uses stolen tokens.
 
+- **entry_point**: How the attacker gains initial access (optional, defaults to `compromised_identity`).
+  - **compromised_identity**: The attacker has compromised a user or service principal through credential theft, phishing, or token theft.
+  - **Note**: Additional entry points may be added in future versions.
+
 - **scenario**: The scenario type (optional, only for ApplicationOwnershipAbuse with identity_type: user).
   - **direct**: The user directly owns the application.
   - **helpdesk**: The user has Helpdesk Administrator role and can reset the application owner's password.
@@ -157,11 +213,17 @@ For **ManagedIdentityTheft** attack paths, specify the source and target resourc
   - **vm**: A VM with system-assigned managed identity (requires VM Contributor role).
   - **logic_app**: A Logic App with system-assigned managed identity (requires Logic App Contributor role).
   - **automation_account**: An Automation Account with system-assigned managed identity (requires Automation Contributor role).
-  - **function_app**: A Function App with system-assigned managed identity (requires Website Contributor role). Note: Function Apps use Linux/Python runtime.
+  - **function_app**: A Function App with system-assigned managed identity (requires Website Contributor role).
+    - **Note**: Function Apps use Linux OS with Python runtime.
 
 - **target_resource_type**: The type of resource the managed identity can access:
-  - **key_vault**: Managed identity has access to Key Vault secrets.
+  - **key_vault**: Managed identity has access to Key Vault secrets or certificates.
   - **storage_account**: Managed identity has access to Storage Account certificates.
+
+- **credential_type**: The type of credential stored in the target resource (optional, defaults to `secret`):
+  - **secret**: Application uses client ID and secret for authentication (default).
+  - **certificate**: Application uses certificate-based authentication (more secure, harder to detect).
+  - **Note**: Applies to both key_vault and storage_account target types.
 
 - **entry_point**: How the attacker gains initial access (optional, defaults to `compromised_identity`):
   - **compromised_identity**: The attacker has compromised a user or service principal with Contributor access to the source resource.
@@ -264,12 +326,29 @@ Simulates an attacker who exploits access to Azure resources with managed identi
 **Optional fields:**
 - `entry_point`: compromised_identity (default) - how the attacker gains initial access
 - `identity_type`: user (default) or service_principal - the type of identity with Contributor access
+- `credential_type`: secret (default) or certificate - the type of credential stored in target resource
 
 **Supported Source Types:**
 - `vm`: Virtual Machine with VM Contributor role
 - `logic_app`: Logic App with Logic App Contributor role
 - `automation_account`: Automation Account with Automation Contributor role
 - `function_app`: Function App with Website Contributor role (Linux/Python runtime)
+
+**Example with certificate-based credentials:**
+```yaml
+attack_path_mi_cert:
+  enabled: true
+  initial_access: password
+  privilege_escalation: ManagedIdentityTheft
+  source_type: function_app
+  target_resource_type: key_vault
+  entry_point: compromised_identity
+  identity_type: user
+  credential_type: certificate  # Use certificate instead of secret
+  method: APIPermission
+  api_type: graph
+  app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
+```
 
 **Example with service principal initial access:**
 ```yaml
@@ -281,6 +360,7 @@ attack_path_mi_sp:
   target_resource_type: key_vault
   entry_point: compromised_identity
   identity_type: service_principal
+  credential_type: secret  # Default
   method: APIPermission
   api_type: graph
   app_role: 06b708a9-e830-4db3-a914-8e69da51d44f

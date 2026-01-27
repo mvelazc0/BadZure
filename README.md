@@ -46,7 +46,10 @@ BadZure supports five distinct privilege escalation attack paths that introduce 
 ### Identity-Based Privilege Escalation
 - **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to owned applications with high privileges
 - **ApplicationAdministratorAbuse**: Exploits the Application Administrator Entra ID role to manage any application and add credentials to privileged applications
-- **ManagedIdentityTheft**: Exploits access to Azure resources with managed identities to steal identity tokens and pivot to other cloud resources
+- **ManagedIdentityTheft**: Exploits access to Azure resources (VMs, Logic Apps, Automation Accounts, Function Apps) with managed identities to steal identity tokens and pivot to other cloud resources
+  - **Supported Sources**: Virtual Machines, Logic Apps, Automation Accounts, Function Apps (Linux/Python)
+  - **Supported Targets**: Key Vault, Storage Account
+  - **Credential Types**: Secrets (default) or certificates
 
 ### Resource-Based Privilege Escalation
 - **KeyVaultSecretTheft**: Direct privilege escalation through Azure Key Vault access to retrieve application secrets

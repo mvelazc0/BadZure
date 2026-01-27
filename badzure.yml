@@ -211,3 +211,44 @@ attack_paths:
     entry_point: compromised_identity
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example 10: Function App with certificate-based credentials
+  # Attack: Modify Function App code to extract MI token, retrieve certificates from Key Vault
+  mi_theft_functionapp_cert:
+    enabled: false
+    initial_access: password
+    privilege_escalation: ManagedIdentityTheft
+    source_type: function_app
+    target_resource_type: key_vault
+    identity_type: user
+    entry_point: compromised_identity
+    credential_type: certificate  # Use certificate instead of secret
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+
+  # Example 11: Service principal with Exchange full mailbox access
+  # Attack: Compromised automation SP accesses all mailboxes via Exchange API
+  app_ownership_sp_exchange:
+    enabled: false
+    initial_access: token
+    privilege_escalation: ApplicationOwnershipAbuse
+    identity_type: service_principal
+    entry_point: compromised_identity
+    method: APIPermission
+    api_type: exchange
+    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
+
+  # Example 12: Automation Account MI steals certificates from storage
+  # Attack: Modify runbook to extract MI token, download certs from blob storage
+  mi_theft_automation_storage:
+    enabled: false
+    initial_access: password
+    privilege_escalation: ManagedIdentityTheft
+    source_type: automation_account
+    target_resource_type: storage_account
+    identity_type: user
+    entry_point: compromised_identity
+    credential_type: certificate
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
