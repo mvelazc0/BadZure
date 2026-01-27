@@ -65,9 +65,12 @@ class BuildCommand:
         azure_config_dir = os.path.expanduser('~/.azure')
         os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
         
-        tenant_id = config['tenant']['tenant_id']
-        subscription_id = config['tenant']['subscription_id']
-        domain = config['tenant']['domain']
+        # Resolve tenant config with environment variable fallback
+        try:
+            tenant_id, domain, subscription_id = self.config_mgr.resolve_tenant_config(config)
+        except ValueError as e:
+            logging.error(str(e))
+            return
         
         max_users = config['tenant']['users']
         max_groups = config['tenant']['groups']
@@ -354,9 +357,13 @@ class BuildCommand:
         azure_config_dir = os.path.expanduser('~/.azure')
         os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
         
-        tenant_id = config['tenant']['tenant_id']
-        subscription_id = config['tenant']['subscription_id']
-        domain = config['tenant']['domain']
+        # Resolve tenant config with environment variable fallback
+        try:
+            tenant_id, domain, subscription_id = self.config_mgr.resolve_tenant_config(config)
+        except ValueError as e:
+            logging.error(str(e))
+            return
+        
         public_ip = utils.get_public_ip()
         
         # Collect entities from attack paths

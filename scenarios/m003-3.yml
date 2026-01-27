@@ -1,0 +1,34 @@
+mode: targeted
+
+tenant:
+  tenant_id: 
+  domain: 
+  subscription_id: 
+
+attack_paths:
+  email_exfiltration_via_mi:
+    enabled: true
+    initial_access: token
+    privilege_escalation: ManagedIdentityTheft
+    source_type: vm
+    target_resource_type: key_vault
+    credential_type: secret
+    entry_point: compromised_identity
+    identity_type: service_principal         # First SP has VM Contributor role
+    method: APIPermission
+    api_type: exchange
+    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
+    entities:
+      resource_groups:
+        - name: m003_v3
+      applications:
+        - name: AdminExchange  # Second app (full_access_as_app - credentials in KV)
+        - name: InitialRandomApp  # First app (VM Contributor - initial access)
+      key_vaults:
+        - name: superkvz0033
+          resource_group: m003_v3  # ADD THIS LINE - required for targeted mode
+      virtual_machines:
+        - name: test-m003-vm
+          os_type: Windows
+          resource_group: m003_v3
+ 

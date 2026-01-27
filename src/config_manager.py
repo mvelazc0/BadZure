@@ -2,9 +2,10 @@
 Configuration management for BadZure.
 Handles loading and validation of YAML configuration files.
 """
+import os
 import yaml
 import logging
-from typing import Dict, List, Tuple
+from typing import Dict, List, Tuple, Optional
 from src.constants import (
     API_REGISTRY,
     ALL_API_PERMISSIONS,
@@ -15,6 +16,11 @@ from src.constants import (
     MI_TARGET_RESOURCE_TYPES,
     FUNCTION_APP_OS_TYPES
 )
+
+# Environment variable names for tenant configuration
+ENV_TENANT_ID = 'BADZURE_TENANT_ID'
+ENV_DOMAIN = 'BADZURE_DOMAIN'
+ENV_SUBSCRIPTION_ID = 'BADZURE_SUBSCRIPTION_ID'
 
 
 class ConfigManager:
@@ -244,8 +250,12 @@ class ConfigManager:
         """Validate Managed Identity Theft configuration."""
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ManagedIdentityTheft requires at least one application")
-        if 'users' not in entities or not entities['users']:
-            errors.append(f"{path_name}: ManagedIdentityTheft requires at least one user for Contributor access")
+        
+        # Only require user if identity_type is 'user' (or not specified, defaulting to user)
+        identity_type = path_config.get('identity_type', 'user')
+        if identity_type == 'user' and ('users' not in entities or not entities['users']):
+            errors.append(f"{path_name}: ManagedIdentityTheft with identity_type 'user' requires at least one user for Contributor access")
+        
         if 'resource_groups' not in entities or not entities['resource_groups']:
             errors.append(f"{path_name}: ManagedIdentityTheft requires at least one resource_group")
         
@@ -356,3 +366,56 @@ class ConfigManager:
             )
         
         return len(errors) == 0, errors
+    
+    def resolve_tenant_config(self, config: Dict) -> Tuple[str, str, str]:
+        """
+        Resolve tenant configuration values with environment variable fallback.
+        
+        Priority order:
+        1. Environment variables (BADZURE_TENANT_ID, BADZURE_DOMAIN, BADZURE_SUBSCRIPTION_ID)
+        2. YAML configuration values
+        
+        Args:
+            config: Configuration dictionary loaded from YAML
+            
+        Returns:
+            Tuple of (tenant_id, domain, subscription_id)
+            
+        Raises:
+            ValueError: If any required value is missing from both env vars and YAML
+        """
+        tenant_config = config.get('tenant', {})
+        
+        # Resolve tenant_id
+        tenant_id = os.environ.get(ENV_TENANT_ID) or tenant_config.get('tenant_id')
+        if not tenant_id:
+            raise ValueError(
+                f"tenant_id is required. Set {ENV_TENANT_ID} environment variable "
+                "or specify 'tenant_id' in the YAML configuration."
+            )
+        
+        # Resolve domain
+        domain = os.environ.get(ENV_DOMAIN) or tenant_config.get('domain')
+        if not domain:
+            raise ValueError(
+                f"domain is required. Set {ENV_DOMAIN} environment variable "
+                "or specify 'domain' in the YAML configuration."
+            )
+        
+        # Resolve subscription_id
+        subscription_id = os.environ.get(ENV_SUBSCRIPTION_ID) or tenant_config.get('subscription_id')
+        if not subscription_id:
+            raise ValueError(
+                f"subscription_id is required. Set {ENV_SUBSCRIPTION_ID} environment variable "
+                "or specify 'subscription_id' in the YAML configuration."
+            )
+        
+        # Log which source was used for each value
+        if os.environ.get(ENV_TENANT_ID):
+            logging.info(f"Using tenant_id from {ENV_TENANT_ID} environment variable")
+        if os.environ.get(ENV_DOMAIN):
+            logging.info(f"Using domain from {ENV_DOMAIN} environment variable")
+        if os.environ.get(ENV_SUBSCRIPTION_ID):
+            logging.info(f"Using subscription_id from {ENV_SUBSCRIPTION_ID} environment variable")
+        
+        return tenant_id, domain, subscription_id

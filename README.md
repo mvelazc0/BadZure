@@ -170,6 +170,7 @@ For more details on the configuration options, please refer to the [Wiki](https:
 ## Contributors
 
 * [Chan Huan Jun](https://www.linkedin.com/in/chan-huan-jun-50a704115/) 
+* [Manuel Melendez](https://www.linkedin.com/in/manuel-melendez-b62298238/) 
 
 ## References
 

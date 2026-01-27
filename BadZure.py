@@ -1,8 +1,8 @@
 """
 BadZure - Automated Azure Attack Path Deployment Tool
 
-A Python tool that utilizes Terraform to automate the setup of Entra ID tenants 
-and Azure subscriptions, populating them with various entities and introducing common 
+A Python tool that utilizes Terraform to automate the setup of Entra ID tenants
+and Azure subscriptions, populating them with various entities and introducing common
 security misconfigurations to create vulnerable tenants with multiple attack paths.
 
 Author: Mauricio Velazco (@mvelazco)
@@ -11,6 +11,14 @@ import os
 import click
 import logging
 import time
+
+# Load environment variables from .env file if it exists
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass  # python-dotenv not installed, skip loading .env file
+
 from src.cli import BuildCommand, ShowCommand, DestroyCommand
 
 # Ensure AZURE_CONFIG_DIR is set to the Azure CLI config directory
