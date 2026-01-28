@@ -184,6 +184,10 @@ The `attack_paths` section defines different attack paths to simulate within the
   - **KeyVaultSecretTheft**: Retrieves application secrets stored in Azure Key Vault through direct access.
   - **StorageCertificateTheft**: Retrieves application certificates and private keys from Azure Storage through direct access.
 
+- **assignment_type**: How permissions are assigned to the initial access identity (optional, defaults to `direct`).
+  - **direct**: Permissions assigned directly to the identity. The user or service principal has explicit permissions.
+  - **group**: Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates more realistic attack scenarios that mirror enterprise configurations.
+
 - **method**: The method used to assign privileges to applications:
   - **AzureADRole**: Assigns Entra ID roles to applications.
   - **APIPermission**: Assigns API permissions to applications (supports Microsoft Graph and Exchange Online).
@@ -387,3 +391,63 @@ Simulates an attacker with direct access to Azure Storage who retrieves applicat
 - `entra_role` or `app_role`: The privileges assigned to the application
 
 **Note**: For managed identity scenarios, use `ManagedIdentityTheft` with `target_resource_type: storage_account`.
+
+## Group-Based Assignment Examples
+
+All privilege escalation techniques support group-based assignment using the `assignment_type: group` parameter. When using group assignment, permissions are assigned to a security group and the initial access identity is added as a member of that group.
+
+### ManagedIdentityTheft with Group Assignment
+```yaml
+attack_path_mi_group:
+  enabled: true
+  initial_access: password
+  privilege_escalation: ManagedIdentityTheft
+  source_type: vm
+  target_resource_type: key_vault
+  entry_point: compromised_identity
+  identity_type: user
+  assignment_type: group  # User inherits VM Contributor through group membership
+  method: APIPermission
+  api_type: graph
+  app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
+```
+
+### ApplicationOwnershipAbuse with Group Assignment
+```yaml
+attack_path_owner_group:
+  enabled: true
+  initial_access: token
+  privilege_escalation: ApplicationOwnershipAbuse
+  identity_type: service_principal
+  assignment_type: group  # Service principal is member of group that owns the application
+  method: AzureADRole
+  entra_role: e8611ab8-c189-46e8-94e1-60213ab1f814
+```
+
+### ApplicationAdministratorAbuse with Group Assignment
+```yaml
+attack_path_admin_group:
+  enabled: true
+  initial_access: password
+  privilege_escalation: ApplicationAdministratorAbuse
+  identity_type: user
+  assignment_type: group  # User inherits Application Administrator role through group membership
+  method: APIPermission
+  api_type: graph
+  app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+```
+
+### KeyVaultSecretTheft with Group Assignment
+```yaml
+attack_path_kv_group:
+  enabled: true
+  initial_access: password
+  privilege_escalation: KeyVaultSecretTheft
+  identity_type: user
+  assignment_type: group  # User inherits Key Vault Contributor through group membership
+  method: APIPermission
+  api_type: graph
+  app_role: random
+```
+
+**Note**: Groups created for attack paths use realistic names from the `entity_data/group-names.txt` file (e.g., "IT Security", "Cloud Infrastructure", "DevOps") with a random suffix for uniqueness.

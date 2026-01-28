@@ -14,7 +14,8 @@ from src.constants import (
     VALID_TECHNIQUES,
     MANAGED_IDENTITY_SOURCE_TYPES,
     MI_TARGET_RESOURCE_TYPES,
-    FUNCTION_APP_OS_TYPES
+    FUNCTION_APP_OS_TYPES,
+    VALID_ASSIGNMENT_TYPES
 )
 
 # Environment variable names for tenant configuration
@@ -106,6 +107,9 @@ class ConfigManager:
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ApplicationOwnershipAbuse requires at least one application")
         
+        # Validate assignment_type parameter
+        self._validate_assignment_type(path_name, path_config, errors)
+        
         # Validate method and related parameters
         method = path_config.get('method')
         if not method:
@@ -127,6 +131,9 @@ class ConfigManager:
             errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one user")
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one application")
+        
+        # Validate assignment_type parameter
+        self._validate_assignment_type(path_name, path_config, errors)
         
         # Validate method and related parameters
         method = path_config.get('method')
@@ -214,6 +221,22 @@ class ConfigManager:
                 api_name = API_REGISTRY[api_type]['display_name']
                 errors.append(f"{path_name}: Invalid {api_name} permission ID format '{perm_id}'. Must be a valid UUID.")
     
+    def _validate_assignment_type(self, path_name: str, path_config: Dict, errors: List[str]) -> None:
+        """
+        Validate assignment_type parameter for attack paths.
+        
+        Args:
+            path_name: Name of the attack path for error messages
+            path_config: Attack path configuration dictionary
+            errors: List to append error messages to
+        """
+        assignment_type = path_config.get('assignment_type', 'direct')
+        if assignment_type not in VALID_ASSIGNMENT_TYPES:
+            errors.append(
+                f"{path_name}: Invalid assignment_type '{assignment_type}'. "
+                f"Must be one of: {', '.join(VALID_ASSIGNMENT_TYPES)}"
+            )
+    
     def _validate_kv_secret_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Key Vault Secret Theft configuration."""
         if 'applications' not in entities or not entities['applications']:
@@ -222,6 +245,9 @@ class ConfigManager:
             errors.append(f"{path_name}: KeyVaultSecretTheft requires at least one key_vault")
         if 'resource_groups' not in entities or not entities['resource_groups']:
             errors.append(f"{path_name}: KeyVaultSecretTheft requires at least one resource_group")
+        
+        # Validate assignment_type parameter
+        self._validate_assignment_type(path_name, path_config, errors)
         
         # Validate principal_type requirements (only user and service_principal supported)
         principal_type = path_config.get('principal_type', 'user')
@@ -238,6 +264,9 @@ class ConfigManager:
             errors.append(f"{path_name}: StorageCertificateTheft requires at least one storage_account")
         if 'resource_groups' not in entities or not entities['resource_groups']:
             errors.append(f"{path_name}: StorageCertificateTheft requires at least one resource_group")
+        
+        # Validate assignment_type parameter
+        self._validate_assignment_type(path_name, path_config, errors)
             
         # Validate principal_type requirements (only user and service_principal supported)
         principal_type = path_config.get('principal_type', 'user')
@@ -258,6 +287,9 @@ class ConfigManager:
         
         if 'resource_groups' not in entities or not entities['resource_groups']:
             errors.append(f"{path_name}: ManagedIdentityTheft requires at least one resource_group")
+        
+        # Validate assignment_type parameter
+        self._validate_assignment_type(path_name, path_config, errors)
         
         # Validate source_type parameter
         source_type = path_config.get('source_type')

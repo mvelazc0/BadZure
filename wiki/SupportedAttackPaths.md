@@ -378,4 +378,59 @@ Additional entry points may be added in future versions, such as:
 
 ---
 
+## Assignment Types
+
+BadZure supports two assignment types that control how permissions are granted to the initial access identity:
+
+### direct (Default)
+
+Permissions are assigned directly to the initial access identity (user or service principal). This is the traditional approach where the identity has explicit permissions.
+
+**Example**:
+```yaml
+attack_path_1:
+  enabled: true
+  privilege_escalation: ManagedIdentityTheft
+  assignment_type: direct  # Default - can be omitted
+  identity_type: user
+  # User directly has VM Contributor role
+```
+
+### group
+
+Permissions are assigned to a security group, and the initial access identity is added as a member of that group. This creates a more realistic attack scenario where:
+- Permissions are inherited through group membership
+- Attack paths require discovering group memberships to understand privilege chains
+- Mirrors common enterprise configurations
+
+**Example**:
+```yaml
+attack_path_1:
+  enabled: true
+  privilege_escalation: ManagedIdentityTheft
+  assignment_type: group  # Permissions via group membership
+  identity_type: user
+  # User is member of a group that has VM Contributor role
+```
+
+**Attack Chain Visualization**:
+When using group assignment, the attack chain becomes:
+1. Attacker compromises user/service principal
+2. Identity is member of security group
+3. Group has the required permission (e.g., VM Contributor)
+4. Attacker inherits permission through group membership
+
+**Supported Attack Paths**:
+All privilege escalation techniques support group-based assignment:
+- **ApplicationOwnershipAbuse**: Group owns the application
+- **ApplicationAdministratorAbuse**: Group has Application Administrator role
+- **KeyVaultSecretTheft**: Group has Key Vault Contributor role
+- **StorageCertificateTheft**: Group has Storage Blob Data Reader role
+- **ManagedIdentityTheft**: Group has resource Contributor role (VM, Logic App, etc.)
+
+**Group Naming**:
+Groups created for attack paths use realistic names from the `entity_data/group-names.txt` file (e.g., "IT Security", "Cloud Infrastructure", "DevOps") with a random suffix for uniqueness. This makes attack paths more realistic and harder to identify as synthetic.
+
+---
+
 Organizations can use these attack paths to validate their security controls, detection capabilities, and incident response procedures in a controlled environment.

@@ -98,7 +98,21 @@ class OutputFormatter:
                             elif identity_type == 'service_principal':
                                 logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
                         
-                        logging.info(f"Principal Role: Application Administrator")
+                        # Show group assignment details if applicable
+                        assignment_type = assignment.get('assignment_type', 'direct')
+                        if assignment_type == 'group':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Principal Role: Application Administrator (via Group)")
+                        else:
+                            logging.info(f"Principal Role: Application Administrator")
                         
                         # Find target application from app_roles or app_api_permissions
                         if key in attack_path_application_role_assignments:
@@ -128,13 +142,44 @@ class OutputFormatter:
                         identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         key_vault = assignment['key_vault']
+                        assignment_type = assignment.get('assignment_type', 'direct')
                         
                         if identity_type == "user":
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
-                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         elif identity_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                        
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
+                        else:
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                        
+                        # Show target application and privileges
+                        app_name = assignment.get('app_name')
+                        if app_name:
+                            logging.info(f"Target Application: {app_name}")
+                        
+                        # Show what privileges the application has
+                        if key in attack_path_application_role_assignments:
+                            role_info = attack_path_application_role_assignments[key]
+                            role_ids_str = ', '.join(role_info['role_ids'])
+                            logging.info(f"Application Privileges: Entra Role(s) - {role_ids_str}")
+                        elif key in attack_path_app_api_permission_assignments:
+                            perm_info = attack_path_app_api_permission_assignments[key]
+                            api_type = perm_info.get('api_type', 'graph')
+                            api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
+                            perm_ids_str = ', '.join(perm_info['api_permission_ids'])
+                            logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
                         
                         logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
@@ -150,13 +195,44 @@ class OutputFormatter:
                         identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         storage_account = assignment['storage_account']
+                        assignment_type = assignment.get('assignment_type', 'direct')
                         
                         if identity_type == "user":
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
-                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                         elif identity_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                        
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader via Group)")
+                        else:
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
+                        
+                        # Show target application and privileges
+                        app_name = assignment.get('app_name')
+                        if app_name:
+                            logging.info(f"Target Application: {app_name}")
+                        
+                        # Show what privileges the application has
+                        if key in attack_path_application_role_assignments:
+                            role_info = attack_path_application_role_assignments[key]
+                            role_ids_str = ', '.join(role_info['role_ids'])
+                            logging.info(f"Application Privileges: Entra Role(s) - {role_ids_str}")
+                        elif key in attack_path_app_api_permission_assignments:
+                            perm_info = attack_path_app_api_permission_assignments[key]
+                            api_type = perm_info.get('api_type', 'graph')
+                            api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
+                            perm_ids_str = ', '.join(perm_info['api_permission_ids'])
+                            logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
                         
                         logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
@@ -177,6 +253,7 @@ class OutputFormatter:
                         initial_access_principal = assignment.get('initial_access_principal')
                         app_name = assignment.get('app_name')
                         managed_identity_name = assignment.get('managed_identity_name')
+                        assignment_type = assignment.get('assignment_type', 'direct')
                         
                         # Get the appropriate role name based on source type
                         role_name = {
@@ -192,21 +269,34 @@ class OutputFormatter:
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {initial_access_principal}")
                         
-                        # Display source information
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', initial_access_principal)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                        
+                        # Display source information with role (via Group if applicable)
+                        role_suffix = " via Group" if assignment_type == 'group' else ""
                         if source_type == 'vm':
-                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'logic_app':
-                            logging.info(f"Source Resource: Logic App - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Logic App - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'automation_account':
-                            logging.info(f"Source Resource: Automation Account - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Automation Account - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'function_app':
                             # Get OS type from assignment if available
                             os_type = assignment.get('os_type', 'linux')
                             os_display = f" ({os_type.capitalize()})" if os_type else ""
-                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information
@@ -306,7 +396,7 @@ class OutputFormatter:
                 # ApplicationAdministratorAbuse doesn't use app_owners, only user_roles
                 if path_name in user_creds:
                     # Find the matching key in user_roles
-                    for key in assignments.get('user_roles', {}).keys():
+                    for key, assignment in assignments.get('user_roles', {}).items():
                         if path_name in key:
                             logging.info(f"Attack Path ID: {key}")
                             logging.info(f"Privilege Escalation: ApplicationAdministratorAbuse")
@@ -321,7 +411,21 @@ class OutputFormatter:
                             elif identity_type == 'service_principal':
                                 logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
                             
-                            logging.info(f"Principal Role: Application Administrator")
+                            # Show group assignment details if applicable
+                            assignment_type = assignment.get('assignment_type', 'direct')
+                            if assignment_type == 'group':
+                                group_name = assignment.get('group_name', 'N/A')
+                                original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
+                                original_identity_type = assignment.get('original_identity_type', 'user')
+                                logging.info(f"Assignment Type: Group (indirect)")
+                                logging.info(f"Group: {group_name}")
+                                if original_identity_type == 'user':
+                                    logging.info(f"Group Member: User - {original_principal}@{domain}")
+                                else:
+                                    logging.info(f"Group Member: Service Principal - {original_principal}")
+                                logging.info(f"Principal Role: Application Administrator (via Group)")
+                            else:
+                                logging.info(f"Principal Role: Application Administrator")
                             
                             # Find target application from app_roles or app_api_permissions
                             if key in assignments.get('app_roles', {}):
@@ -343,14 +447,28 @@ class OutputFormatter:
                         identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         key_vault = assignment['key_vault']
+                        assignment_type = assignment.get('assignment_type', 'direct')
                         
                         if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
                             if principal_name in users:
                                 logging.info(f"Password: {users[principal_name]['password']}")
-                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                        
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
+                        else:
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
                         
                         logging.info(f"Target Application: {assignment['app_name']}")
@@ -365,14 +483,28 @@ class OutputFormatter:
                         identity_type = assignment['identity_type']
                         principal_name = assignment['principal_name']
                         storage_account = assignment['storage_account']
+                        assignment_type = assignment.get('assignment_type', 'direct')
                         
                         if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
                             if principal_name in users:
                                 logging.info(f"Password: {users[principal_name]['password']}")
-                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                        
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader via Group)")
+                        else:
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
                         
                         logging.info(f"Target Application: {assignment['app_name']}")
@@ -394,6 +526,7 @@ class OutputFormatter:
                         initial_access_principal = assignment.get('initial_access_principal')
                         app_name = assignment.get('app_name')
                         managed_identity_name = assignment.get('managed_identity_name')
+                        assignment_type = assignment.get('assignment_type', 'direct')
                         
                         # Get the appropriate role name based on source type
                         role_name = {
@@ -411,21 +544,34 @@ class OutputFormatter:
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {initial_access_principal}")
                         
-                        # Display source information
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', initial_access_principal)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                        
+                        # Display source information with role (via Group if applicable)
+                        role_suffix = " via Group" if assignment_type == 'group' else ""
                         if source_type == 'vm':
-                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'logic_app':
-                            logging.info(f"Source Resource: Logic App - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Logic App - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'automation_account':
-                            logging.info(f"Source Resource: Automation Account - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Automation Account - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         elif source_type == 'function_app':
                             # Get OS type from assignment if available
                             os_type = assignment.get('os_type', 'linux')
                             os_display = f" ({os_type.capitalize()})" if os_type else ""
-                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name})")
+                            logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
                         
                         # Display target information

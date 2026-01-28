@@ -59,6 +59,8 @@ resource "azuread_group" "groups" {
   display_name     = each.value.display_name
   mail_enabled     = false
   security_enabled = true
+  # Attack path groups need to be role-assignable to receive Entra ID directory roles
+  assignable_to_role = lookup(each.value, "is_attack_path_group", false)
 }
 
 resource "azuread_application_registration" "spns" {
@@ -84,6 +86,24 @@ resource "azuread_group_member" "group_memberships" {
 
   group_object_id  = azuread_group.groups[each.value.group_name].id
   member_object_id = azuread_user.users[each.value.user_name].id
+}
+
+# Attack path group memberships - supports both users and service principals
+resource "azuread_group_member" "attack_path_group_memberships" {
+  for_each = var.attack_path_group_memberships
+
+  group_object_id = azuread_group.groups[each.value.group_name].id
+  member_object_id = (
+    each.value.identity_type == "user" ?
+      azuread_user.users[each.value.principal_name].id :
+      azuread_service_principal.spns[each.value.principal_name].id
+  )
+
+  depends_on = [
+    azuread_group.groups,
+    azuread_user.users,
+    azuread_service_principal.spns
+  ]
 }
 
 resource "azuread_administrative_unit_member" "au_memberships" {
@@ -118,12 +138,22 @@ resource "azuread_app_role_assignment" "app_api_permission_assignments" {
 resource "azuread_directory_role_assignment" "attack_path_user_role_assignments" {
   for_each = var.attack_path_user_role_assignments
 
+  # Support user, service_principal, and group identity types
+  # Groups are used for indirect assignment (assignment_type: group)
   principal_object_id = (
     lookup(each.value, "identity_type", "user") == "user" ?
-    azuread_user.users[each.value.principal_name].id :
-    azuread_service_principal.spns[each.value.principal_name].id
+      azuread_user.users[each.value.principal_name].id :
+    lookup(each.value, "identity_type", "user") == "group" ?
+      azuread_group.groups[each.value.principal_name].id :
+      azuread_service_principal.spns[each.value.principal_name].id
   )
   role_id = each.value.role_definition_id
+
+  depends_on = [
+    azuread_user.users,
+    azuread_service_principal.spns,
+    azuread_group.groups
+  ]
 }
 
 resource "azuread_directory_role_assignment" "attack_path_application_role_assignments" {
@@ -162,7 +192,9 @@ resource "azuread_app_role_assignment" "attack_path_application_api_permission_a
 resource "azuread_application_owner" "attack_path_application_owner_assignments" {
   for_each = var.attack_path_application_owner_assignments
 
-  application_id = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
+  application_id  = "/applications/${azuread_application_registration.spns[each.value.app_name].object_id}"
+  # Note: Azure AD does not support groups as application owners
+  # Only users and service principals can own applications
   owner_object_id = (
     lookup(each.value, "identity_type", "user") == "user" ?
     azuread_user.users[each.value.principal_name].object_id :
@@ -499,7 +531,11 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
   scope                = azurerm_key_vault.kvaults[each.value.key_vault].id
   role_definition_name = "Key Vault Contributor"
 
+  # Support group-based assignment (assignment_type: group)
+  # When assignment_type is "group", assign the role to the group instead of the user/SP
   principal_id = (
+    lookup(each.value, "assignment_type", "direct") == "group" ?
+      azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
     azuread_user.users[each.value.principal_name].id :
     azuread_service_principal.spns[each.value.principal_name].id
@@ -508,7 +544,8 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
   depends_on = [
     azurerm_key_vault.kvaults,
     azuread_user.users,
-    azuread_service_principal.spns
+    azuread_service_principal.spns,
+    azuread_group.groups
   ]
 }
 
@@ -518,7 +555,11 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
   scope                = azurerm_storage_account.sas[each.value.storage_account].id
   role_definition_name = "Storage Blob Data Reader"
 
+  # Support group-based assignment (assignment_type: group)
+  # When assignment_type is "group", assign the role to the group instead of the user/SP
   principal_id = (
+    lookup(each.value, "assignment_type", "direct") == "group" ?
+      azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
     azuread_user.users[each.value.principal_name].id :
     azuread_service_principal.spns[each.value.principal_name].id
@@ -527,7 +568,8 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
   depends_on = [
     azurerm_storage_account.sas,
     azuread_user.users,
-    azuread_service_principal.spns
+    azuread_service_principal.spns,
+    azuread_group.groups
   ]
 }
 
@@ -1157,7 +1199,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_contributor" {
   ]
 }
 
-# Grant user or service principal Contributor access for ManagedIdentityTheft
+# Grant user, service principal, or group Contributor access for ManagedIdentityTheft
 resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_access" {
   for_each = var.attack_path_managed_identity_theft_assignments
 
@@ -1182,9 +1224,12 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     each.value.source_type == "function_app" ? "Website Contributor" :
     null
   )
-
-  # Support both user and service_principal identity types
+  
+  # Support user, service_principal, and group identity types
+  # When assignment_type is "group", assign the role to the group instead of the user/SP
   principal_id = (
+    lookup(each.value, "assignment_type", "direct") == "group" ?
+      azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
     azuread_user.users[each.value.initial_access_principal].id :
     azuread_service_principal.spns[each.value.initial_access_principal].id
@@ -1197,6 +1242,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     azurerm_automation_account.automation_accounts,
     azurerm_function_app_flex_consumption.function_apps,
     azuread_user.users,
-    azuread_service_principal.spns
+    azuread_service_principal.spns,
+    azuread_group.groups
   ]
 }

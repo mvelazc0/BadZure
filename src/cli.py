@@ -86,38 +86,49 @@ class BuildCommand:
         
         public_ip = utils.get_public_ip()
         
-        # Generate entities
-        logging.info(f"Generating {max_users} random users")
+        # Generate entities (only log when count > 0)
+        if max_users > 0:
+            logging.info(f"Generating {max_users} random users")
         users = self.generator.generate_users(max_users)
         
-        logging.info(f"Generating {max_groups} random groups")
+        if max_groups > 0:
+            logging.info(f"Generating {max_groups} random groups")
         groups = self.generator.generate_groups(max_groups)
         
-        logging.info(f"Generating {max_apps} random application registrations/service principals")
+        if max_apps > 0:
+            logging.info(f"Generating {max_apps} random application registrations/service principals")
         applications = self.generator.generate_applications(max_apps)
         
-        logging.info(f"Generating {max_aunits} random administrative units")
+        if max_aunits > 0:
+            logging.info(f"Generating {max_aunits} random administrative units")
         administrative_units = self.generator.generate_administrative_units(max_aunits)
         
-        logging.info(f"Generating {max_rgroups} resource groups")
+        if max_rgroups > 0:
+            logging.info(f"Generating {max_rgroups} resource groups")
         resource_groups = self.generator.generate_resource_groups(max_rgroups)
         
-        logging.info(f"Generating {max_kvs} key vaults")
+        if max_kvs > 0:
+            logging.info(f"Generating {max_kvs} key vaults")
         key_vaults = self.generator.generate_key_vaults(max_kvs, resource_groups)
         
-        logging.info(f"Generating {max_sas} storage accounts")
+        if max_sas > 0:
+            logging.info(f"Generating {max_sas} storage accounts")
         storage_accounts = self.generator.generate_storage_accounts(max_sas, resource_groups)
         
-        logging.info(f"Generating {max_vms} virtual machines")
+        if max_vms > 0:
+            logging.info(f"Generating {max_vms} virtual machines")
         virtual_machines = self.generator.generate_virtual_machines(max_vms, resource_groups)
         
-        logging.info(f"Generating {max_logic_apps} logic apps")
+        if max_logic_apps > 0:
+            logging.info(f"Generating {max_logic_apps} logic apps")
         logic_apps = self.generator.generate_logic_apps(max_logic_apps, resource_groups)
         
-        logging.info(f"Generating {max_automation_accounts} automation accounts")
+        if max_automation_accounts > 0:
+            logging.info(f"Generating {max_automation_accounts} automation accounts")
         automation_accounts = self.generator.generate_automation_accounts(max_automation_accounts, resource_groups)
         
-        logging.info(f"Generating {max_function_apps} function apps")
+        if max_function_apps > 0:
+            logging.info(f"Generating {max_function_apps} function apps")
         function_apps = self.generator.generate_function_apps(max_function_apps, resource_groups)
         
         # Check if there are any enabled attack paths
@@ -129,14 +140,8 @@ class BuildCommand:
         # Only show warnings if we have enabled attack paths or if users/apps are configured
         show_warnings = len(enabled_attack_paths) > 0 or max_users > 0 or max_apps > 0
         
-        # Create random assignments
-        (user_group_assignments, user_au_assignments, user_role_assignments,
-         app_role_assignments, app_api_permission_assignments) = \
-            self.assignment_mgr.create_random_assignments(
-                users, groups, administrative_units, applications, show_warnings=show_warnings
-            )
-        
-        # Create attack paths
+        # Create attack paths FIRST to collect group assignments
+        # This allows us to exclude attack path groups from random assignments
         attack_path_application_owner_assignments = {}
         attack_path_user_role_assignments = {}
         attack_path_application_role_assignments = {}
@@ -145,6 +150,8 @@ class BuildCommand:
         attack_path_storage_abuse_assignments = {}
         attack_path_managed_identity_theft_assignments = {}
         attack_path_vm_contributor_assignments = {}
+        attack_path_group_assignments = {}
+        attack_path_group_membership_assignments = {}
         user_creds = {}
         
         # Track used resources to prevent conflicts
@@ -161,24 +168,25 @@ class BuildCommand:
             if priv_esc == 'ServicePrincipalAbuse':
                 logging.warning(f"{attack_path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                (initial_access, ap_app_owner, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
+                result = self.attack_path_mgr.create_application_ownership_abuse(
                     attack_path_data, users, applications, domain, mode='random',
                     path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_application_owner_assignments.update(ap_app_owner)
-                attack_path_user_role_assignments.update(ap_user_role)
-                attack_path_application_role_assignments.update(ap_app_role)
-                attack_path_app_api_permission_assignments.update(ap_app_api_permission)
-                user_creds[attack_path_name] = initial_access
+                attack_path_application_owner_assignments.update(result['app_owner_assignments'])
+                attack_path_user_role_assignments.update(result['user_role_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
                 # Track used resources from owner assignments
-                for assignment in ap_app_owner.values():
+                for assignment in result['app_owner_assignments'].values():
                     used_apps.add(assignment['app_name'])
                     # Track principal (user or service principal)
                     if 'principal_name' in assignment:
                         used_users.add(assignment['principal_name'])
-                for assignment in ap_user_role.values():
+                for assignment in result['user_role_assignments'].values():
                     if 'principal_name' in assignment:
                         used_users.add(assignment['principal_name'])
                     elif 'user_name' in assignment:
@@ -186,24 +194,25 @@ class BuildCommand:
             
             elif priv_esc == 'ApplicationOwnershipAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                (initial_access, ap_app_owner, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
+                result = self.attack_path_mgr.create_application_ownership_abuse(
                     attack_path_data, users, applications, domain, mode='random',
                     path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_application_owner_assignments.update(ap_app_owner)
-                attack_path_user_role_assignments.update(ap_user_role)
-                attack_path_application_role_assignments.update(ap_app_role)
-                attack_path_app_api_permission_assignments.update(ap_app_api_permission)
-                user_creds[attack_path_name] = initial_access
+                attack_path_application_owner_assignments.update(result['app_owner_assignments'])
+                attack_path_user_role_assignments.update(result['user_role_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
                 # Track used resources from owner assignments
-                for assignment in ap_app_owner.values():
+                for assignment in result['app_owner_assignments'].values():
                     used_apps.add(assignment['app_name'])
                     # Track principal (user or service principal)
                     if 'principal_name' in assignment:
                         used_users.add(assignment['principal_name'])
-                for assignment in ap_user_role.values():
+                for assignment in result['user_role_assignments'].values():
                     if 'principal_name' in assignment:
                         used_users.add(assignment['principal_name'])
                     elif 'user_name' in assignment:
@@ -211,22 +220,23 @@ class BuildCommand:
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                (initial_access, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_application_administrator_abuse(
+                result = self.attack_path_mgr.create_application_administrator_abuse(
                     attack_path_data, users, applications, domain, mode='random',
                     path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_user_role_assignments.update(ap_user_role)
-                attack_path_application_role_assignments.update(ap_app_role)
-                attack_path_app_api_permission_assignments.update(ap_app_api_permission)
-                user_creds[attack_path_name] = initial_access
+                attack_path_user_role_assignments.update(result['user_role_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
                 # Track used resources from both role and API permission assignments
-                for assignment in ap_app_role.values():
+                for assignment in result['app_role_assignments'].values():
                     used_apps.add(assignment['app_name'])
-                for assignment in ap_app_api_permission.values():
+                for assignment in result['app_api_permission_assignments'].values():
                     used_apps.add(assignment['app_name'])
-                for assignment in ap_user_role.values():
+                for assignment in result['user_role_assignments'].values():
                     if 'principal_name' in assignment:
                         used_users.add(assignment['principal_name'])
                     elif 'user_name' in assignment:
@@ -234,50 +244,53 @@ class BuildCommand:
             
             elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                (kv_abuse, kv_app_role, kv_app_api_permission,
-                 kv_vm_contributor) = self.attack_path_mgr.create_keyvault_secret_theft(
+                result = self.attack_path_mgr.create_keyvault_secret_theft(
                     attack_path_data, applications, key_vaults, users, applications,
                     virtual_machines, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
                 )
-                attack_path_kv_abuse_assignments.update(kv_abuse)
-                attack_path_application_role_assignments.update(kv_app_role)
-                attack_path_app_api_permission_assignments.update(kv_app_api_permission)
-                attack_path_vm_contributor_assignments.update(kv_vm_contributor)
+                attack_path_kv_abuse_assignments.update(result['kv_abuse_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
                 # Track used apps
-                for assignment in kv_abuse.values():
+                for assignment in result['kv_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
             
             elif attack_path_data['privilege_escalation'] == 'StorageCertificateTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                (sa_abuse, sa_app_role, sa_app_api_permission,
-                 sa_vm_contributor) = self.attack_path_mgr.create_storage_certificate_theft(
+                result = self.attack_path_mgr.create_storage_certificate_theft(
                     attack_path_data, applications, storage_accounts, users, applications,
                     virtual_machines, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
                 )
-                attack_path_storage_abuse_assignments.update(sa_abuse)
-                attack_path_application_role_assignments.update(sa_app_role)
-                attack_path_app_api_permission_assignments.update(sa_app_api_permission)
-                attack_path_vm_contributor_assignments.update(sa_vm_contributor)
+                attack_path_storage_abuse_assignments.update(result['storage_abuse_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
                 # Track used apps
-                for assignment in sa_abuse.values():
+                for assignment in result['storage_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
             
             elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                (mi_theft, mi_app_role, mi_app_api_permission,
-                 mi_vm_contributor) = self.attack_path_mgr.create_managed_identity_theft(
+                result = self.attack_path_mgr.create_managed_identity_theft(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
                     virtual_machines, logic_apps, automation_accounts, function_apps, mode='random', path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_managed_identity_theft_assignments.update(mi_theft)
-                attack_path_application_role_assignments.update(mi_app_role)
-                attack_path_app_api_permission_assignments.update(mi_app_api_permission)
-                attack_path_vm_contributor_assignments.update(mi_vm_contributor)
+                attack_path_managed_identity_theft_assignments.update(result['mi_theft_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
                 # Track used apps and users/service principals
-                for assignment in mi_theft.values():
+                for assignment in result['mi_theft_assignments'].values():
                     used_apps.add(assignment['app_name'])
                     # Track initial access principal (user or service principal)
                     if 'initial_access_principal' in assignment:
@@ -285,6 +298,23 @@ class BuildCommand:
                     elif 'initial_access_user' in assignment:
                         # Backward compatibility
                         used_users.add(assignment['initial_access_user'])
+        
+        # Add attack path groups to the groups dictionary
+        # These groups will be created by Terraform
+        for group_name, group_spec in attack_path_group_assignments.items():
+            groups[group_name] = group_spec
+        
+        # Get the set of attack path group names to exclude from random assignments
+        attack_path_group_names = set(attack_path_group_assignments.keys())
+        
+        # Create random assignments AFTER attack paths to exclude attack path groups
+        (user_group_assignments, user_au_assignments, user_role_assignments,
+         app_role_assignments, app_api_permission_assignments) = \
+            self.assignment_mgr.create_random_assignments(
+                users, groups, administrative_units, applications,
+                show_warnings=show_warnings,
+                attack_path_groups=attack_path_group_names
+            )
         
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
@@ -298,7 +328,8 @@ class BuildCommand:
             attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
             attack_path_managed_identity_theft_assignments,
-            attack_path_vm_contributor_assignments
+            attack_path_vm_contributor_assignments,
+            attack_path_group_membership_assignments
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
         
@@ -414,6 +445,14 @@ class BuildCommand:
             automation_accounts, function_apps, domain
         )
         
+        # Add attack path groups to the groups dictionary
+        # These groups will be created by Terraform
+        for group_name, group_spec in attack_path_assignments.get('group_assignments', {}).items():
+            groups[group_name] = group_spec
+        
+        if attack_path_assignments.get('group_assignments'):
+            logging.info(f"Generated {len(attack_path_assignments['group_assignments'])} attack path group(s)")
+        
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
@@ -428,7 +467,8 @@ class BuildCommand:
             attack_path_assignments.get('kv_abuse', {}),
             attack_path_assignments.get('storage_abuse', {}),
             attack_path_assignments.get('managed_identity_theft', {}),
-            attack_path_assignments.get('vm_contributor', {})
+            attack_path_assignments.get('vm_contributor', {}),
+            attack_path_assignments.get('group_membership_assignments', {})
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
         
@@ -480,7 +520,9 @@ class BuildCommand:
             'kv_abuse': {},
             'storage_abuse': {},
             'managed_identity_theft': {},
-            'vm_contributor': {}
+            'vm_contributor': {},
+            'group_assignments': {},
+            'group_membership_assignments': {}
         }
         
         user_creds = {}
@@ -495,72 +537,78 @@ class BuildCommand:
             # Support both old and new names with deprecation warning
             if priv_esc == 'ServicePrincipalAbuse':
                 logging.warning(f"{path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
-                (initial_access, ap_app_owner, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
+                result = self.attack_path_mgr.create_application_ownership_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['app_owners'].update(ap_app_owner)
-                assignments['user_roles'].update(ap_user_role)
-                assignments['app_roles'].update(ap_app_role)
-                assignments['app_api_permissions'].update(ap_app_api_permission)
-                user_creds[path_name] = initial_access
+                assignments['app_owners'].update(result['app_owner_assignments'])
+                assignments['user_roles'].update(result['user_role_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
             
             elif priv_esc == 'ApplicationOwnershipAbuse':
-                (initial_access, ap_app_owner, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_application_ownership_abuse(
+                result = self.attack_path_mgr.create_application_ownership_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['app_owners'].update(ap_app_owner)
-                assignments['user_roles'].update(ap_user_role)
-                assignments['app_roles'].update(ap_app_role)
-                assignments['app_api_permissions'].update(ap_app_api_permission)
-                user_creds[path_name] = initial_access
+                assignments['app_owners'].update(result['app_owner_assignments'])
+                assignments['user_roles'].update(result['user_role_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
-                (initial_access, ap_user_role, ap_app_role,
-                 ap_app_api_permission) = self.attack_path_mgr.create_application_administrator_abuse(
+                result = self.attack_path_mgr.create_application_administrator_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['user_roles'].update(ap_user_role)
-                assignments['app_roles'].update(ap_app_role)
-                assignments['app_api_permissions'].update(ap_app_api_permission)
-                user_creds[path_name] = initial_access
+                assignments['user_roles'].update(result['user_role_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
             
             elif priv_esc == 'KeyVaultSecretTheft':
-                (kv_abuse, kv_app_role, kv_app_api_permission,
-                 kv_vm_contributor) = self.attack_path_mgr.create_keyvault_secret_theft(
+                result = self.attack_path_mgr.create_keyvault_secret_theft(
                     path_config, applications, key_vaults, users, applications,
                     virtual_machines, mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['kv_abuse'].update(kv_abuse)
-                assignments['app_roles'].update(kv_app_role)
-                assignments['app_api_permissions'].update(kv_app_api_permission)
-                assignments['vm_contributor'].update(kv_vm_contributor)
+                assignments['kv_abuse'].update(result['kv_abuse_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['vm_contributor'].update(result['vm_contributor_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
             
             elif priv_esc == 'StorageCertificateTheft':
-                (sa_abuse, sa_app_role, sa_app_api_permission,
-                 sa_vm_contributor) = self.attack_path_mgr.create_storage_certificate_theft(
+                result = self.attack_path_mgr.create_storage_certificate_theft(
                     path_config, applications, storage_accounts, users, applications,
                     virtual_machines, mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['storage_abuse'].update(sa_abuse)
-                assignments['app_roles'].update(sa_app_role)
-                assignments['app_api_permissions'].update(sa_app_api_permission)
-                assignments['vm_contributor'].update(sa_vm_contributor)
+                assignments['storage_abuse'].update(result['storage_abuse_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['vm_contributor'].update(result['vm_contributor_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
             
             elif priv_esc == 'ManagedIdentityTheft':
-                (mi_theft, mi_app_role, mi_app_api_permission,
-                 mi_vm_contributor) = self.attack_path_mgr.create_managed_identity_theft(
+                result = self.attack_path_mgr.create_managed_identity_theft(
                     path_config, applications, key_vaults, storage_accounts, users,
                     virtual_machines, logic_apps, automation_accounts, function_apps, mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['managed_identity_theft'].update(mi_theft)
-                assignments['app_roles'].update(mi_app_role)
-                assignments['app_api_permissions'].update(mi_app_api_permission)
-                assignments['vm_contributor'].update(mi_vm_contributor)
+                assignments['managed_identity_theft'].update(result['mi_theft_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['vm_contributor'].update(result['vm_contributor_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
         
         # Store user credentials for output
         assignments['user_creds'] = user_creds
