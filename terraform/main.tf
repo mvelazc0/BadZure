@@ -27,7 +27,7 @@ provider "azurerm" {
   }
 
   subscription_id = var.subscription_id
-  
+
   # Use Azure AD authentication for storage accounts (required when shared_access_key_enabled = false)
   storage_use_azuread = true
 }
@@ -84,7 +84,7 @@ resource "azuread_administrative_unit" "aunits" {
 resource "azuread_group_member" "group_memberships" {
   for_each = var.user_group_assignments
 
-  group_object_id = azuread_group.groups[each.value.group_name].id
+  group_object_id  = azuread_group.groups[each.value.group_name].id
   member_object_id = azuread_user.users[each.value.user_name].id
 }
 
@@ -110,17 +110,17 @@ resource "azuread_administrative_unit_member" "au_memberships" {
   for_each = var.user_au_assignments
 
   administrative_unit_object_id = azuread_administrative_unit.aunits[each.value.administrative_unit_name].id
-  member_object_id = azuread_user.users[each.value.user_name].id
+  member_object_id              = azuread_user.users[each.value.user_name].id
 }
 
 resource "azuread_directory_role_assignment" "user_role_assignments" {
   for_each = var.user_role_assignments
 
   principal_object_id = azuread_user.users[each.value.user_name].id
-  role_id  = each.value.role_definition_id
+  role_id             = each.value.role_definition_id
 }
 
-resource "azuread_directory_role_assignment"  "app_role_assignments" {
+resource "azuread_directory_role_assignment" "app_role_assignments" {
   for_each = var.app_role_assignments
 
   principal_object_id = azuread_service_principal.spns[each.value.app_name].object_id
@@ -130,9 +130,9 @@ resource "azuread_directory_role_assignment"  "app_role_assignments" {
 resource "azuread_app_role_assignment" "app_api_permission_assignments" {
   for_each = var.app_api_permission_assignments
 
-  app_role_id            = each.value.api_permission_id
-  principal_object_id    = azuread_service_principal.spns[each.value.app_name].id
-  resource_object_id     = data.azuread_service_principal.microsoft_graph.id
+  app_role_id         = each.value.api_permission_id
+  principal_object_id = azuread_service_principal.spns[each.value.app_name].id
+  resource_object_id  = data.azuread_service_principal.microsoft_graph.id
 }
 
 resource "azuread_directory_role_assignment" "attack_path_user_role_assignments" {
@@ -178,7 +178,7 @@ resource "azuread_app_role_assignment" "attack_path_application_api_permission_a
       "${assignment_key}-${idx}-${permission_id}" => {
         app_name          = assignment.app_name
         api_permission_id = permission_id
-        api_type          = lookup(assignment, "api_type", "graph")  # Default to graph for backward compatibility
+        api_type          = lookup(assignment, "api_type", "graph") # Default to graph for backward compatibility
       }
     }
   ]...)
@@ -197,8 +197,8 @@ resource "azuread_application_owner" "attack_path_application_owner_assignments"
   # Only users and service principals can own applications
   owner_object_id = (
     lookup(each.value, "identity_type", "user") == "user" ?
-      azuread_user.users[each.value.principal_name].object_id :
-      azuread_service_principal.spns[each.value.principal_name].object_id
+    azuread_user.users[each.value.principal_name].object_id :
+    azuread_service_principal.spns[each.value.principal_name].object_id
   )
 }
 
@@ -212,11 +212,11 @@ resource "azurerm_resource_group" "rgroups" {
 resource "azurerm_key_vault" "kvaults" {
   for_each = var.key_vaults
 
-  name     = each.value.name
-  location = each.value.location
-  resource_group_name = each.value.resource_group_name
-  sku_name = each.value.sku_name
-  tenant_id = var.tenant_id
+  name                       = each.value.name
+  location                   = each.value.location
+  resource_group_name        = each.value.resource_group_name
+  sku_name                   = each.value.sku_name
+  tenant_id                  = var.tenant_id
   rbac_authorization_enabled = true
 
   depends_on = [azurerm_resource_group.rgroups]
@@ -224,10 +224,10 @@ resource "azurerm_key_vault" "kvaults" {
 }
 
 resource "azuread_application_password" "attack_path_kv_secrets" {
-  for_each        = var.attack_path_kv_abuse_assignments
+  for_each = var.attack_path_kv_abuse_assignments
 
-  application_id  = azuread_application_registration.spns[each.value.app_name].id
-  display_name    = "BadZureClientSecret"
+  application_id    = azuread_application_registration.spns[each.value.app_name].id
+  display_name      = "BadZureClientSecret"
   end_date_relative = "8760h" # 1 year
 
   depends_on = [azuread_application_registration.spns]
@@ -235,16 +235,16 @@ resource "azuread_application_password" "attack_path_kv_secrets" {
 }
 
 resource "azurerm_key_vault_secret" "attack_path_kv_secrets" {
-  for_each     = var.attack_path_kv_abuse_assignments
+  for_each = var.attack_path_kv_abuse_assignments
 
   name         = "client-secret-${each.value.app_name}"
   value        = azuread_application_password.attack_path_kv_secrets[each.key].value
   key_vault_id = azurerm_key_vault.kvaults[each.value.key_vault].id
 
-  depends_on   = [
+  depends_on = [
     azurerm_key_vault.kvaults,
     azuread_application_password.attack_path_kv_secrets
-  ]  
+  ]
 }
 
 resource "azurerm_storage_account" "sas" {
@@ -255,11 +255,11 @@ resource "azurerm_storage_account" "sas" {
   resource_group_name      = each.value.resource_group_name
   account_tier             = each.value.account_tier
   account_replication_type = each.value.account_replication_type
-  
+
   # Enable public network access to allow Terraform to connect, use Azure AD auth instead of keys
-  public_network_access_enabled = true
-  shared_access_key_enabled     = true  # Needed to access SAS key in storage account for M003-V4
-  allow_nested_items_to_be_public = false  # CRITICAL: Prevents public access to blobs/containers
+  public_network_access_enabled   = true
+  shared_access_key_enabled       = true  # Needed to access SAS key in storage account for M003-V4
+  allow_nested_items_to_be_public = false # CRITICAL: Prevents public access to blobs/containers
 
   depends_on = [azurerm_resource_group.rgroups]
 }
@@ -281,16 +281,16 @@ resource "azurerm_role_assignment" "terraform_storage_access" {
 # Add delay to allow role assignment to propagate
 resource "time_sleep" "wait_for_rbac" {
   depends_on = [azurerm_role_assignment.terraform_storage_access]
-  
-  create_duration = "180s"  # Increased from 120s to 180s for better RBAC propagation
+
+  create_duration = "180s" # Increased from 120s to 180s for better RBAC propagation
 }
 
 resource "azuread_application_certificate" "attack_path_storage_certificates" {
-  for_each          = var.attack_path_storage_abuse_assignments
+  for_each = var.attack_path_storage_abuse_assignments
 
-  application_id    = azuread_application_registration.spns[each.value.app_name].id
-  type              = "AsymmetricX509Cert"
-  value             = file(each.value.certificate_path)  # Read certificate file
+  application_id = azuread_application_registration.spns[each.value.app_name].id
+  type           = "AsymmetricX509Cert"
+  value          = file(each.value.certificate_path) # Read certificate file
   #end_date          = timeadd(timestamp(), "8760h")  # calculates 1 year from now in UTC
   #end_date          = "2025-12-01T01:02:03  
   # Don't specify end_date - let Azure AD extract it from the certificate itself
@@ -298,10 +298,10 @@ resource "azuread_application_certificate" "attack_path_storage_certificates" {
 }
 
 resource "azurerm_storage_container" "attack_path_storage_containers" {
-  for_each            = var.attack_path_storage_abuse_assignments
+  for_each = var.attack_path_storage_abuse_assignments
 
-  name                = "cert-container-${replace(each.key, "_", "-")}"
-  storage_account_id   = azurerm_storage_account.sas[each.value.storage_account].id
+  name                  = "cert-container-${replace(each.key, "_", "-")}"
+  storage_account_id    = azurerm_storage_account.sas[each.value.storage_account].id
   container_access_type = "private"
 
   depends_on = [azurerm_storage_account.sas]
@@ -309,13 +309,13 @@ resource "azurerm_storage_container" "attack_path_storage_containers" {
 
 # Upload the private key (.key)
 resource "azurerm_storage_blob" "attack_path_storage_key_upload" {
-  for_each               = var.attack_path_storage_abuse_assignments
+  for_each = var.attack_path_storage_abuse_assignments
 
   name                   = "${each.value.app_name}-private-key.key"
   storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
   storage_container_name = azurerm_storage_container.attack_path_storage_containers[each.key].name
   type                   = "Block"
-  source                 = each.value.private_key_path  # Uploads the .key file
+  source                 = each.value.private_key_path # Uploads the .key file
 
   depends_on = [
     azurerm_storage_container.attack_path_storage_containers,
@@ -326,13 +326,13 @@ resource "azurerm_storage_blob" "attack_path_storage_key_upload" {
 
 # Upload the certificate (.pem)
 resource "azurerm_storage_blob" "attack_path_storage_pem_upload" {
-  for_each               = var.attack_path_storage_abuse_assignments
+  for_each = var.attack_path_storage_abuse_assignments
 
   name                   = "${each.value.app_name}-certificate.pem"
   storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
   storage_container_name = azurerm_storage_container.attack_path_storage_containers[each.key].name
   type                   = "Block"
-  source                 = each.value.certificate_path  # Uploads the .pem file
+  source                 = each.value.certificate_path # Uploads the .pem file
 
   depends_on = [
     azurerm_storage_container.attack_path_storage_containers,
@@ -352,7 +352,7 @@ resource "azurerm_storage_blob" "attack_path_storage_pfx_upload" {
   storage_account_name   = azurerm_storage_account.sas[each.value.storage_account].name
   storage_container_name = azurerm_storage_container.attack_path_storage_containers[each.key].name
   type                   = "Block"
-  source                 = each.value.pfx_path  # Uploads the .pfx file
+  source                 = each.value.pfx_path # Uploads the .pfx file
 
   depends_on = [
     azurerm_storage_container.attack_path_storage_containers,
@@ -362,20 +362,20 @@ resource "azurerm_storage_blob" "attack_path_storage_pfx_upload" {
 }
 
 resource "azurerm_linux_virtual_machine" "linux_vms" {
-  for_each            = { for k, v in var.virtual_machines : k => v if v.os_type == "Linux" }
+  for_each = { for k, v in var.virtual_machines : k => v if v.os_type == "Linux" }
 
   name                            = each.value.name
   location                        = each.value.location
   resource_group_name             = each.value.resource_group_name
   size                            = each.value.vm_size
-  disable_password_authentication = false  
+  disable_password_authentication = false
   admin_username                  = each.value.admin_username
   admin_password                  = each.value.admin_password
-  
+
   network_interface_ids = [azurerm_network_interface.vm_nics[each.key].id]
 
   identity {
-    type  = "SystemAssigned"
+    type = "SystemAssigned"
   }
 
   os_disk {
@@ -394,7 +394,7 @@ resource "azurerm_linux_virtual_machine" "linux_vms" {
 }
 
 resource "azurerm_windows_virtual_machine" "windows_vms" {
-  for_each            = { for k, v in var.virtual_machines : k => v if v.os_type == "Windows" }
+  for_each = { for k, v in var.virtual_machines : k => v if v.os_type == "Windows" }
 
   name                = each.value.name
   location            = each.value.location
@@ -406,7 +406,7 @@ resource "azurerm_windows_virtual_machine" "windows_vms" {
   network_interface_ids = [azurerm_network_interface.vm_nics[each.key].id]
 
   identity {
-    type  = "SystemAssigned"
+    type = "SystemAssigned"
   }
 
 
@@ -426,14 +426,14 @@ resource "azurerm_windows_virtual_machine" "windows_vms" {
 }
 
 resource "azurerm_public_ip" "vm_public_ips" {
-  for_each            = var.virtual_machines
+  for_each = var.virtual_machines
 
   name                = "${each.key}-public-ip"
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
   allocation_method   = "Static"
 
-  depends_on = [azurerm_resource_group.rgroups] 
+  depends_on = [azurerm_resource_group.rgroups]
 }
 
 
@@ -446,40 +446,40 @@ resource "azurerm_network_interface" "vm_nics" {
 
   ip_configuration {
     name                          = "internal"
-    subnet_id                     = azurerm_subnet.vm_subnets[each.key].id 
+    subnet_id                     = azurerm_subnet.vm_subnets[each.key].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.vm_public_ips[each.key].id  
+    public_ip_address_id          = azurerm_public_ip.vm_public_ips[each.key].id
 
   }
 
   depends_on = [
-      azurerm_subnet.vm_subnets,
-      azurerm_public_ip.vm_public_ips
-      ]
+    azurerm_subnet.vm_subnets,
+    azurerm_public_ip.vm_public_ips
+  ]
 }
 
 resource "azurerm_virtual_network" "vm_vnets" {
-  for_each            = { for k, v in var.virtual_machines : k => v }
+  for_each = { for k, v in var.virtual_machines : k => v }
 
   name                = "${each.value.resource_group_name}-vnet"
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
   address_space       = ["10.0.0.0/16"]
 
-  depends_on = [azurerm_resource_group.rgroups]  # 
+  depends_on = [azurerm_resource_group.rgroups] # 
 
 }
 
 resource "azurerm_subnet" "vm_subnets" {
-  for_each            = var.virtual_machines
+  for_each = var.virtual_machines
 
   name                 = "${each.value.name}-subnet"
   resource_group_name  = each.value.resource_group_name
   virtual_network_name = azurerm_virtual_network.vm_vnets[each.key].name
   # Use unique subnet range for each VM to prevent overlap when multiple VMs share a VNet
-  address_prefixes     = ["10.0.${index(keys(var.virtual_machines), each.key) + 1}.0/24"]
+  address_prefixes = ["10.0.${index(keys(var.virtual_machines), each.key) + 1}.0/24"]
 
-  depends_on           = [azurerm_virtual_network.vm_vnets]
+  depends_on = [azurerm_virtual_network.vm_vnets]
 }
 
 resource "azurerm_network_security_group" "vm_nsg" {
@@ -497,7 +497,7 @@ resource "azurerm_network_security_group" "vm_nsg" {
     protocol                   = "Tcp"
     source_port_range          = "*"
     destination_port_range     = "3389"
-    source_address_prefix      = var.public_ip 
+    source_address_prefix      = var.public_ip
     destination_address_prefix = "*"
   }
 
@@ -537,8 +537,8 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
     lookup(each.value, "assignment_type", "direct") == "group" ?
       azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
-      azuread_user.users[each.value.principal_name].id :
-      azuread_service_principal.spns[each.value.principal_name].id
+    azuread_user.users[each.value.principal_name].id :
+    azuread_service_principal.spns[each.value.principal_name].id
   )
 
   depends_on = [
@@ -561,8 +561,8 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
     lookup(each.value, "assignment_type", "direct") == "group" ?
       azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
-      azuread_user.users[each.value.principal_name].id :
-      azuread_service_principal.spns[each.value.principal_name].id
+    azuread_user.users[each.value.principal_name].id :
+    azuread_service_principal.spns[each.value.principal_name].id
   )
 
   depends_on = [
@@ -576,10 +576,10 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
 resource "azurerm_role_assignment" "attack_path_vm_contributor_access" {
   for_each = var.attack_path_vm_contributor_assignments
 
-  scope                = (
+  scope = (
     contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.virtual_machine) ?
-      azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].id :
-      azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].id
+    azurerm_linux_virtual_machine.linux_vms[each.value.virtual_machine].id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].id
   )
   role_definition_name = "Virtual Machine Contributor"
   principal_id         = azuread_user.users[each.value.user_name].id
@@ -633,11 +633,11 @@ resource "azurerm_storage_account" "function_storage" {
   resource_group_name      = each.value.resource_group_name
   account_tier             = "Standard"
   account_replication_type = "LRS"
-  
+
   # Azure Policy compliance: Disable ALL forms of public access
-  public_network_access_enabled = false
-  shared_access_key_enabled     = true
-  allow_nested_items_to_be_public = false  # CRITICAL: Prevents public access to blobs/containers
+  public_network_access_enabled   = false
+  shared_access_key_enabled       = true
+  allow_nested_items_to_be_public = false # CRITICAL: Prevents public access to blobs/containers
 
   depends_on = [azurerm_resource_group.rgroups]
 }
@@ -767,45 +767,30 @@ resource "azuread_application_certificate" "attack_path_mi_theft_kv_certificates
   value          = file(each.value.certificate_path)
 }
 
-# Store certificate in Key Vault as a secret (PEM format)
-resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_pem" {
+# Import PFX certificate into Key Vault certificates section
+resource "azurerm_key_vault_certificate" "attack_path_mi_theft_kv_cert_import" {
   for_each = {
     for k, v in var.attack_path_managed_identity_theft_assignments : k => v
-    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate" && v.pfx_path != ""
   }
 
   name         = "mi-certificate-${each.value.app_name}"
-  value        = file(each.value.certificate_path)
   key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
-  content_type = "application/x-pem-file"
 
-  depends_on = [
-    azurerm_key_vault.kvaults,
-    azuread_application_certificate.attack_path_mi_theft_kv_certificates,
-    azurerm_role_assignment.attack_path_mi_theft_kv_access
-  ]
-}
-
-# Store private key in Key Vault as a secret
-resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_key" {
-  for_each = {
-    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
-    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+  certificate {
+    contents = filebase64(each.value.pfx_path)
+    password = "" # Assuming no password on PFX, adjust if needed
   }
 
-  name         = "mi-private-key-${each.value.app_name}"
-  value        = file(each.value.private_key_path)
-  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
-  content_type = "application/x-pem-file"
-
   depends_on = [
     azurerm_key_vault.kvaults,
     azuread_application_certificate.attack_path_mi_theft_kv_certificates,
-    azurerm_role_assignment.attack_path_mi_theft_kv_access
+    azurerm_role_assignment.attack_path_mi_theft_kv_access,
+    azurerm_role_assignment.attack_path_mi_theft_kv_certificates_officer
   ]
 }
 
-# Store application client_id as a separate secret (needed for cert-based auth)
+# Store application client_id as a secret (needed for cert-based auth)
 resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_app_ids" {
   for_each = {
     for k, v in var.attack_path_managed_identity_theft_assignments : k => v
@@ -819,25 +804,6 @@ resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_app_ids" {
   depends_on = [
     azurerm_key_vault.kvaults,
     azuread_application_registration.spns,
-    azurerm_role_assignment.attack_path_mi_theft_kv_access
-  ]
-}
-
-# Store PFX certificate in Key Vault (single file for easy download and authentication)
-resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_pfx" {
-  for_each = {
-    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
-    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate" && v.pfx_path != ""
-  }
-
-  name         = "mi-certificate-pfx-${each.value.app_name}"
-  value        = filebase64(each.value.pfx_path)
-  key_vault_id = azurerm_key_vault.kvaults[each.value.target_name].id
-  content_type = "application/x-pkcs12"
-
-  depends_on = [
-    azurerm_key_vault.kvaults,
-    azuread_application_certificate.attack_path_mi_theft_kv_certificates,
     azurerm_role_assignment.attack_path_mi_theft_kv_access
   ]
 }
@@ -1033,16 +999,16 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
 
   principal_id = (
     each.value.source_type == "vm" ?
-      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
-        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
-        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
     each.value.source_type == "logic_app" ?
-      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "automation_account" ?
-      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "function_app" ?
-      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
-      null
+    azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+    null
   )
 
 
@@ -1068,16 +1034,16 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_secrets_user" {
 
   principal_id = (
     each.value.source_type == "vm" ?
-      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
-        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
-        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
     each.value.source_type == "logic_app" ?
-      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "automation_account" ?
-      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "function_app" ?
-      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
-      null
+    azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+    null
   )
 
   depends_on = [
@@ -1099,6 +1065,40 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_reader" {
 
   principal_id = (
     each.value.source_type == "vm" ?
+    (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    each.value.source_type == "logic_app" ?
+    azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "automation_account" ?
+    azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "function_app" ?
+    azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+    null
+  )
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azurerm_linux_virtual_machine.linux_vms,
+    azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts,
+    azurerm_function_app_flex_consumption.function_apps
+  ]
+}
+
+# Grant managed identity "Key Vault Certificate User" role on Key Vault (for certificate scenarios)
+resource "azurerm_role_assignment" "attack_path_mi_theft_kv_certificate_user" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  scope                = azurerm_key_vault.kvaults[each.value.target_name].id
+  role_definition_name = "Key Vault Certificate User"
+
+  principal_id = (
+    each.value.source_type == "vm" ?
       (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
         azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
         azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
@@ -1121,6 +1121,22 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_reader" {
   ]
 }
 
+# Grant Terraform service principal "Key Vault Administrator" role to import certificates
+resource "azurerm_role_assignment" "attack_path_mi_theft_kv_certificates_officer" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "key_vault" && lookup(v, "credential_type", "secret") == "certificate"
+  }
+
+  scope                = azurerm_key_vault.kvaults[each.value.target_name].id
+  role_definition_name = "Key Vault Administrator"
+  principal_id         = data.azurerm_client_config.current.object_id
+
+  depends_on = [
+    azurerm_key_vault.kvaults
+  ]
+}
+
 # Grant VM managed identity access to Storage Account
 resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
   for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "storage_account" }
@@ -1130,16 +1146,16 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_access" {
 
   principal_id = (
     each.value.source_type == "vm" ?
-      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
-        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
-        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
     each.value.source_type == "logic_app" ?
-      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "automation_account" ?
-      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "function_app" ?
-      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
-      null
+    azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+    null
   )
 
   depends_on = [
@@ -1161,16 +1177,16 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_storage_contributor" {
 
   principal_id = (
     each.value.source_type == "vm" ?
-      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
-        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
-        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
     each.value.source_type == "logic_app" ?
-      azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "automation_account" ?
-      azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
     each.value.source_type == "function_app" ?
-      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
-      null
+    azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+    null
   )
 
   depends_on = [
@@ -1189,18 +1205,18 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
 
   scope = (
     each.value.source_type == "vm" ?
-      (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
-        azurerm_linux_virtual_machine.linux_vms[each.value.source_name].id :
-        azurerm_windows_virtual_machine.windows_vms[each.value.source_name].id) :
+    (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.source_name].id) :
     each.value.source_type == "logic_app" ?
-      azurerm_logic_app_workflow.logic_apps[each.value.source_name].id :
+    azurerm_logic_app_workflow.logic_apps[each.value.source_name].id :
     each.value.source_type == "automation_account" ?
-      azurerm_automation_account.automation_accounts[each.value.source_name].id :
+    azurerm_automation_account.automation_accounts[each.value.source_name].id :
     each.value.source_type == "function_app" ?
-      azurerm_function_app_flex_consumption.function_apps[each.value.source_name].id :
-      null
+    azurerm_function_app_flex_consumption.function_apps[each.value.source_name].id :
+    null
   )
-  
+
   role_definition_name = (
     each.value.source_type == "vm" ? "Virtual Machine Contributor" :
     each.value.source_type == "logic_app" ? "Logic App Contributor" :
@@ -1215,8 +1231,8 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
     lookup(each.value, "assignment_type", "direct") == "group" ?
       azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
-      azuread_user.users[each.value.initial_access_principal].id :
-      azuread_service_principal.spns[each.value.initial_access_principal].id
+    azuread_user.users[each.value.initial_access_principal].id :
+    azuread_service_principal.spns[each.value.initial_access_principal].id
   )
 
   depends_on = [
