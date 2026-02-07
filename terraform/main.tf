@@ -1051,9 +1051,6 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_kv_access" {
   ]
 }
 
-
-# Harcoded roles to support M003 scenario, will change later
-
 # Grant managed identity "Key Vault Secrets User" role on Key Vault
 resource "azurerm_role_assignment" "attack_path_mi_theft_kv_secrets_user" {
   for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "key_vault" }

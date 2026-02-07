@@ -7,9 +7,9 @@
 </div>
 <br>
 
-BadZure is a Python tool that utilizes Terraform to automate the setup of Azure Active Directory (now Entra ID) tenants and Azure cloud resrouces, populating them with various entities and introducing common security misconfigurations to create vulnerable tenants with multiple attack paths.
+BadZure is a Python tool that utilizes Terraform to automate the setup of Entra ID tenants and Azure subscriptions, populating them with various entities and introducing common security misconfigurations to create vulnerable tenants with multiple attack paths.
 
-BadZure automates the creation of various entities, including users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, and Resource Groups. To simulate common security misconfigurations in real environments, it randomly assigns Azure AD roles, Graph permissions, and application ownership privileges, and Azure resource access permissions to selected security principals, enabling the creation of unique attack paths that span both identity and infrastructure layers. Adhering to the 'Assume Breach' principle, BadZure offers users multiple methods of initial access and five distinct privilege escalation techniques, thereby simulating comprehensive account takeover and cloud resource compromise scenarios.
+BadZure automates the creation of various entities, including users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, and Resource Groups. To simulate common security misconfigurations in real environments, it randomly assigns Entra ID roles, Graph permissions, and application ownership privileges, and Azure resource access permissions to selected security principals, enabling the creation of unique attack paths that span both identity and infrastructure layers.
 
 The key advantage of BadZure is its ability to quickly populate and purge both Azure AD tenants and Azure subscriptions with randomly generated vulnerable configurations, pre-configured initial access, and realistic cloud infrastructure attack paths, facilitating continuous and iterative Azure cloud adversary simulation and detection development experimentation. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
 
@@ -30,17 +30,11 @@ An Azure environment populated with BadZure now enables red and blue teams to:
 
 ### Initial Access
 
-BadZure simulates initial access by employing common account takeover techniques, including password attacks and token theft. By providing both passwords and tokens, BadZure enables security practitioners to effectively simulate initial access scenarios and explore various attack vectors against Azure AD tenants.
+Adhering to the ['Assume Breach'](https://www.microsoft.com/en-us/security/blog/2021/01/19/using-zero-trust-principles-to-protect-against-sophisticated-attacks-like-solorigate/) principle, BadZure creates attack paths that assume the initial access identity has already been compromised. Each attack path begins with a compromised user account or service principal, simulating real-world scenarios where an attacker has gained access through credential theft, phishing, or other initial access techniques.
 
-#### Password-Based Access
+BadZure provides the credentials for these compromised identities, allowing security practitioners to immediately begin exploring privilege escalation paths without needing to simulate the initial compromise. This approach enables teams to focus on understanding and defending against post-compromise attack techniques in Azure and Entra ID environments.
 
-When configured to use passwords, BadZure assigns randomly generated passwords to key user accounts that are part of the attack paths. These passwords are provided to BadZure users to simulate password-based attacks, such as [credential stuffing](https://owasp.org/www-community/attacks/Credential_stuffing) or [password spraying](https://owasp.org/www-community/attacks/Password_Spraying_Attack). Additionally, BadZure automatically generates a users.txt file containing the usernames of all created accounts, facilitating testing strategies like password spraying.
-
-#### Token-Based Access
-
-For token-based access, BadZure generates JWT access tokens for specified principals. These tokens are provided in the output, simulating scenarios where an attacker has obtained valid tokens through [reverse proxy phishing](https://help.evilginx.com/), [endpoint malware](https://mrd0x.com/stealing-tokens-from-office-applications/) or [device code phishing](https://aadinternals.com/post/phishing/). Users can utilize these tokens to authenticate directly against Azure AD resources, gaining an understanding of potential attack vectors involving token theft.
-
-## Privilege Escalation
+### Privilege Escalation
 BadZure supports five distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
 
 ### Identity-Based Privilege Escalation
@@ -129,39 +123,47 @@ python badzure.py destroy --verbose
 
 ## YAML Configuration File
 
-BadZure leverages a configuration file used to configure the setup of the Azure AD tenant. This file allows users to specify details such as the number of users, groups, applications, administrative units, and attack paths to be created.
+BadZure uses a YAML configuration file to define the tenant setup and attack paths. The file specifies the number of entities to create (users, groups, applications, Azure resources) and the attack paths to configure.
 
 ### Example Configuration
 
 ```yaml
 tenant:
-  tenant_id: "your-tenant-id"
-  domain: "your-domain.com"
-  users: 30
-  groups: 10
-  applications: 10
-  administrative_units: 10
+  tenant_id: YOUR-TENANT-GUID-HERE
+  domain: yourdomain.onmicrosoft.com
+  subscription_id: YOUR-SUBSCRIPTION-GUID-HERE
+
+  # Identity resources
+  users: 5
+  applications: 3
+  groups: 2
+  administrative_units: 2
+
+  # Azure resources (required for ManagedIdentityTheft, KeyVaultSecretTheft, StorageCertificateTheft)
+  resource_groups: 1
+  key_vaults: 1
+  virtual_machines: 1
 
 attack_paths:
 
-  attack_path_1:
+  # Identity-Based: User owns application with Global Administrator role
+  app_ownership_abuse:
     enabled: true
-    initial_access: password
     privilege_escalation: ApplicationOwnershipAbuse
     method: AzureADRole
-    entra_role : random
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  attack_path_2:
+  # Cloud-Native: Steal managed identity token from VM to access Key Vault
+  managed_identity_theft:
     enabled: true
-    initial_access: token
-    privilege_escalation: ApplicationAdministratorAbuse
+    privilege_escalation: ManagedIdentityTheft
+    source_type: vm
+    target_resource_type: key_vault
     method: APIPermission
-    api_type: graph
-    app_role : random
-
+    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
-For more details on the configuration options, please refer to the [Wiki](https://github.com/mvelazc0/BadZure/wiki/YAML-Configuration-Guide)
+For the complete list of configuration options and attack path examples, refer to the [Wiki](https://github.com/mvelazc0/BadZure/wiki/YAML-Configuration-Guide) or see the `badzure.yml` file in the repository.
 
 ## Author
 
