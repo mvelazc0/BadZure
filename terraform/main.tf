@@ -634,8 +634,8 @@ resource "azurerm_storage_account" "function_storage" {
   account_tier             = "Standard"
   account_replication_type = "LRS"
 
-  # Azure Policy compliance: Disable ALL forms of public access
-  public_network_access_enabled   = false
+  # Enable public network access for Function App connectivity with managed identity auth
+  public_network_access_enabled   = true
   shared_access_key_enabled       = true
   allow_nested_items_to_be_public = false # CRITICAL: Prevents public access to blobs/containers
 
@@ -646,7 +646,7 @@ resource "azurerm_storage_account" "function_storage" {
 resource "azurerm_storage_container" "function_container" {
   for_each = var.function_apps
 
-  name                  = "${each.value.name}-container"
+  name                  = "app-package-${replace(each.value.name, "func-", "")}-${substr(md5(each.value.name), 0, 7)}"
   storage_account_id    = azurerm_storage_account.function_storage[each.key].id
   container_access_type = "private"
 
@@ -666,6 +666,18 @@ resource "azurerm_service_plan" "function_plan" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
+# Application Insights for Function Apps
+resource "azurerm_application_insights" "function_insights" {
+  for_each = var.function_apps
+
+  name                = "${each.value.name}-insights"
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  application_type    = "web"
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
 # Function App with Flex Consumption (supports both Linux and Windows)
 resource "azurerm_function_app_flex_consumption" "function_apps" {
   for_each = var.function_apps
@@ -675,25 +687,42 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
   location            = each.value.location
   service_plan_id     = azurerm_service_plan.function_plan[each.key].id
 
-  # Storage configuration - Using System-Assigned Managed Identity for policy compliance
+  # Storage configuration - Using connection string authentication
   storage_container_type      = "blobContainer"
   storage_container_endpoint  = "${azurerm_storage_account.function_storage[each.key].primary_blob_endpoint}${azurerm_storage_container.function_container[each.key].name}"
-  storage_authentication_type = "SystemAssignedIdentity"
+  storage_authentication_type = "StorageAccountConnectionString"
+  storage_access_key          = azurerm_storage_account.function_storage[each.key].primary_access_key
 
   # Runtime configuration
   runtime_name    = each.value.os_type == "linux" ? "python" : "dotnet-isolated"
-  runtime_version = each.value.os_type == "linux" ? "3.11" : "8.0"
+  runtime_version = each.value.os_type == "linux" ? "3.13" : "8.0"
+
+  # Scale and concurrency settings (top-level arguments)
+  maximum_instance_count = 100
+  instance_memory_in_mb  = 2048
+
+  # App settings for deployment storage connection string
+  app_settings = {
+    "DEPLOYMENT_STORAGE_CONNECTION_STRING"     = azurerm_storage_account.function_storage[each.key].primary_connection_string
+    "APPLICATIONINSIGHTS_CONNECTION_STRING"    = azurerm_application_insights.function_insights[each.key].connection_string
+    "ApplicationInsightsAgent_EXTENSION_VERSION" = "~3"
+  }
 
   # Required site_config block
-  site_config {}
+  site_config {
+    application_insights_connection_string = azurerm_application_insights.function_insights[each.key].connection_string
+    application_insights_key               = azurerm_application_insights.function_insights[each.key].instrumentation_key
+  }
 
+  # Keep System-Assigned Identity for attack path scenarios
   identity {
     type = "SystemAssigned"
   }
 
   depends_on = [
     azurerm_service_plan.function_plan,
-    azurerm_storage_container.function_container
+    azurerm_storage_container.function_container,
+    azurerm_application_insights.function_insights
   ]
 }
 
