@@ -105,9 +105,7 @@ All attack paths share these configuration options:
 | Option | Values | Description |
 |---|---|---|
 | `identity_type` | `user` (default), `service_principal` | Type of compromised identity |
-| `initial_access` | `password`, `token` | How credentials are provided |
 | `assignment_type` | `direct` (default), `group` | Whether permissions are assigned directly or through a security group |
 | `method` | `AzureADRole`, `APIPermission` | How the target application gets its privileges |
-| `entry_point` | `compromised_identity` (default) | How the attacker gains initial access |
 
 See the [Configuration Guide](../configuration.md) for full details on all parameters.

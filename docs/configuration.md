@@ -76,9 +76,7 @@ These options are available for **all** attack path types:
 | `privilege_escalation` | See below | — | The escalation technique |
 | `method` | `AzureADRole`, `APIPermission` | — | How the target app gets its privileges |
 | `identity_type` | `user`, `service_principal` | `user` | Type of compromised identity |
-| `initial_access` | `password`, `token` | `password` | How credentials are provided |
 | `assignment_type` | `direct`, `group` | `direct` | Direct assignment or via group membership |
-| `entry_point` | `compromised_identity` | `compromised_identity` | How the attacker gains initial access |
 
 ### Option Details
 
@@ -91,11 +89,6 @@ These options are available for **all** attack path types:
 - **`StorageCertificateTheft`** — Retrieves application certificates and private keys from Azure Storage through direct access
 
 For detailed descriptions of each technique, see the [Attack Paths](attack-paths/index.md) section.
-
-**`initial_access`** — How BadZure provides credentials for the compromised identity:
-
-- **`password`** — Assigns a password to the identity, simulating scenarios where an attacker has obtained valid credentials through credential stuffing, phishing, or leaked credentials
-- **`token`** — Generates JWT access tokens, simulating scenarios where an attacker has stolen tokens through reverse proxy phishing, endpoint malware, or device code phishing
 
 **`identity_type`** — The type of identity used for initial access:
 
@@ -119,10 +112,6 @@ All five attack paths support both identity types:
 
 - **`direct`** — Permissions assigned directly to the identity (default). The user or service principal has explicit permissions.
 - **`group`** — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates more realistic attack scenarios that mirror enterprise configurations where permissions are managed through groups.
-
-**`entry_point`** — How the attacker gains initial access to the environment:
-
-- **`compromised_identity`** — The attacker has compromised a user account or service principal through credential theft, phishing, token theft, or leaked credentials in code repositories (default)
 
 ### Privilege Assignment
 
@@ -225,7 +214,6 @@ How the target application receives its high privileges.
 
 **Optional fields:**
 
-- `entry_point`: `compromised_identity` (default)
 - `identity_type`: `user` (default) or `service_principal`
 - `credential_type`: `secret` (default) or `certificate`
 
@@ -301,7 +289,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     ```yaml
     attack_path_owner_group:
       enabled: true
-      initial_access: token
+
       privilege_escalation: ApplicationOwnershipAbuse
       identity_type: service_principal
       assignment_type: group
@@ -316,7 +304,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     ```yaml
     attack_path_admin_group:
       enabled: true
-      initial_access: password
+
       privilege_escalation: ApplicationAdministratorAbuse
       identity_type: user
       assignment_type: group
@@ -332,11 +320,11 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     ```yaml
     attack_path_mi_group:
       enabled: true
-      initial_access: password
+
       privilege_escalation: ManagedIdentityTheft
       source_type: vm
       target_resource_type: key_vault
-      entry_point: compromised_identity
+
       identity_type: user
       assignment_type: group
       method: APIPermission
@@ -351,7 +339,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     ```yaml
     attack_path_kv_group:
       enabled: true
-      initial_access: password
+
       privilege_escalation: KeyVaultSecretTheft
       identity_type: user
       assignment_type: group
@@ -367,7 +355,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     ```yaml
     attack_path_storage_group:
       enabled: true
-      initial_access: password
+
       privilege_escalation: StorageCertificateTheft
       identity_type: user
       assignment_type: group
@@ -413,7 +401,6 @@ attack_paths:
     enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
     identity_type: service_principal
-    initial_access: token
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40

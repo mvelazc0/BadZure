@@ -157,7 +157,6 @@ attack_paths:
     source_type: logic_app
     target_resource_type: storage_account
     identity_type: service_principal
-    initial_access: token
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```

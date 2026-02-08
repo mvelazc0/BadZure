@@ -1,6 +1,7 @@
 # BadZure
 [![BlackHat Arsenal 2024](https://raw.githubusercontent.com/toolswatch/badges/master/arsenal/usa/2024.svg)](https://www.blackhat.com/us-24/arsenal/schedule/index.html#badzure-simulating-and-exploring-entra-id-attack-paths-39628)
 [![Open_Threat_Research Community](https://img.shields.io/badge/Open_Threat_Research-Community-brightgreen.svg)](https://twitter.com/OTR_Community)
+[![Documentation](https://img.shields.io/badge/docs-mvelazc0.github.io%2FBadZure-blue)](https://mvelazc0.github.io/BadZure/)
 
 <div align="center">
     <img src="img/BadZure.png" alt="BadZure logo" style="width: 35%; height: 35%;">
@@ -49,7 +50,7 @@ BadZure supports five distinct privilege escalation attack paths that introduce 
 - **KeyVaultSecretTheft**: Direct privilege escalation through Azure Key Vault access to retrieve application secrets
 - **StorageCertificateTheft**: Direct privilege escalation through Azure Storage Account access to retrieve application certificates
 
-Each attack path can be configured with specific or random role assignments and supports various principal types depending on the technique. For detailed configuration options and attack path descriptions, refer to the project [Wiki](https://github.com/mvelazc0/BadZure/wiki/Supported-Attack-Paths).
+Each attack path can be configured with specific or random role assignments and supports various principal types depending on the technique. For detailed configuration options and attack path descriptions, refer to the [documentation](https://mvelazc0.github.io/BadZure/attack-paths/).
 
 A BloodHound-generated graph, showcasing the attack paths BadZure can create, is shown below.
 
@@ -163,7 +164,7 @@ attack_paths:
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
-For the complete list of configuration options and attack path examples, refer to the [Wiki](https://github.com/mvelazc0/BadZure/wiki/YAML-Configuration-Guide) or see the `badzure.yml` file in the repository.
+For the complete list of configuration options and attack path examples, refer to the [Configuration Guide](https://mvelazc0.github.io/BadZure/configuration/) or see the `badzure.yml` file in the repository.
 
 ## Author
 

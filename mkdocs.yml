@@ -31,8 +31,10 @@ theme:
     - toc.follow
 
 nav:
-  - Home: index.md
-  - Getting Started: getting-started.md
+  - BadZure:
+    - Home: index.md
+    - Getting Started: getting-started.md
+    - Configuration Guide: configuration.md
   - Attack Paths:
     - Overview: attack-paths/index.md
     - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
@@ -40,7 +42,6 @@ nav:
     - ManagedIdentityTheft: attack-paths/managed-identity-theft.md
     - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
     - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
-  - Configuration Guide: configuration.md
 
 markdown_extensions:
   - admonition

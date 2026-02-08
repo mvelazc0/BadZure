@@ -4,7 +4,7 @@
 # techniques in BadZure. Use this as a reference for creating your own
 # attack path configurations.
 #
-# Documentation: See wiki/YAMLConfigurationGuide.md for full parameter details
+# Documentation: https://mvelazc0.github.io/BadZure/configuration/
 # =============================================================================
 
 tenant:
