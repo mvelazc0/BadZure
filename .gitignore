@@ -147,3 +147,6 @@ tokens.txt
 *.pfx
 
 plans/
+
+# MkDocs build output
+site/

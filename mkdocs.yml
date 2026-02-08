@@ -1,0 +1,70 @@
+site_name: BadZure
+site_description: Automate the setup of vulnerable Azure tenants with realistic attack paths for security testing and training
+site_author: Mauricio Velazco
+site_url: https://mvelazc0.github.io/BadZure
+
+repo_name: mvelazc0/BadZure
+repo_url: https://github.com/mvelazc0/BadZure
+
+theme:
+  name: material
+  logo: img/BadZure.png
+  favicon: img/BadZure.png
+  palette:
+    - scheme: slate
+      primary: red
+      accent: red
+      toggle:
+        icon: material/brightness-4
+        name: Switch to light mode
+    - scheme: default
+      primary: red
+      accent: red
+      toggle:
+        icon: material/brightness-7
+        name: Switch to dark mode
+  features:
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - content.code.copy
+    - toc.follow
+
+nav:
+  - Home: index.md
+  - Getting Started: getting-started.md
+  - Attack Paths:
+    - Overview: attack-paths/index.md
+    - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
+    - ApplicationAdministratorAbuse: attack-paths/app-administrator-abuse.md
+    - ManagedIdentityTheft: attack-paths/managed-identity-theft.md
+    - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
+    - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
+  - Configuration Guide: configuration.md
+
+markdown_extensions:
+  - admonition
+  - pymdownx.details
+  - pymdownx.superfences:
+      custom_fences:
+        - name: mermaid
+          class: mermaid
+          format: !!python/name:pymdownx.superfences.fence_code_format
+  - pymdownx.tabbed:
+      alternate_style: true
+  - pymdownx.highlight:
+      anchor_linenums: true
+  - pymdownx.inlinehilite
+  - pymdownx.snippets
+  - attr_list
+  - md_in_html
+  - tables
+  - toc:
+      permalink: true
+
+extra:
+  social:
+    - icon: fontawesome/brands/github
+      link: https://github.com/mvelazc0/BadZure
+    - icon: fontawesome/brands/twitter
+      link: https://twitter.com/mvelazco
