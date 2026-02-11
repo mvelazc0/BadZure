@@ -234,6 +234,14 @@ resource "azuread_application_password" "attack_path_kv_secrets" {
 
 }
 
+resource "azuread_application_password" "attack_path_compromised_sp" {
+  for_each          = var.attack_path_compromised_sp_credentials
+  application_id    = azuread_application_registration.spns[each.value.app_name].id
+  display_name      = "BadZureCompromisedSPSecret"
+  end_date_relative = "8760h"
+  depends_on        = [azuread_application_registration.spns]
+}
+
 resource "azurerm_key_vault_secret" "attack_path_kv_secrets" {
   for_each = var.attack_path_kv_abuse_assignments
 

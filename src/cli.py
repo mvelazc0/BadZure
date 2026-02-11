@@ -246,7 +246,7 @@ class BuildCommand:
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 result = self.attack_path_mgr.create_keyvault_secret_theft(
                     attack_path_data, applications, key_vaults, users, applications,
-                    virtual_machines, mode='random', path_name=attack_path_name,
+                    virtual_machines, domain, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
                 )
                 attack_path_kv_abuse_assignments.update(result['kv_abuse_assignments'])
@@ -255,6 +255,7 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
                 # Track used apps
                 for assignment in result['kv_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -263,7 +264,7 @@ class BuildCommand:
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 result = self.attack_path_mgr.create_storage_certificate_theft(
                     attack_path_data, applications, storage_accounts, users, applications,
-                    virtual_machines, mode='random', path_name=attack_path_name,
+                    virtual_machines, domain, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
                 )
                 attack_path_storage_abuse_assignments.update(result['storage_abuse_assignments'])
@@ -272,6 +273,7 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
                 # Track used apps
                 for assignment in result['storage_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -280,7 +282,7 @@ class BuildCommand:
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 result = self.attack_path_mgr.create_managed_identity_theft(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
-                    virtual_machines, logic_apps, automation_accounts, function_apps, mode='random', path_name=attack_path_name,
+                    domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='random', path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
                 attack_path_managed_identity_theft_assignments.update(result['mi_theft_assignments'])
@@ -289,6 +291,7 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
                 # Track used apps and users/service principals
                 for assignment in result['mi_theft_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -316,6 +319,14 @@ class BuildCommand:
                 attack_path_groups=attack_path_group_names
             )
         
+        # Collect compromised SP credentials for Terraform
+        compromised_sp_creds = {}
+        for ap_name, creds in user_creds.items():
+            if creds.get('identity_type') == 'service_principal':
+                sp_name = creds.get('service_principal_name')
+                if sp_name:
+                    compromised_sp_creds[ap_name] = {'app_name': sp_name}
+
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
@@ -329,10 +340,11 @@ class BuildCommand:
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
             attack_path_managed_identity_theft_assignments,
             attack_path_vm_contributor_assignments,
-            attack_path_group_membership_assignments
+            attack_path_group_membership_assignments,
+            attack_path_compromised_sp_credentials=compromised_sp_creds
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
-        
+
         # Execute Terraform
         logging.info("Calling terraform init")
         return_code, stdout, stderr = self.terraform_mgr.init()
@@ -342,7 +354,7 @@ class BuildCommand:
                 logging.error(stdout)
                 logging.error(stderr)
             return
-        
+
         logging.info("Calling terraform apply to create resources, this may take several minutes ...")
         return_code, stdout, stderr = self.terraform_mgr.apply(verbose)
         if return_code != 0:
@@ -351,7 +363,16 @@ class BuildCommand:
                 logging.error(stdout)
                 logging.error(stderr)
             return
-        
+
+        # Read Terraform outputs for SP credentials
+        if compromised_sp_creds:
+            outputs = self.terraform_mgr.get_outputs()
+            sp_credentials = outputs.get('compromised_sp_credentials', {})
+            for ap_name, sp_cred in sp_credentials.items():
+                if ap_name in user_creds:
+                    user_creds[ap_name]['client_id'] = sp_cred.get('client_id')
+                    user_creds[ap_name]['client_secret'] = sp_cred.get('client_secret')
+
         logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
         self.output_formatter.write_users_file(users, domain)
         self.output_formatter.format_random_mode_attack_paths(
@@ -452,7 +473,16 @@ class BuildCommand:
         
         if attack_path_assignments.get('group_assignments'):
             logging.info(f"Generated {len(attack_path_assignments['group_assignments'])} attack path group(s)")
-        
+
+        # Collect compromised SP credentials for Terraform
+        user_creds = attack_path_assignments.get('user_creds', {})
+        compromised_sp_creds = {}
+        for ap_name, creds in user_creds.items():
+            if creds.get('identity_type') == 'service_principal':
+                sp_name = creds.get('service_principal_name')
+                if sp_name:
+                    compromised_sp_creds[ap_name] = {'app_name': sp_name}
+
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
@@ -468,10 +498,11 @@ class BuildCommand:
             attack_path_assignments.get('storage_abuse', {}),
             attack_path_assignments.get('managed_identity_theft', {}),
             attack_path_assignments.get('vm_contributor', {}),
-            attack_path_assignments.get('group_membership_assignments', {})
+            attack_path_assignments.get('group_membership_assignments', {}),
+            attack_path_compromised_sp_credentials=compromised_sp_creds
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
-        
+
         # Execute Terraform
         logging.info("Calling terraform init")
         return_code, stdout, stderr = self.terraform_mgr.init()
@@ -481,7 +512,7 @@ class BuildCommand:
                 logging.error(stdout)
                 logging.error(stderr)
             return
-        
+
         logging.info("Calling terraform apply to create resources, this may take several minutes...")
         return_code, stdout, stderr = self.terraform_mgr.apply(verbose)
         if return_code != 0:
@@ -490,7 +521,16 @@ class BuildCommand:
                 logging.error(stdout)
                 logging.error(stderr)
             return
-        
+
+        # Read Terraform outputs for SP credentials
+        if compromised_sp_creds:
+            outputs = self.terraform_mgr.get_outputs()
+            sp_credentials = outputs.get('compromised_sp_credentials', {})
+            for ap_name, sp_cred in sp_credentials.items():
+                if ap_name in user_creds:
+                    user_creds[ap_name]['client_id'] = sp_cred.get('client_id')
+                    user_creds[ap_name]['client_secret'] = sp_cred.get('client_secret')
+
         logging.info("Azure AD tenant setup completed!")
         self.output_formatter.write_users_file(users, domain)
         self.output_formatter.format_targeted_mode_attack_paths(config, attack_path_assignments, users, domain)
@@ -577,7 +617,7 @@ class BuildCommand:
             elif priv_esc == 'KeyVaultSecretTheft':
                 result = self.attack_path_mgr.create_keyvault_secret_theft(
                     path_config, applications, key_vaults, users, applications,
-                    virtual_machines, mode='targeted', entities=entities, path_name=path_name
+                    virtual_machines, domain, mode='targeted', entities=entities, path_name=path_name
                 )
                 assignments['kv_abuse'].update(result['kv_abuse_assignments'])
                 assignments['app_roles'].update(result['app_role_assignments'])
@@ -585,11 +625,12 @@ class BuildCommand:
                 assignments['vm_contributor'].update(result['vm_contributor_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
             
             elif priv_esc == 'StorageCertificateTheft':
                 result = self.attack_path_mgr.create_storage_certificate_theft(
                     path_config, applications, storage_accounts, users, applications,
-                    virtual_machines, mode='targeted', entities=entities, path_name=path_name
+                    virtual_machines, domain, mode='targeted', entities=entities, path_name=path_name
                 )
                 assignments['storage_abuse'].update(result['storage_abuse_assignments'])
                 assignments['app_roles'].update(result['app_role_assignments'])
@@ -597,11 +638,12 @@ class BuildCommand:
                 assignments['vm_contributor'].update(result['vm_contributor_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
             
             elif priv_esc == 'ManagedIdentityTheft':
                 result = self.attack_path_mgr.create_managed_identity_theft(
                     path_config, applications, key_vaults, storage_accounts, users,
-                    virtual_machines, logic_apps, automation_accounts, function_apps, mode='targeted', entities=entities, path_name=path_name
+                    domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='targeted', entities=entities, path_name=path_name
                 )
                 assignments['managed_identity_theft'].update(result['mi_theft_assignments'])
                 assignments['app_roles'].update(result['app_role_assignments'])
@@ -609,6 +651,7 @@ class BuildCommand:
                 assignments['vm_contributor'].update(result['vm_contributor_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
         
         # Store user credentials for output
         assignments['user_creds'] = user_creds
@@ -628,14 +671,14 @@ class BuildCommand:
         for path_name, path_config in config['attack_paths'].items():
             if not path_config.get('enabled', False):
                 continue
-            
+
             entities = path_config.get('entities', {})
-            
+
             for entity_type in all_entities.keys():
                 if entity_type in entities:
                     for entity in entities[entity_type]:
                         entity_name = entity.get('name', 'random')
-                        
+
                         if entity_name == 'random':
                             all_entities[entity_type].append(entity)
                         else:
@@ -644,9 +687,20 @@ class BuildCommand:
                                     f"Duplicate {entity_type} name '{entity_name}' found in {path_name}, skipping duplicate"
                                 )
                                 continue
-                            
+
                             seen_names[entity_type].add(entity_name)
                             all_entities[entity_type].append(entity)
+
+            # Service principals are backed by applications in Azure/Terraform,
+            # so collect them into the applications list
+            if 'service_principals' in entities:
+                for sp in entities['service_principals']:
+                    sp_name = sp.get('name', 'random')
+                    if sp_name == 'random':
+                        all_entities['applications'].append(sp)
+                    elif sp_name not in seen_names['applications']:
+                        seen_names['applications'].add(sp_name)
+                        all_entities['applications'].append(sp)
         
         # Log collected entity counts for debugging
         logging.info("Collected entities from attack paths:")

@@ -64,9 +64,15 @@ class OutputFormatter:
                             identity_type = creds.get('identity_type', 'user')
                             if identity_type == 'user':
                                 logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
+                                if 'password' in creds:
+                                    logging.info(f"Password: {creds['password']}")
                             elif identity_type == 'service_principal':
                                 logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
-                        
+                                if 'client_id' in creds:
+                                    logging.info(f"Client ID: {creds['client_id']}")
+                                if 'client_secret' in creds:
+                                    logging.info(f"Client Secret: {creds['client_secret']}")
+
                         logging.info(f"Owned Application: {assignment['app_name']}")
                         
                         # Show what privileges the application has
@@ -95,9 +101,15 @@ class OutputFormatter:
                             identity_type = creds.get('identity_type', 'user')
                             if identity_type == 'user':
                                 logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
+                                if 'password' in creds:
+                                    logging.info(f"Password: {creds['password']}")
                             elif identity_type == 'service_principal':
                                 logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
-                        
+                                if 'client_id' in creds:
+                                    logging.info(f"Client ID: {creds['client_id']}")
+                                if 'client_secret' in creds:
+                                    logging.info(f"Client Secret: {creds['client_secret']}")
+
                         # Show group assignment details if applicable
                         assignment_type = assignment.get('assignment_type', 'direct')
                         if assignment_type == 'group':
@@ -146,9 +158,17 @@ class OutputFormatter:
                         
                         if identity_type == "user":
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            if attack_path_name in user_creds and 'password' in user_creds[attack_path_name]:
+                                logging.info(f"Password: {user_creds[attack_path_name]['password']}")
                         elif identity_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        
+                            if attack_path_name in user_creds:
+                                sp_creds = user_creds[attack_path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
                         # Show group assignment details if applicable
                         if assignment_type == 'group':
                             group_name = assignment.get('group_name', 'N/A')
@@ -199,9 +219,17 @@ class OutputFormatter:
                         
                         if identity_type == "user":
                             logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            if attack_path_name in user_creds and 'password' in user_creds[attack_path_name]:
+                                logging.info(f"Password: {user_creds[attack_path_name]['password']}")
                         elif identity_type == "service_principal":
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        
+                            if attack_path_name in user_creds:
+                                sp_creds = user_creds[attack_path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
                         # Show group assignment details if applicable
                         if assignment_type == 'group':
                             group_name = assignment.get('group_name', 'N/A')
@@ -266,9 +294,17 @@ class OutputFormatter:
                         # Display initial access identity based on identity_type
                         if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {initial_access_principal}@{domain}")
+                            if attack_path_name in user_creds and 'password' in user_creds[attack_path_name]:
+                                logging.info(f"Password: {user_creds[attack_path_name]['password']}")
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {initial_access_principal}")
-                        
+                            if attack_path_name in user_creds:
+                                sp_creds = user_creds[attack_path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
                         # Show group assignment details if applicable
                         if assignment_type == 'group':
                             group_name = assignment.get('group_name', 'N/A')
@@ -280,7 +316,7 @@ class OutputFormatter:
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
-                        
+
                         # Display source information with role (via Group if applicable)
                         role_suffix = " via Group" if assignment_type == 'group' else ""
                         if source_type == 'vm':
@@ -298,7 +334,7 @@ class OutputFormatter:
                             os_display = f" ({os_type.capitalize()})" if os_type else ""
                             logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
-                        
+
                         # Display target information
                         if target_resource_type == 'key_vault':
                             logging.info(f"Target Resource: Key Vault - {target_name} (Key Vault Contributor)")
@@ -383,7 +419,11 @@ class OutputFormatter:
                                 logging.info(f"Password: {creds['password']}")
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
-                        
+                            if 'client_id' in creds:
+                                logging.info(f"Client ID: {creds['client_id']}")
+                            if 'client_secret' in creds:
+                                logging.info(f"Client Secret: {creds['client_secret']}")
+
                         logging.info(f"Owned Application: {assignment['app_name']}")
                         
                         if key in assignments.get('app_roles', {}):
@@ -410,7 +450,11 @@ class OutputFormatter:
                                     logging.info(f"Password: {creds['password']}")
                             elif identity_type == 'service_principal':
                                 logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
-                            
+                                if 'client_id' in creds:
+                                    logging.info(f"Client ID: {creds['client_id']}")
+                                if 'client_secret' in creds:
+                                    logging.info(f"Client Secret: {creds['client_secret']}")
+
                             # Show group assignment details if applicable
                             assignment_type = assignment.get('assignment_type', 'direct')
                             if assignment_type == 'group':
@@ -455,7 +499,13 @@ class OutputFormatter:
                                 logging.info(f"Password: {users[principal_name]['password']}")
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        
+                            if path_name in user_creds:
+                                sp_creds = user_creds[path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
                         # Show group assignment details if applicable
                         if assignment_type == 'group':
                             group_name = assignment.get('group_name', 'N/A')
@@ -470,10 +520,10 @@ class OutputFormatter:
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
                         else:
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                        
+
                         logging.info(f"Target Application: {assignment['app_name']}")
                         break
-            
+
             elif priv_esc == 'StorageCertificateTheft':
                 for key, assignment in assignments.get('storage_abuse', {}).items():
                     # Match the key to the path_name
@@ -491,7 +541,13 @@ class OutputFormatter:
                                 logging.info(f"Password: {users[principal_name]['password']}")
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                        
+                            if path_name in user_creds:
+                                sp_creds = user_creds[path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
                         # Show group assignment details if applicable
                         if assignment_type == 'group':
                             group_name = assignment.get('group_name', 'N/A')
@@ -506,7 +562,7 @@ class OutputFormatter:
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader via Group)")
                         else:
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                        
+
                         logging.info(f"Target Application: {assignment['app_name']}")
                         logging.info(f"Certificate stored in: {storage_account}/cert-container/")
                         break
@@ -543,7 +599,13 @@ class OutputFormatter:
                                 logging.info(f"Password: {users[initial_access_principal]['password']}")
                         elif identity_type == 'service_principal':
                             logging.info(f"Initial Access Identity: Service Principal - {initial_access_principal}")
-                        
+                            if path_name in user_creds:
+                                sp_creds = user_creds[path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
                         # Show group assignment details if applicable
                         if assignment_type == 'group':
                             group_name = assignment.get('group_name', 'N/A')
@@ -555,7 +617,7 @@ class OutputFormatter:
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
-                        
+
                         # Display source information with role (via Group if applicable)
                         role_suffix = " via Group" if assignment_type == 'group' else ""
                         if source_type == 'vm':
@@ -573,7 +635,7 @@ class OutputFormatter:
                             os_display = f" ({os_type.capitalize()})" if os_type else ""
                             logging.info(f"Source Resource: Function App{os_display} - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
-                        
+
                         # Display target information
                         if target_resource_type == 'key_vault':
                             logging.info(f"Target Resource: Key Vault - {target_name} (Key Vault Contributor)")
@@ -596,9 +658,9 @@ class OutputFormatter:
                             else:
                                 logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
                                 logging.info(f"Secret stored in: {target_name}/mi-credentials/{app_name}-secret.txt")
-                        
+
                         # Display application with privileges
                         logging.info(f"Target Application: {app_name}")
                         break
-        
+
         logging.info("\n" + "=" * 60)

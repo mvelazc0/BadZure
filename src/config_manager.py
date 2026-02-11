@@ -102,8 +102,13 @@ class ConfigManager:
     
     def _validate_app_ownership_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Application Ownership Abuse configuration."""
-        if 'users' not in entities or not entities['users']:
-            errors.append(f"{path_name}: ApplicationOwnershipAbuse requires at least one user")
+        identity_type = path_config.get('identity_type', 'user')
+        if identity_type == 'service_principal':
+            if 'service_principals' not in entities or not entities['service_principals']:
+                errors.append(f"{path_name}: ApplicationOwnershipAbuse with identity_type 'service_principal' requires at least one service_principal")
+        else:
+            if 'users' not in entities or not entities['users']:
+                errors.append(f"{path_name}: ApplicationOwnershipAbuse requires at least one user")
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ApplicationOwnershipAbuse requires at least one application")
         
@@ -127,8 +132,13 @@ class ConfigManager:
     
     def _validate_app_administrator_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Application Administrator Abuse configuration."""
-        if 'users' not in entities or not entities['users']:
-            errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one user")
+        identity_type = path_config.get('identity_type', 'user')
+        if identity_type == 'service_principal':
+            if 'service_principals' not in entities or not entities['service_principals']:
+                errors.append(f"{path_name}: ApplicationAdministratorAbuse with identity_type 'service_principal' requires at least one service_principal")
+        else:
+            if 'users' not in entities or not entities['users']:
+                errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one user")
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one application")
         
@@ -249,12 +259,12 @@ class ConfigManager:
         # Validate assignment_type parameter
         self._validate_assignment_type(path_name, path_config, errors)
         
-        # Validate principal_type requirements (only user and service_principal supported)
-        principal_type = path_config.get('principal_type', 'user')
-        if principal_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: KeyVaultSecretTheft only supports principal_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
-        elif principal_type == 'user' and ('users' not in entities or not entities['users']):
-            errors.append(f"{path_name}: principal_type 'user' requires at least one user")
+        # Validate identity_type requirements (only user and service_principal supported)
+        identity_type = path_config.get('identity_type', 'user')
+        if identity_type not in ['user', 'service_principal']:
+            errors.append(f"{path_name}: KeyVaultSecretTheft only supports identity_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+        elif identity_type == 'user' and ('users' not in entities or not entities['users']):
+            errors.append(f"{path_name}: identity_type 'user' requires at least one user")
     
     def _validate_storage_certificate_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Storage Certificate Theft configuration."""
@@ -268,12 +278,12 @@ class ConfigManager:
         # Validate assignment_type parameter
         self._validate_assignment_type(path_name, path_config, errors)
             
-        # Validate principal_type requirements (only user and service_principal supported)
-        principal_type = path_config.get('principal_type', 'user')
-        if principal_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: StorageCertificateTheft only supports principal_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
-        elif principal_type == 'user' and ('users' not in entities or not entities['users']):
-            errors.append(f"{path_name}: principal_type 'user' requires at least one user")
+        # Validate identity_type requirements (only user and service_principal supported)
+        identity_type = path_config.get('identity_type', 'user')
+        if identity_type not in ['user', 'service_principal']:
+            errors.append(f"{path_name}: StorageCertificateTheft only supports identity_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+        elif identity_type == 'user' and ('users' not in entities or not entities['users']):
+            errors.append(f"{path_name}: identity_type 'user' requires at least one user")
     
     def _validate_managed_identity_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Managed Identity Theft configuration."""

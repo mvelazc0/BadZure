@@ -31,6 +31,20 @@ class TerraformManager:
     def show(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Show Terraform state."""
         return self.tf.show(json=True, capture_output=not verbose)
+
+    def get_outputs(self) -> Dict:
+        """Get Terraform outputs as a dictionary."""
+        return_code, stdout, stderr = self.tf.cmd('output', '-json')
+        if return_code != 0:
+            logging.warning(f"Failed to get Terraform outputs: {stderr}")
+            return {}
+        try:
+            raw = json.loads(stdout)
+            # Terraform output -json wraps each output in {value: ..., type: ..., sensitive: ...}
+            return {k: v.get('value') for k, v in raw.items()}
+        except (json.JSONDecodeError, AttributeError):
+            logging.warning("Failed to parse Terraform output JSON")
+            return {}
     
     def build_terraform_vars(
         self,
@@ -63,7 +77,8 @@ class TerraformManager:
         attack_path_storage_abuse_assignments: Dict,
         attack_path_managed_identity_theft_assignments: Dict,
         attack_path_vm_contributor_assignments: Dict,
-        attack_path_group_memberships: Dict = None
+        attack_path_group_memberships: Dict = None,
+        attack_path_compromised_sp_credentials: Dict = None
     ) -> Dict:
         """
         Build Terraform variables dictionary.
@@ -77,6 +92,7 @@ class TerraformManager:
         """
         # Initialize optional parameters
         attack_path_group_memberships = attack_path_group_memberships or {}
+        attack_path_compromised_sp_credentials = attack_path_compromised_sp_credentials or {}
         
         # Convert entity dictionaries to Terraform format
         user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -123,7 +139,8 @@ class TerraformManager:
             'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments,
             'attack_path_managed_identity_theft_assignments': attack_path_managed_identity_theft_assignments,
             'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments,
-            'attack_path_group_memberships': attack_path_group_memberships
+            'attack_path_group_memberships': attack_path_group_memberships,
+            'attack_path_compromised_sp_credentials': attack_path_compromised_sp_credentials
         }
         
         return tf_vars

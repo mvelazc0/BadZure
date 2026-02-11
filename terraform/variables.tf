@@ -277,3 +277,11 @@ variable "attack_path_group_memberships" {
     principal_name = string  # Name of the user or service principal to add to the group
   }))
 }
+
+variable "attack_path_compromised_sp_credentials" {
+  description = "Service principal credentials for compromised identity SPs in attack paths"
+  default     = {}
+  type = map(object({
+    app_name = string
+  }))
+}

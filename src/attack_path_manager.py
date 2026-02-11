@@ -422,6 +422,7 @@ class AttackPathManager:
         key_vaults: Dict,
         storage_accounts: Dict,
         users: Dict,
+        domain: str,
         virtual_machines: Dict,
         logic_apps: Dict,
         automation_accounts: Dict,
@@ -497,6 +498,21 @@ class AttackPathManager:
                 identity_type, path_name
             )
         
+        # Create initial access credentials based on identity_type
+        if identity_type == 'user':
+            initial_access = {
+                "identity_type": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point
+            }
+        else:  # service_principal
+            initial_access = {
+                "identity_type": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point
+            }
+
         # Create MI theft assignment
         # Note: Source Contributor assignment is handled directly by Terraform
         # from the initial_access_principal field in this assignment
@@ -560,6 +576,7 @@ class AttackPathManager:
         )
         
         return {
+            'initial_access': initial_access,
             'mi_theft_assignments': mi_theft_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
@@ -576,6 +593,7 @@ class AttackPathManager:
         users: Dict,
         service_principals: Dict,
         virtual_machines: Dict,
+        domain: str,
         mode: str = 'random',
         entities: Optional[Dict] = None,
         path_name: Optional[str] = None,
@@ -648,6 +666,22 @@ class AttackPathManager:
                 entities, identity_type, path_name
             )
         
+        # Build initial access credentials
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        if identity_type == 'user':
+            initial_access = {
+                "identity_type": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point
+            }
+        else:  # service_principal
+            initial_access = {
+                "identity_type": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point
+            }
+
         # Create KV abuse assignment
         kv_abuse_assignment = {
             "key_vault": kv_name,
@@ -689,6 +723,7 @@ class AttackPathManager:
         )
         
         return {
+            'initial_access': initial_access,
             'kv_abuse_assignments': attack_path_kv_abuse_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
@@ -705,6 +740,7 @@ class AttackPathManager:
         users: Dict,
         service_principals: Dict,
         virtual_machines: Dict,
+        domain: str,
         mode: str = 'random',
         entities: Optional[Dict] = None,
         path_name: Optional[str] = None,
@@ -777,9 +813,25 @@ class AttackPathManager:
                 entities, identity_type, path_name
             )
         
+        # Build initial access credentials
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        if identity_type == 'user':
+            initial_access = {
+                "identity_type": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point
+            }
+        else:  # service_principal
+            initial_access = {
+                "identity_type": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point
+            }
+
         # Generate certificate
         cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
-        
+
         # Create storage abuse assignment
         storage_abuse_assignment = {
             "app_name": app_name,
@@ -824,6 +876,7 @@ class AttackPathManager:
         )
         
         return {
+            'initial_access': initial_access,
             'storage_abuse_assignments': attack_path_storage_abuse_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
