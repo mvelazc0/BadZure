@@ -30,10 +30,6 @@ graph LR
 5. The attacker uses the new credentials to **authenticate as the application's service principal**
 6. The attacker now has all the privileges assigned to that application
 
-## Real-World Relevance
-
-This is one of the most common Entra ID misconfigurations. Developers and automation pipelines are frequently granted application ownership for deployment purposes, but the owned applications often have excessive permissions. A compromised developer account or CI/CD service principal can turn application ownership into tenant-wide administrative access.
-
 ## Variations
 
 ### By Identity Type

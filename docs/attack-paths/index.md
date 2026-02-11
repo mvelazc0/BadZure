@@ -36,20 +36,7 @@ graph TD
     RETRIEVE3 --> PRIV
     RETRIEVE4 --> PRIV
 
-    style IA fill:#ef5350,color:#fff
-    style PRIV fill:#2e7d32,color:#fff
-    style OWN fill:#37474f,color:#fff
-    style ADMIN fill:#37474f,color:#fff
-    style CONTRIB fill:#37474f,color:#fff
-    style KV fill:#37474f,color:#fff
-    style SA fill:#37474f,color:#fff
-    style MI fill:#e65100,color:#fff
-    style CRED1 fill:#455a64,color:#fff
-    style CRED2 fill:#455a64,color:#fff
-    style RETRIEVE1 fill:#455a64,color:#fff
-    style RETRIEVE2 fill:#455a64,color:#fff
-    style RETRIEVE3 fill:#455a64,color:#fff
-    style RETRIEVE4 fill:#455a64,color:#fff
+
 ```
 
 ## Identity-Based Privilege Escalation

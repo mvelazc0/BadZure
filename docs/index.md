@@ -35,11 +35,7 @@ graph LR
     ENTITIES --> MISCONFIG["Apply Misconfigurations<br/><small>Roles, Permissions<br/>Ownership, Access</small>"]
     MISCONFIG --> PATHS["Attack Paths Ready<br/><small>Initial Access → Priv Esc</small>"]
 
-    style CONFIG fill:#ef5350,color:#fff
-    style BADZURE fill:#c62828,color:#fff
-    style ENTITIES fill:#37474f,color:#fff
-    style MISCONFIG fill:#37474f,color:#fff
-    style PATHS fill:#2e7d32,color:#fff
+
 ```
 
 ## Supported Attack Paths
@@ -74,10 +70,3 @@ python badzure.py build
 
 See the [Getting Started](getting-started.md) guide for full setup instructions.
 
-## Demo
-
-<div align="center">
-    <a href="https://www.youtube.com/watch?v=IzurUrOsvsQ&t=746s">
-        <img src="https://img.youtube.com/vi/IzurUrOsvsQ/0.jpg" alt="BadZure Demo" style="width: 60%;">
-    </a>
-</div>

@@ -36,6 +36,7 @@ nav:
     - Home: index.md
     - Getting Started: getting-started.md
     - Configuration Guide: configuration.md
+    - Talks & Demos: talks-and-demos.md
   - Attack Paths:
     - Overview: attack-paths/index.md
     - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
