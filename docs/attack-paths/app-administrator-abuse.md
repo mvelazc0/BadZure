@@ -4,23 +4,22 @@
 
 An attacker compromises an identity with the **Application Administrator** Entra ID role, which grants the ability to manage **any** application registration in the tenant. The attacker identifies an application with high privileges, adds new credentials to it, and authenticates as that application.
 
-## Attack Flow
+## Posture
 
 ``` mermaid
 graph LR
-    A["Compromised<br/>Identity"] -->|"has role"| B["Application<br/>Administrator"]
-    B -->|"can manage"| C["Any Application<br/>in Tenant"]
-    C -->|"target"| D["Privileged<br/>Application"]
-    A -->|"adds new<br/>credential"| D
-    D -->|"authenticate as"| E["Service<br/>Principal"]
-    E -->|"escalate to"| F["Privileged<br/>Access"]
+    ID(("Compromised<br/>Identity")) -->|"assigned"| ROLE(("Application<br/>Administrator Role"))
+    ROLE -->|"can manage"| APP(("Application<br/>Registration"))
+    APP -->|"assigned"| PRIV(("Entra ID Role<br/>or API Permission"))
+```
 
-    style A fill:#ef5350,color:#fff
-    style B fill:#e65100,color:#fff
-    style C fill:#37474f,color:#fff
-    style D fill:#37474f,color:#fff
-    style E fill:#455a64,color:#fff
-    style F fill:#2e7d32,color:#fff
+## Attack Steps
+
+``` mermaid
+graph LR
+    A(("Attacker")) -->|"1. Add credential to"| APP(("Target<br/>Application"))
+    A -->|"2. Authenticate as"| SP(("Service<br/>Principal"))
+    SP -->|"3. Escalate to"| ACCESS(("Privileged<br/>Access"))
 ```
 
 ## What Happens
@@ -64,14 +63,9 @@ graph LR
 
     ``` mermaid
     graph LR
-        U["Compromised<br/>Identity"] -->|"member of"| G["Security<br/>Group"]
-        G -->|"has"| ROLE["Application<br/>Administrator Role"]
-        ROLE -->|"manage"| APP["Privileged<br/>App"]
-
-        style U fill:#ef5350,color:#fff
-        style G fill:#e65100,color:#fff
-        style ROLE fill:#37474f,color:#fff
-        style APP fill:#37474f,color:#fff
+        U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"has"| ROLE(("Application<br/>Administrator Role"))
+        ROLE -->|"manage"| APP(("Privileged<br/>Application"))
     ```
 
 ## Configuration Examples

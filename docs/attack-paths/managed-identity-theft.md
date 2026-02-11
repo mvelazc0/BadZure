@@ -6,24 +6,25 @@ An attacker compromises an identity with **contributor access** to an Azure reso
 
 This is the most complex attack path BadZure supports, with multiple source resources, target resources, and credential types.
 
-## Attack Flow
+## Posture
 
 ``` mermaid
 graph LR
-    A["Compromised<br/>Identity"] -->|"contributor<br/>access"| B["Azure Resource<br/><small>VM / Logic App /<br/>Automation Account /<br/>Function App</small>"]
-    B -->|"has"| C["Managed<br/>Identity"]
-    C -->|"steal token"| D["Identity<br/>Token"]
-    D -->|"access"| E["Target Resource<br/><small>Key Vault /<br/>Storage Account</small>"]
-    E -->|"retrieve"| F["App Credentials<br/><small>Secret or Certificate</small>"]
-    F -->|"authenticate as"| G["Privileged<br/>Application"]
+    ID(("Compromised<br/>Identity")) -->|"Contributor on"| RES(("Azure Resource<br/>VM / Logic App /<br/>Automation / Function App"))
+    RES -->|"has"| MI(("System Managed<br/>Identity"))
+    MI -->|"can access"| TGT(("Target Resource<br/>Key Vault /<br/>Storage Account"))
+    TGT -->|"stores credentials for"| APP(("Privileged<br/>Application"))
+    APP -->|"assigned"| PRIV(("Entra ID Role or<br/>API Permission"))
+```
 
-    style A fill:#ef5350,color:#fff
-    style B fill:#37474f,color:#fff
-    style C fill:#e65100,color:#fff
-    style D fill:#e65100,color:#fff
-    style E fill:#37474f,color:#fff
-    style F fill:#455a64,color:#fff
-    style G fill:#2e7d32,color:#fff
+## Attack Steps
+
+``` mermaid
+graph LR
+    A(("Attacker")) -->|"1. Execute code on"| RES(("Azure<br/>Resource"))
+    A -->|"2. Steal token from"| MI(("Managed<br/>Identity"))
+    A -->|"3. Retrieve credentials from"| TGT(("Target<br/>Resource"))
+    A -->|"4. Authenticate as"| APP(("Privileged<br/>Application"))
 ```
 
 ## What Happens
@@ -41,15 +42,15 @@ BadZure supports any combination of source and target resource types:
 ``` mermaid
 graph TD
     subgraph Sources
-        VM["Virtual Machine<br/><small>VM Contributor</small>"]
-        LA["Logic App<br/><small>Logic App Contributor</small>"]
-        AA["Automation Account<br/><small>Automation Contributor</small>"]
-        FA["Function App<br/><small>Website Contributor</small>"]
+        VM(("Virtual Machine<br/>VM Contributor"))
+        LA(("Logic App<br/>Logic App Contributor"))
+        AA(("Automation Account<br/>Automation Contributor"))
+        FA(("Function App<br/>Website Contributor"))
     end
 
     subgraph Targets
-        KV["Key Vault<br/><small>Secrets or Certificates</small>"]
-        SA["Storage Account<br/><small>Certificates</small>"]
+        KV(("Key Vault<br/>Secrets or Certificates"))
+        SA(("Storage Account<br/>Certificates"))
     end
 
     VM --> KV
@@ -60,13 +61,6 @@ graph TD
     AA --> SA
     FA --> KV
     FA --> SA
-
-    style VM fill:#37474f,color:#fff
-    style LA fill:#37474f,color:#fff
-    style AA fill:#37474f,color:#fff
-    style FA fill:#37474f,color:#fff
-    style KV fill:#e65100,color:#fff
-    style SA fill:#e65100,color:#fff
 ```
 
 ### Source Types
@@ -119,14 +113,9 @@ graph TD
 
     ``` mermaid
     graph LR
-        U["Compromised<br/>Identity"] -->|"member of"| G["Security<br/>Group"]
-        G -->|"contributor"| RES["Azure<br/>Resource"]
-        RES -->|"managed identity<br/>token theft"| TGT["Target<br/>Resource"]
-
-        style U fill:#ef5350,color:#fff
-        style G fill:#e65100,color:#fff
-        style RES fill:#37474f,color:#fff
-        style TGT fill:#37474f,color:#fff
+        U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"contributor"| RES(("Azure<br/>Resource"))
+        RES -->|"managed identity<br/>token theft"| TGT(("Target<br/>Resource"))
     ```
 
 ## Configuration Examples

@@ -4,27 +4,26 @@
 
 An attacker compromises an identity that **owns** an application registration with high privileges. The attacker adds new credentials to the owned application, then authenticates as that application to gain elevated access.
 
-## Attack Flow
+## Posture
 
 ``` mermaid
 graph LR
-    A["Compromised<br/>Identity"] -->|"owns"| B["Application<br/>Registration"]
-    B -->|"has"| C["High-Privilege<br/>Role or Permission"]
-    A -->|"adds new<br/>credential"| D["New Secret<br/>or Certificate"]
-    D -->|"authenticate as"| E["Service<br/>Principal"]
-    E -->|"escalate to"| F["Privileged<br/>Access"]
+    ID(("Compromised<br/>Identity")) -->|"owner of"| APP(("Application<br/>Registration"))
+    APP -->|"assigned"| PRIV(("Entra ID Role<br/>or API Permission"))
+```
 
-    style A fill:#ef5350,color:#fff
-    style B fill:#37474f,color:#fff
-    style C fill:#e65100,color:#fff
-    style D fill:#455a64,color:#fff
-    style E fill:#455a64,color:#fff
-    style F fill:#2e7d32,color:#fff
+## Attack Steps
+
+``` mermaid
+graph LR
+    A(("Attacker")) -->|"1. Add credential"| APP(("Owned<br/>Application"))
+    A -->|"2. Authenticate as"| SP(("Service<br/>Principal"))
+    SP -->|"3. Escalate to"| ACCESS(("Privileged<br/>Access"))
 ```
 
 ## What Happens
 
-1. The attacker gains access to a **user account** or **service principal** (BadZure provides the credentials)
+1. The attacker gains access to a **user account** or **service principal**
 2. The compromised identity is an **owner** of an application registration
 3. The owned application has been assigned a high-privileged **Entra ID role** (e.g., Global Administrator) or **API permission** (e.g., RoleManagement.ReadWrite.Directory)
 4. As an owner, the attacker **adds new client credentials** (a secret or certificate) to the application
@@ -45,13 +44,9 @@ This is one of the most common Entra ID misconfigurations. Developers and automa
 
     ``` mermaid
     graph LR
-        U["Compromised<br/>User"] -->|"owns"| APP["Privileged<br/>App"]
+        U(("Compromised<br/>User")) -->|"owns"| APP(("Privileged<br/>Application"))
         U -->|"add credential"| APP
-        APP -->|"authenticate"| SP["Service<br/>Principal"]
-
-        style U fill:#ef5350,color:#fff
-        style APP fill:#37474f,color:#fff
-        style SP fill:#2e7d32,color:#fff
+        APP -->|"authenticate"| SP(("Service<br/>Principal"))
     ```
 
 === "Service Principal"
@@ -60,13 +55,9 @@ This is one of the most common Entra ID misconfigurations. Developers and automa
 
     ``` mermaid
     graph LR
-        SP1["Compromised<br/>Service Principal"] -->|"owns"| APP["Privileged<br/>App"]
+        SP1(("Compromised<br/>Service Principal")) -->|"owns"| APP(("Privileged<br/>Application"))
         SP1 -->|"add credential"| APP
-        APP -->|"authenticate"| SP2["Target Service<br/>Principal"]
-
-        style SP1 fill:#ef5350,color:#fff
-        style APP fill:#37474f,color:#fff
-        style SP2 fill:#2e7d32,color:#fff
+        APP -->|"authenticate"| SP2(("Target Service<br/>Principal"))
     ```
 
 ### By Scenario
@@ -81,15 +72,10 @@ This is one of the most common Entra ID misconfigurations. Developers and automa
 
     ``` mermaid
     graph LR
-        H["Compromised<br/>Helpdesk Admin"] -->|"reset password"| U["Application<br/>Owner"]
-        U -->|"owns"| APP["Privileged<br/>App"]
+        H(("Compromised<br/>Helpdesk Admin")) -->|"reset password"| U(("Application<br/>Owner"))
+        U -->|"owns"| APP(("Privileged<br/>Application"))
         U -->|"add credential"| APP
-        APP -->|"authenticate"| SP["Service<br/>Principal"]
-
-        style H fill:#ef5350,color:#fff
-        style U fill:#e65100,color:#fff
-        style APP fill:#37474f,color:#fff
-        style SP fill:#2e7d32,color:#fff
+        APP -->|"authenticate"| SP(("Service<br/>Principal"))
     ```
 
 ### By Assignment Type
@@ -104,12 +90,8 @@ This is one of the most common Entra ID misconfigurations. Developers and automa
 
     ``` mermaid
     graph LR
-        U["Compromised<br/>Identity"] -->|"member of"| G["Security<br/>Group"]
-        G -->|"owns"| APP["Privileged<br/>App"]
-
-        style U fill:#ef5350,color:#fff
-        style G fill:#e65100,color:#fff
-        style APP fill:#37474f,color:#fff
+        U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"owns"| APP(("Privileged<br/>Application"))
     ```
 
 ## Configuration Examples

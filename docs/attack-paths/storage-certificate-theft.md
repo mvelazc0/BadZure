@@ -4,20 +4,22 @@
 
 An attacker compromises an identity with **read access to Azure Blob Storage** and downloads application certificates and private keys stored in a storage container. The attacker uses certificate-based authentication to impersonate a privileged application.
 
-## Attack Flow
+## Posture
 
 ``` mermaid
 graph LR
-    A["Compromised<br/>Identity"] -->|"Storage Blob<br/>Data Reader"| B["Azure Storage<br/>Account"]
-    B -->|"download"| C["Certificate +<br/>Private Key"]
-    C -->|"cert-based auth"| D["Privileged<br/>Application"]
-    D -->|"escalate to"| E["Privileged<br/>Access"]
+    ID(("Compromised<br/>Identity")) -->|"Blob Data<br/>Reader on"| SA(("Azure Storage<br/>Account"))
+    SA -->|"stores certificate for"| APP(("Privileged<br/>Application"))
+    APP -->|"assigned"| PRIV(("Entra ID Role<br/>or API Permission"))
+```
 
-    style A fill:#ef5350,color:#fff
-    style B fill:#37474f,color:#fff
-    style C fill:#e65100,color:#fff
-    style D fill:#455a64,color:#fff
-    style E fill:#2e7d32,color:#fff
+## Attack Steps
+
+``` mermaid
+graph LR
+    A(("Attacker")) -->|"1. Download cert from"| SA(("Azure Storage<br/>Account"))
+    A -->|"2. Authenticate as"| SP(("Service<br/>Principal"))
+    SP -->|"3. Escalate to"| ACCESS(("Privileged<br/>Access"))
 ```
 
 ## What Happens
@@ -75,14 +77,9 @@ BadZure automatically handles certificate lifecycle:
 
     ``` mermaid
     graph LR
-        U["Compromised<br/>Identity"] -->|"member of"| G["Security<br/>Group"]
-        G -->|"Storage Blob<br/>Data Reader"| SA["Azure Storage<br/>Account"]
-        SA -->|"download cert"| APP["Privileged<br/>App"]
-
-        style U fill:#ef5350,color:#fff
-        style G fill:#e65100,color:#fff
-        style SA fill:#37474f,color:#fff
-        style APP fill:#2e7d32,color:#fff
+        U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"Storage Blob<br/>Data Reader"| SA(("Azure Storage<br/>Account"))
+        SA -->|"download cert"| APP(("Privileged<br/>Application"))
     ```
 
 ## Configuration Examples

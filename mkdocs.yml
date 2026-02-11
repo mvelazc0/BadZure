@@ -29,6 +29,7 @@ theme:
     - navigation.top
     - content.code.copy
     - toc.follow
+    - toc.integrate
 
 nav:
   - BadZure:
