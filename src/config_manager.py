@@ -15,7 +15,8 @@ from src.constants import (
     MANAGED_IDENTITY_SOURCE_TYPES,
     MI_TARGET_RESOURCE_TYPES,
     FUNCTION_APP_OS_TYPES,
-    VALID_ASSIGNMENT_TYPES
+    VALID_ASSIGNMENT_TYPES,
+    VALID_SCOPE_TYPES
 )
 
 # Environment variable names for tenant configuration
@@ -141,10 +142,15 @@ class ConfigManager:
                 errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one user")
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one application")
-        
+
         # Validate assignment_type parameter
         self._validate_assignment_type(path_name, path_config, errors)
-        
+
+        # Validate scope parameter
+        scope = path_config.get('scope', 'directory')
+        if scope not in VALID_SCOPE_TYPES:
+            errors.append(f"{path_name}: Invalid scope '{scope}'. Must be one of: {', '.join(VALID_SCOPE_TYPES)}")
+
         # Validate method and related parameters
         method = path_config.get('method')
         if not method:

@@ -149,10 +149,18 @@ resource "azuread_directory_role_assignment" "attack_path_user_role_assignments"
   )
   role_id = each.value.role_definition_id
 
+  # Scope the role to a specific application or directory-wide
+  directory_scope_id = (
+    lookup(each.value, "scope_app_name", null) != null
+      ? "/${azuread_application_registration.spns[each.value.scope_app_name].object_id}"
+      : "/"
+  )
+
   depends_on = [
     azuread_user.users,
     azuread_service_principal.spns,
-    azuread_group.groups
+    azuread_group.groups,
+    azuread_application_registration.spns
   ]
 }
 

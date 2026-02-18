@@ -97,6 +97,7 @@ variable "attack_path_user_role_assignments" {
     principal_name     = string  # user name or service principal name
     role_definition_id = string
     entry_point        = optional(string, "compromised_identity")
+    scope_app_name     = optional(string, null)  # Application name to scope the role to (null = directory-wide)
   }))
 }
 

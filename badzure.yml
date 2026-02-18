@@ -138,6 +138,15 @@ attack_paths:
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 
+  # Example 8: Scoped App Admin - role only applies to one specific application
+  # Attack: App Admin role scoped to target app (not tenant-wide)
+  app_admin_scoped:
+    enabled: false
+    privilege_escalation: ApplicationAdministratorAbuse
+    scope: application
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
   # ===========================================================================
   # KeyVaultSecretTheft
   # ===========================================================================

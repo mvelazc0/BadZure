@@ -198,6 +198,12 @@ How the target application receives its high privileges.
 **Optional fields:**
 
 - `identity_type`: `user` (default) or `service_principal`
+- `scope`: `directory` (default) or `application`
+
+**`scope`** — Controls whether the Application Administrator role is assigned tenant-wide or scoped to a specific application:
+
+- **`directory`** — The role applies to **all** applications in the tenant (default, existing behavior)
+- **`application`** — The role is scoped to only the **target application**. This uses Azure Entra ID's `directory_scope_id` to restrict the role assignment. More realistic for least-privilege environments where admins are scoped to specific apps.
 
 !!! note
     This technique does not support the `scenario` parameter.

@@ -68,6 +68,23 @@ graph LR
         ROLE -->|"manage"| APP(("Privileged<br/>Application"))
     ```
 
+### By Scope
+
+=== "Directory (default)"
+
+    The Application Administrator role applies **tenant-wide**, allowing the identity to manage all applications.
+
+=== "Application"
+
+    The role is **scoped to a specific application** using `directory_scope_id`. The identity can only manage the target application, not all apps in the tenant. This simulates least-privilege environments where admin roles are scoped per-application.
+
+    ``` mermaid
+    graph LR
+        ID(("Compromised<br/>Identity")) -->|"assigned"| ROLE(("Application<br/>Administrator Role"))
+        ROLE -->|"scoped to"| APP(("Target<br/>Application"))
+        APP -->|"assigned"| PRIV(("Entra ID Role<br/>or API Permission"))
+    ```
+
 ## Configuration Examples
 
 User with Application Administrator targeting an app with Exchange permissions:
@@ -105,6 +122,18 @@ attack_paths:
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+```
+
+Application-scoped role assignment (role only applies to the target application):
+
+```yaml
+attack_paths:
+  app_admin_scoped:
+    enabled: true
+    privilege_escalation: ApplicationAdministratorAbuse
+    scope: application
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 !!! note

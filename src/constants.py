@@ -2601,3 +2601,8 @@ TECHNIQUES_USER_ONLY = [
 # - direct: Permission assigned directly to the identity (default)
 # - group: Permission assigned to a group, identity added as member
 VALID_ASSIGNMENT_TYPES = ['direct', 'group']
+
+# Valid scope types for ApplicationAdministratorAbuse
+# - directory: Role applies tenant-wide (default, existing behavior)
+# - application: Role scoped to a specific application only
+VALID_SCOPE_TYPES = ['directory', 'application']

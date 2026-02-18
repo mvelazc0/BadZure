@@ -125,7 +125,14 @@ class OutputFormatter:
                             logging.info(f"Principal Role: Application Administrator (via Group)")
                         else:
                             logging.info(f"Principal Role: Application Administrator")
-                        
+
+                        # Display role scope
+                        scope_app = assignment.get('scope_app_name')
+                        if scope_app:
+                            logging.info(f"Role Scope: Application ({scope_app})")
+                        else:
+                            logging.info(f"Role Scope: Directory (tenant-wide)")
+
                         # Find target application from app_roles or app_api_permissions
                         if key in attack_path_application_role_assignments:
                             role_info = attack_path_application_role_assignments[key]
@@ -143,7 +150,7 @@ class OutputFormatter:
                             logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
                         logging.info("")  # Blank line after attack path
                         break
-            
+
             elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_kv_abuse_assignments.items():
@@ -470,7 +477,14 @@ class OutputFormatter:
                                 logging.info(f"Principal Role: Application Administrator (via Group)")
                             else:
                                 logging.info(f"Principal Role: Application Administrator")
-                            
+
+                            # Display role scope
+                            scope_app = assignment.get('scope_app_name')
+                            if scope_app:
+                                logging.info(f"Role Scope: Application ({scope_app})")
+                            else:
+                                logging.info(f"Role Scope: Directory (tenant-wide)")
+
                             # Find target application from app_roles or app_api_permissions
                             if key in assignments.get('app_roles', {}):
                                 target_app = assignments['app_roles'][key]['app_name']

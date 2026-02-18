@@ -279,11 +279,12 @@ class AttackPathManager:
         group_assignments = {}
         group_membership_assignments = {}
         
-        # Get identity_type, entry_point, and assignment_type from config
+        # Get identity_type, entry_point, assignment_type, and scope from config
         identity_type = attack_config.get('identity_type', 'user')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         assignment_type = attack_config.get('assignment_type', 'direct')
-        
+        scope = attack_config.get('scope', 'directory')
+
         # Generate attack path key
         attack_path_id = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
         if mode == 'targeted' and path_name:
@@ -293,7 +294,7 @@ class AttackPathManager:
             key = f"{path_name}-{attack_path_id}"
         else:
             key = f"attack-path-{attack_path_id}"
-        
+
         # Select entities based on mode and identity_type
         if mode == 'random':
             app_name, principal_name = self._select_random_entities_app_administrator(
@@ -303,9 +304,12 @@ class AttackPathManager:
             app_name, principal_name = self._select_targeted_entities_app_administrator(
                 users, applications, entities, identity_type, path_name
             )
-        
+
         # Application Administrator role ID: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
         app_admin_role_id = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
+
+        # Determine scope_app_name: scope to target application or directory-wide
+        scope_app_name = app_name if scope == 'application' else None
         
         # Create initial access credentials based on identity_type
         if identity_type == 'user':
@@ -344,7 +348,8 @@ class AttackPathManager:
                     'assignment_type': 'group',
                     'group_name': group_name,
                     'original_principal': principal_name,
-                    'original_identity_type': 'user'
+                    'original_identity_type': 'user',
+                    'scope_app_name': scope_app_name
                 }
             else:
                 # Direct assignment
@@ -353,7 +358,8 @@ class AttackPathManager:
                     'principal_name': principal_name,
                     'role_definition_id': app_admin_role_id,
                     'entry_point': entry_point,
-                    'assignment_type': 'direct'
+                    'assignment_type': 'direct',
+                    'scope_app_name': scope_app_name
                 }
         else:  # service_principal
             # For service principal, we need to generate credentials
@@ -388,7 +394,8 @@ class AttackPathManager:
                     'assignment_type': 'group',
                     'group_name': group_name,
                     'original_principal': principal_name,
-                    'original_identity_type': 'service_principal'
+                    'original_identity_type': 'service_principal',
+                    'scope_app_name': scope_app_name
                 }
             else:
                 # Direct assignment
@@ -397,7 +404,8 @@ class AttackPathManager:
                     'principal_name': principal_name,
                     'role_definition_id': app_admin_role_id,
                     'entry_point': entry_point,
-                    'assignment_type': 'direct'
+                    'assignment_type': 'direct',
+                    'scope_app_name': scope_app_name
                 }
         
         # Assign privileges to the target application
