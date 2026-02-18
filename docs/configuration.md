@@ -84,6 +84,7 @@ These options are available for **all** attack path types:
 
 - **`ApplicationOwnershipAbuse`** — Exploits application ownership to add credentials to privileged applications
 - **`ApplicationAdministratorAbuse`** — Exploits the Application Administrator role to manage any application and add credentials
+- **`CloudAppAdministratorAbuse`** — Exploits the Cloud Application Administrator role (narrower scope than Application Administrator)
 - **`ManagedIdentityTheft`** — Exploits access to Azure resources with managed identities to steal tokens and pivot to other resources
 - **`KeyVaultSecretTheft`** — Retrieves application secrets stored in Azure Key Vault through direct access
 - **`StorageCertificateTheft`** — Retrieves application certificates and private keys from Azure Storage through direct access
@@ -95,12 +96,13 @@ For detailed descriptions of each technique, see the [Attack Paths](attack-paths
 - **`user`** — A regular user account (default). Simulates compromised employee, developer, or administrator accounts
 - **`service_principal`** — An application's service principal. Simulates compromised CI/CD pipelines, automation accounts, or third-party integrations
 
-All five attack paths support both identity types:
+All attack paths support both identity types:
 
 | Attack Path | User | Service Principal |
 |---|---|---|
 | ApplicationOwnershipAbuse | User as application owner | SP as application owner |
 | ApplicationAdministratorAbuse | User with App Admin role | SP with App Admin role |
+| CloudAppAdministratorAbuse | User with Cloud App Admin role | SP with Cloud App Admin role |
 | ManagedIdentityTheft | User with Contributor access | SP with Contributor access |
 | KeyVaultSecretTheft | User with Key Vault access | SP with Key Vault access |
 | StorageCertificateTheft | User with Storage access | SP with Storage access |
@@ -208,6 +210,24 @@ How the target application receives its high privileges.
 !!! note
     This technique does not support the `scenario` parameter.
 
+### CloudAppAdministratorAbuse
+
+**Required fields:**
+
+- `privilege_escalation: CloudAppAdministratorAbuse`
+- `method`: `AzureADRole` or `APIPermission`
+- `entra_role` or `app_role`: The privileges assigned to the target application
+
+**Optional fields:**
+
+- `identity_type`: `user` (default) or `service_principal`
+- `scope`: `directory` (default) or `application`
+
+This technique is identical to `ApplicationAdministratorAbuse` in configuration, but uses the **Cloud Application Administrator** role (`158c047a-c907-4556-b7ef-446551a6b5f7`) instead. The Cloud Application Administrator role has a narrower scope — it cannot manage applications with certain sensitive permissions. See [CloudAppAdministratorAbuse](attack-paths/cloud-app-administrator-abuse.md) for details.
+
+!!! note
+    This technique does not support the `scenario` parameter.
+
 ### ManagedIdentityTheft
 
 **Required fields:**
@@ -276,7 +296,7 @@ How the target application receives its high privileges.
 
 ## Group-Based Assignment
 
-All five privilege escalation techniques support group-based assignment using `assignment_type: group`. When enabled, permissions are assigned to a security group and the initial access identity is added as a member of that group, inheriting permissions through group membership.
+All privilege escalation techniques support group-based assignment using `assignment_type: group`. When enabled, permissions are assigned to a security group and the initial access identity is added as a member of that group, inheriting permissions through group membership.
 
 This creates more realistic attack scenarios that mirror enterprise configurations where:
 
@@ -312,6 +332,22 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       enabled: true
 
       privilege_escalation: ApplicationAdministratorAbuse
+      identity_type: user
+      assignment_type: group
+      method: APIPermission
+      api_type: graph
+      app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+    ```
+
+=== "CloudAppAdministratorAbuse"
+
+    User inherits Cloud Application Administrator role through group membership:
+
+    ```yaml
+    attack_path_cloud_admin_group:
+      enabled: true
+
+      privilege_escalation: CloudAppAdministratorAbuse
       identity_type: user
       assignment_type: group
       method: APIPermission
@@ -410,6 +446,13 @@ attack_paths:
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40
+
+  # Identity: User with Cloud App Admin targets Global Admin
+  cloud_admin_abuse:
+    enabled: true
+    privilege_escalation: CloudAppAdministratorAbuse
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
 
   # Resource: VM → Key Vault → privileged app
   vm_to_keyvault:

@@ -89,12 +89,13 @@ class OutputFormatter:
                         logging.info("")  # Blank line after attack path
                         break
             
-            elif priv_esc == 'ApplicationAdministratorAbuse':
+            elif priv_esc in ['ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse']:
+                role_display_name = "Cloud Application Administrator" if priv_esc == 'CloudAppAdministratorAbuse' else "Application Administrator"
                 # Find the matching user role assignment for this attack path
                 for key, assignment in attack_path_user_role_assignments.items():
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
-                        
+
                         # Display initial access based on identity_type
                         if attack_path_name in user_creds:
                             creds = user_creds[attack_path_name]
@@ -122,9 +123,9 @@ class OutputFormatter:
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
-                            logging.info(f"Principal Role: Application Administrator (via Group)")
+                            logging.info(f"Principal Role: {role_display_name} (via Group)")
                         else:
-                            logging.info(f"Principal Role: Application Administrator")
+                            logging.info(f"Principal Role: {role_display_name}")
 
                         # Display role scope
                         scope_app = assignment.get('scope_app_name')
@@ -439,15 +440,16 @@ class OutputFormatter:
                             logging.info(f"Application Privileges: API Permission(s)")
                         break
             
-            elif priv_esc == 'ApplicationAdministratorAbuse':
-                # ApplicationAdministratorAbuse doesn't use app_owners, only user_roles
+            elif priv_esc in ['ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse']:
+                role_display_name = "Cloud Application Administrator" if priv_esc == 'CloudAppAdministratorAbuse' else "Application Administrator"
+                # These techniques don't use app_owners, only user_roles
                 if path_name in user_creds:
                     # Find the matching key in user_roles
                     for key, assignment in assignments.get('user_roles', {}).items():
                         if path_name in key:
                             logging.info(f"Attack Path ID: {key}")
-                            logging.info(f"Privilege Escalation: ApplicationAdministratorAbuse")
-                            
+                            logging.info(f"Privilege Escalation: {priv_esc}")
+
                             # Display initial access based on identity_type
                             creds = user_creds[path_name]
                             identity_type = creds.get('identity_type', 'user')
@@ -474,9 +476,9 @@ class OutputFormatter:
                                     logging.info(f"Group Member: User - {original_principal}@{domain}")
                                 else:
                                     logging.info(f"Group Member: Service Principal - {original_principal}")
-                                logging.info(f"Principal Role: Application Administrator (via Group)")
+                                logging.info(f"Principal Role: {role_display_name} (via Group)")
                             else:
-                                logging.info(f"Principal Role: Application Administrator")
+                                logging.info(f"Principal Role: {role_display_name}")
 
                             # Display role scope
                             scope_app = assignment.get('scope_app_name')
@@ -495,7 +497,7 @@ class OutputFormatter:
                                 logging.info(f"Target Application: {target_app}")
                                 logging.info(f"Application Privileges: API Permission(s)")
                             break
-            
+
             elif priv_esc == 'KeyVaultSecretTheft':
                 for key, assignment in assignments.get('kv_abuse', {}).items():
                     # Match the key to the path_name

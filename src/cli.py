@@ -241,7 +241,31 @@ class BuildCommand:
                         used_users.add(assignment['principal_name'])
                     elif 'user_name' in assignment:
                         used_users.add(assignment['user_name'])
-            
+
+            elif priv_esc == 'CloudAppAdministratorAbuse':
+                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
+                result = self.attack_path_mgr.create_cloud_app_administrator_abuse(
+                    attack_path_data, users, applications, domain, mode='random',
+                    path_name=attack_path_name,
+                    used_apps=used_apps, used_users=used_users
+                )
+                attack_path_user_role_assignments.update(result['user_role_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
+                # Track used resources from both role and API permission assignments
+                for assignment in result['app_role_assignments'].values():
+                    used_apps.add(assignment['app_name'])
+                for assignment in result['app_api_permission_assignments'].values():
+                    used_apps.add(assignment['app_name'])
+                for assignment in result['user_role_assignments'].values():
+                    if 'principal_name' in assignment:
+                        used_users.add(assignment['principal_name'])
+                    elif 'user_name' in assignment:
+                        used_users.add(assignment['user_name'])
+
             elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 result = self.attack_path_mgr.create_keyvault_secret_theft(
@@ -613,7 +637,19 @@ class BuildCommand:
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
                 user_creds[path_name] = result['initial_access']
-            
+
+            elif priv_esc == 'CloudAppAdministratorAbuse':
+                result = self.attack_path_mgr.create_cloud_app_administrator_abuse(
+                    path_config, users, applications, domain,
+                    mode='targeted', entities=entities, path_name=path_name
+                )
+                assignments['user_roles'].update(result['user_role_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
+
             elif priv_esc == 'KeyVaultSecretTheft':
                 result = self.attack_path_mgr.create_keyvault_secret_theft(
                     path_config, applications, key_vaults, users, applications,

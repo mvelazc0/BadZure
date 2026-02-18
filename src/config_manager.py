@@ -89,7 +89,10 @@ class ConfigManager:
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
                 self._validate_app_administrator_abuse(path_name, path_config, entities, errors)
-                    
+
+            elif priv_esc == 'CloudAppAdministratorAbuse':
+                self._validate_app_administrator_abuse(path_name, path_config, entities, errors)
+
             elif priv_esc == 'KeyVaultSecretTheft':
                 self._validate_kv_secret_theft(path_name, path_config, entities, errors)
                     
@@ -378,15 +381,15 @@ class ConfigManager:
             1 for name, path in enabled_paths
             if path.get('privilege_escalation') in [
                 'ServicePrincipalAbuse', 'ApplicationOwnershipAbuse',
-                'ApplicationAdministratorAbuse', 'KeyVaultSecretTheft',
-                'StorageCertificateTheft', 'ManagedIdentityTheft'
+                'ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse',
+                'KeyVaultSecretTheft', 'StorageCertificateTheft', 'ManagedIdentityTheft'
             ]
         )
         
         # Count attack paths that need user roles
         user_role_paths = sum(
             1 for name, path in enabled_paths
-            if path.get('privilege_escalation') == 'ApplicationAdministratorAbuse' or
+            if path.get('privilege_escalation') in ['ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse'] or
             (path.get('privilege_escalation') in ['ServicePrincipalAbuse', 'ApplicationOwnershipAbuse'] and
              path.get('scenario') == 'helpdesk')
         )

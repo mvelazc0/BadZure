@@ -40,6 +40,7 @@ tenant:
 # Supported Techniques:
 #   - ApplicationOwnershipAbuse: Exploit application ownership
 #   - ApplicationAdministratorAbuse: Exploit Application Administrator role
+#   - CloudAppAdministratorAbuse: Exploit Cloud Application Administrator role
 #   - KeyVaultSecretTheft: Retrieve secrets from Key Vault
 #   - StorageCertificateTheft: Retrieve certificates from Storage
 #   - ManagedIdentityTheft: Steal managed identity tokens
@@ -143,6 +144,28 @@ attack_paths:
   app_admin_scoped:
     enabled: false
     privilege_escalation: ApplicationAdministratorAbuse
+    scope: application
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # ===========================================================================
+  # CloudAppAdministratorAbuse
+  # ===========================================================================
+  # Similar to ApplicationAdministratorAbuse but uses the Cloud Application
+  # Administrator role instead. This role cannot manage applications with
+  # certain sensitive permissions (e.g., those assigned to first-party apps).
+
+  # Example: User with Cloud App Admin role targets app with Entra role
+  cloud_app_admin_user:
+    enabled: false
+    privilege_escalation: CloudAppAdministratorAbuse
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example: Cloud App Admin role scoped to a specific application
+  cloud_app_admin_scoped:
+    enabled: false
+    privilege_escalation: CloudAppAdministratorAbuse
     scope: application
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator

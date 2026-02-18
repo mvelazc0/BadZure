@@ -41,6 +41,7 @@ nav:
     - Overview: attack-paths/index.md
     - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
     - ApplicationAdministratorAbuse: attack-paths/app-administrator-abuse.md
+    - CloudAppAdministratorAbuse: attack-paths/cloud-app-administrator-abuse.md
     - ManagedIdentityTheft: attack-paths/managed-identity-theft.md
     - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
     - StorageCertificateTheft: attack-paths/storage-certificate-theft.md

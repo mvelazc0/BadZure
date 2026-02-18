@@ -2539,10 +2539,15 @@ ALL_HIGH_PRIVILEGED_PERMISSIONS = {
 VALID_TECHNIQUES = [
     'ApplicationOwnershipAbuse',
     'ApplicationAdministratorAbuse',
+    'CloudAppAdministratorAbuse',
     'ManagedIdentityTheft',
     'KeyVaultSecretTheft',
     'StorageCertificateTheft'
 ]
+
+# Role ID constants for admin role abuse techniques
+APP_ADMIN_ROLE_ID = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
+CLOUD_APP_ADMIN_ROLE_ID = "158c047a-c907-4556-b7ef-446551a6b5f7"
 
 # Managed identity source types for ManagedIdentityTheft
 MANAGED_IDENTITY_SOURCE_TYPES = [
@@ -2590,7 +2595,8 @@ TECHNIQUES_SUPPORTING_SERVICE_PRINCIPAL = [
 # Techniques that only support user identity type
 TECHNIQUES_USER_ONLY = [
     'ApplicationOwnershipAbuse',
-    'ApplicationAdministratorAbuse'
+    'ApplicationAdministratorAbuse',
+    'CloudAppAdministratorAbuse'
 ]
 
 # ============================================================================
@@ -2602,7 +2608,7 @@ TECHNIQUES_USER_ONLY = [
 # - group: Permission assigned to a group, identity added as member
 VALID_ASSIGNMENT_TYPES = ['direct', 'group']
 
-# Valid scope types for ApplicationAdministratorAbuse
+# Valid scope types for ApplicationAdministratorAbuse and CloudAppAdministratorAbuse
 # - directory: Role applies tenant-wide (default, existing behavior)
 # - application: Role scoped to a specific application only
 VALID_SCOPE_TYPES = ['directory', 'application']

@@ -57,6 +57,12 @@ These paths exploit misconfigurations in Entra ID identity management, applicati
 
     Exploit the Application Administrator Entra ID role to manage **any** application in the tenant. Broader scope than ownership abuse — one compromised admin can target all apps.
 
+-   **[CloudAppAdministratorAbuse](cloud-app-administrator-abuse.md)**
+
+    ---
+
+    Exploit the Cloud Application Administrator Entra ID role. Similar to ApplicationAdministratorAbuse but with a narrower scope — cannot manage apps with certain sensitive permissions.
+
 -   **[ManagedIdentityTheft](managed-identity-theft.md)**
 
     ---

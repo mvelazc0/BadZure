@@ -138,3 +138,7 @@ attack_paths:
 
 !!! note
     This attack path does not support the `scenario` parameter (no helpdesk variant). It focuses on direct exploitation of the Application Administrator role.
+
+## See Also
+
+- [CloudAppAdministratorAbuse](cloud-app-administrator-abuse.md) — Same attack pattern using the Cloud Application Administrator role, which has a narrower scope (cannot manage apps with certain sensitive permissions)

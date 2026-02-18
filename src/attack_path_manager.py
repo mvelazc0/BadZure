@@ -10,7 +10,9 @@ from src.constants import (
     HIGH_PRIVILEGED_ENTRA_ROLES,
     HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS,
     ALL_HIGH_PRIVILEGED_PERMISSIONS,
-    API_REGISTRY
+    API_REGISTRY,
+    APP_ADMIN_ROLE_ID,
+    CLOUD_APP_ADMIN_ROLE_ID
 )
 from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
@@ -251,19 +253,72 @@ class AttackPathManager:
     ) -> Dict:
         """
         Create Application Administrator Abuse attack path.
-        
+
         This technique exploits the Application Administrator Entra ID role to manage
         any application in the tenant and add credentials to privileged applications.
-        
+        """
+        return self._create_admin_role_abuse(
+            attack_config, users, applications, domain,
+            admin_role_id=APP_ADMIN_ROLE_ID,
+            mode=mode, entities=entities, path_name=path_name,
+            used_apps=used_apps, used_users=used_users
+        )
+
+    def create_cloud_app_administrator_abuse(
+        self,
+        attack_config: Dict,
+        users: Dict,
+        applications: Dict,
+        domain: str,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None,
+        used_users: Optional[set] = None
+    ) -> Dict:
+        """
+        Create Cloud Application Administrator Abuse attack path.
+
+        This technique exploits the Cloud Application Administrator Entra ID role to manage
+        applications in the tenant (excluding those with certain sensitive permissions)
+        and add credentials to privileged applications.
+        """
+        return self._create_admin_role_abuse(
+            attack_config, users, applications, domain,
+            admin_role_id=CLOUD_APP_ADMIN_ROLE_ID,
+            mode=mode, entities=entities, path_name=path_name,
+            used_apps=used_apps, used_users=used_users
+        )
+
+    def _create_admin_role_abuse(
+        self,
+        attack_config: Dict,
+        users: Dict,
+        applications: Dict,
+        domain: str,
+        admin_role_id: str,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None,
+        used_users: Optional[set] = None
+    ) -> Dict:
+        """
+        Shared implementation for Application Administrator and Cloud Application
+        Administrator abuse attack paths.
+
         Args:
             attack_config: Attack path configuration
             users: Dictionary of users
             applications: Dictionary of applications
             domain: Domain name
+            admin_role_id: The Entra ID role ID to assign
             mode: 'random' or 'targeted'
             entities: Entity specifications (required for targeted mode)
             path_name: Attack path name (used for targeted mode)
-        
+            used_apps: Set of already-used application names
+            used_users: Set of already-used user names
+
         Returns:
             Dictionary with keys:
                 - initial_access: Initial access credentials
@@ -278,7 +333,7 @@ class AttackPathManager:
         app_api_permission_assignments = {}
         group_assignments = {}
         group_membership_assignments = {}
-        
+
         # Get identity_type, entry_point, assignment_type, and scope from config
         identity_type = attack_config.get('identity_type', 'user')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
@@ -305,45 +360,42 @@ class AttackPathManager:
                 users, applications, entities, identity_type, path_name
             )
 
-        # Application Administrator role ID: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
-        app_admin_role_id = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
-
         # Determine scope_app_name: scope to target application or directory-wide
         scope_app_name = app_name if scope == 'application' else None
-        
+
         # Create initial access credentials based on identity_type
         if identity_type == 'user':
             user_principal_name = f"{principal_name}@{domain}"
             password = users[principal_name]['password']
-            
+
             initial_access = {
                 "identity_type": "user",
                 "user_principal_name": user_principal_name,
                 "password": password,
                 "entry_point": entry_point
             }
-            
-            # Assign Application Administrator role - handle group-based assignment
+
+            # Assign admin role - handle group-based assignment
             if assignment_type == 'group':
                 # Generate a dedicated group for this attack path
                 group_spec = self.entity_generator.generate_attack_path_group()
                 group_name = group_spec['display_name']
-                
+
                 # Add group to be created
                 group_assignments[group_name] = group_spec
-                
+
                 # Add user to group
                 group_membership_assignments[key] = {
                     'group_name': group_name,
                     'identity_type': 'user',
                     'principal_name': principal_name
                 }
-                
-                # Assign Application Administrator role to group
+
+                # Assign admin role to group
                 user_role_assignments[key] = {
                     'identity_type': 'group',
                     'principal_name': group_name,
-                    'role_definition_id': app_admin_role_id,
+                    'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
                     'assignment_type': 'group',
                     'group_name': group_name,
@@ -356,7 +408,7 @@ class AttackPathManager:
                 user_role_assignments[key] = {
                     'identity_type': 'user',
                     'principal_name': principal_name,
-                    'role_definition_id': app_admin_role_id,
+                    'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
                     'assignment_type': 'direct',
                     'scope_app_name': scope_app_name
@@ -368,28 +420,28 @@ class AttackPathManager:
                 "service_principal_name": principal_name,
                 "entry_point": entry_point
             }
-            
-            # Assign Application Administrator role - handle group-based assignment
+
+            # Assign admin role - handle group-based assignment
             if assignment_type == 'group':
                 # Generate a dedicated group for this attack path
                 group_spec = self.entity_generator.generate_attack_path_group()
                 group_name = group_spec['display_name']
-                
+
                 # Add group to be created
                 group_assignments[group_name] = group_spec
-                
+
                 # Add service principal to group
                 group_membership_assignments[key] = {
                     'group_name': group_name,
                     'identity_type': 'service_principal',
                     'principal_name': principal_name
                 }
-                
-                # Assign Application Administrator role to group
+
+                # Assign admin role to group
                 user_role_assignments[key] = {
                     'identity_type': 'group',
                     'principal_name': group_name,
-                    'role_definition_id': app_admin_role_id,
+                    'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
                     'assignment_type': 'group',
                     'group_name': group_name,
@@ -402,18 +454,18 @@ class AttackPathManager:
                 user_role_assignments[key] = {
                     'identity_type': 'service_principal',
                     'principal_name': principal_name,
-                    'role_definition_id': app_admin_role_id,
+                    'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
                     'assignment_type': 'direct',
                     'scope_app_name': scope_app_name
                 }
-        
+
         # Assign privileges to the target application
         self._assign_app_privileges(
             attack_config, app_name, key,
             app_role_assignments, app_api_permission_assignments
         )
-        
+
         return {
             'initial_access': initial_access,
             'user_role_assignments': user_role_assignments,
