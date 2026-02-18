@@ -1,4 +1,4 @@
-site_name: BadZure
+site_name: BadZure Documentation
 site_description: Automate the setup of vulnerable Azure tenants with realistic attack paths for security testing and training
 site_author: Mauricio Velazco
 site_url: https://mvelazc0.github.io/BadZure
