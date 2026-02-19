@@ -34,6 +34,7 @@ theme:
 nav:
   - BadZure:
     - Home: index.md
+    - What Are Attack Paths?: what-are-attack-paths.md
     - Getting Started: getting-started.md
     - Configuration Guide: configuration.md
     - Talks & Demos: talks-and-demos.md
