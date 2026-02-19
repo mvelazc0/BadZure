@@ -58,6 +58,7 @@ The `tenant` section defines your Azure environment and resource counts.
 | `logic_apps` | Number of Logic Apps (with system-assigned managed identities) | ManagedIdentityTheft (logic_app source) |
 | `automation_accounts` | Number of Automation Accounts (with system-assigned managed identities) | ManagedIdentityTheft (automation_account source) |
 | `function_apps` | Number of Function Apps (with system-assigned managed identities) | ManagedIdentityTheft (function_app source) |
+| `cosmos_dbs` | Number of Cosmos DB accounts (serverless, SQL API) | — (not yet integrated into attack paths) |
 
 !!! warning
     Make sure resource counts match your attack path requirements. For example, if you enable a ManagedIdentityTheft path with `source_type: vm`, you need at least `virtual_machines: 1`.
@@ -429,6 +430,7 @@ tenant:
   logic_apps: 1
   automation_accounts: 1
   function_apps: 1
+  cosmos_dbs: 1
 
 attack_paths:
 

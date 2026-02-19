@@ -126,6 +126,7 @@ tenant:
   key_vaults: 1
   storage_accounts: 1
   virtual_machines: 1
+  cosmos_dbs: 1
 ```
 
 **`attack_paths`** — Defines the privilege escalation paths to configure:

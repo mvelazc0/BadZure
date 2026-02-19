@@ -14,7 +14,7 @@
 
 Setting up a realistic Azure environment with exploitable misconfigurations is tedious and error-prone. BadZure does it in minutes — and tears it down just as fast.
 
-Each run creates a unique tenant populated with users, groups, applications, service principals, administrative units, and Azure resources (Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps). It then wires up privilege escalation paths using common misconfigurations seen in real environments: overprivileged application ownership, excessive administrative roles, exposed managed identity tokens, and leaked credentials in cloud storage.
+Each run creates a unique tenant populated with users, groups, applications, service principals, administrative units, and Azure resources (Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts). It then wires up privilege escalation paths using common misconfigurations seen in real environments: overprivileged application ownership, excessive administrative roles, exposed managed identity tokens, and leaked credentials in cloud storage.
 
 ## What Can You Do With It?
 

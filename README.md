@@ -10,7 +10,7 @@
 
 BadZure is a Python tool that utilizes Terraform to automate the setup of Entra ID tenants and Azure subscriptions, populating them with various entities and introducing common security misconfigurations to create vulnerable tenants with multiple attack paths.
 
-BadZure automates the creation of various entities, including users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, and Resource Groups. To simulate common security misconfigurations in real environments, it randomly assigns Entra ID roles, Graph permissions, and application ownership privileges, and Azure resource access permissions to selected security principals, enabling the creation of unique attack paths that span both identity and infrastructure layers.
+BadZure automates the creation of various entities, including users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts, and Resource Groups. To simulate common security misconfigurations in real environments, it randomly assigns Entra ID roles, Graph permissions, and application ownership privileges, and Azure resource access permissions to selected security principals, enabling the creation of unique attack paths that span both identity and infrastructure layers.
 
 The key advantage of BadZure is its ability to quickly populate and purge both Azure AD tenants and Azure subscriptions with randomly generated vulnerable configurations, pre-configured initial access, and realistic cloud infrastructure attack paths, facilitating continuous and iterative Azure cloud adversary simulation and detection development experimentation. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
 
@@ -144,6 +144,7 @@ tenant:
   resource_groups: 1
   key_vaults: 1
   virtual_machines: 1
+  cosmos_dbs: 1
 
 attack_paths:
 
