@@ -64,6 +64,7 @@ class TerraformManager:
         logic_apps: Dict,
         automation_accounts: Dict,
         function_apps: Dict,
+        cosmos_dbs: Dict,
         user_group_assignments: Dict,
         user_au_assignments: Dict,
         user_role_assignments: Dict,
@@ -122,6 +123,7 @@ class TerraformManager:
             'logic_apps': logic_apps,
             'automation_accounts': automation_accounts,
             'function_apps': function_apps,
+            'cosmos_dbs': cosmos_dbs,
             
             # Assignments
             'user_group_assignments': user_group_assignments,

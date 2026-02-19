@@ -626,36 +626,109 @@ class EntityGenerator:
     def generate_function_apps_targeted(self, function_app_specs: List[Dict], resource_groups: Dict) -> Dict:
         """Generate Function Apps from targeted specifications."""
         function_apps = {}
-        
+
         # Load Function App names from file
         function_app_names = self._read_names_from_file('function-apps.txt')
-        
+
         for spec in function_app_specs:
             name = spec.get('name', 'random')
             rg_name = spec.get('resource_group', 'random')
             os_type = spec.get('os_type', 'linux')  # Default to linux if not specified
-            
+
             if name == 'random':
                 # Select random name from file
                 base_name = random.choice(function_app_names)
                 random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
                 name = f"{base_name}-{random_suffix}"
-            
+
             # Handle "random" resource group reference
             if rg_name == 'random':
                 if not resource_groups:
                     continue
                 rg_name = random.choice(list(resource_groups.keys()))
-            
+
             # Validate resource group exists
             if rg_name not in resource_groups:
                 continue
-            
+
             function_apps[name] = {
                 'name': name,
                 'location': resource_groups[rg_name]['location'],
                 'resource_group_name': rg_name,
                 'os_type': os_type
             }
-        
+
         return function_apps
+
+    # Cosmos DB generation
+    def generate_cosmos_dbs(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random Cosmos DB accounts."""
+        cosmos_dbs = {}
+
+        if count == 0 or not resource_groups:
+            return cosmos_dbs
+
+        cosmos_db_names = self._read_names_from_file('cosmos-dbs.txt')
+        random.shuffle(cosmos_db_names)
+        selected_names = cosmos_db_names[:count]
+
+        rg_list = list(resource_groups.keys())
+
+        for base_name in selected_names:
+            rg_name = random.choice(rg_list)
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            name = f"{base_name}-{random_suffix}"
+
+            cosmos_dbs[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'offer_type': 'Standard',
+                'kind': 'GlobalDocumentDB',
+                'database_name': f"{base_name}-db",
+                'container_name': f"{base_name}-container",
+                'partition_key_path': '/id'
+            }
+
+        return cosmos_dbs
+
+    def generate_cosmos_dbs_targeted(self, cosmos_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Cosmos DB accounts from targeted specifications."""
+        cosmos_dbs = {}
+
+        cosmos_db_names = self._read_names_from_file('cosmos-dbs.txt')
+
+        for spec in cosmos_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            database_name = spec.get('database_name', None)
+            container_name = spec.get('container_name', None)
+            partition_key_path = spec.get('partition_key_path', '/id')
+
+            if name == 'random':
+                base_name = random.choice(cosmos_db_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+                name = f"{base_name}-{random_suffix}"
+
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+
+            cosmos_dbs[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'offer_type': 'Standard',
+                'kind': 'GlobalDocumentDB',
+                'database_name': database_name or f"{name}-db",
+                'container_name': container_name or f"{name}-container",
+                'partition_key_path': partition_key_path
+            }
+
+        return cosmos_dbs

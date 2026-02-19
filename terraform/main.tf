@@ -760,6 +760,57 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
   ]
 }
 
+# Cosmos DB Account (serverless capacity mode for cost efficiency)
+resource "azurerm_cosmosdb_account" "cosmos_dbs" {
+  for_each = var.cosmos_dbs
+
+  name                = each.value.name
+  location            = each.value.location
+  resource_group_name = each.value.resource_group_name
+  offer_type          = each.value.offer_type
+  kind                = each.value.kind
+
+  capabilities {
+    name = "EnableServerless"
+  }
+
+  consistency_policy {
+    consistency_level = "Session"
+  }
+
+  geo_location {
+    location          = each.value.location
+    failover_priority = 0
+    zone_redundant    = false
+  }
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
+# Cosmos DB SQL Database
+resource "azurerm_cosmosdb_sql_database" "cosmos_databases" {
+  for_each = var.cosmos_dbs
+
+  name                = each.value.database_name
+  resource_group_name = each.value.resource_group_name
+  account_name        = azurerm_cosmosdb_account.cosmos_dbs[each.key].name
+
+  depends_on = [azurerm_cosmosdb_account.cosmos_dbs]
+}
+
+# Cosmos DB SQL Container
+resource "azurerm_cosmosdb_sql_container" "cosmos_containers" {
+  for_each = var.cosmos_dbs
+
+  name                = each.value.container_name
+  resource_group_name = each.value.resource_group_name
+  account_name        = azurerm_cosmosdb_account.cosmos_dbs[each.key].name
+  database_name       = azurerm_cosmosdb_sql_database.cosmos_databases[each.key].name
+  partition_key_paths = [each.value.partition_key_path]
+
+  depends_on = [azurerm_cosmosdb_sql_database.cosmos_databases]
+}
+
 # ============================================================================
 # ManagedIdentityTheft Attack Path Resources
 # ============================================================================

@@ -208,6 +208,21 @@ variable "function_apps" {
   default = {}
 }
 
+variable "cosmos_dbs" {
+  description = "A map of Cosmos DB accounts to create"
+  type = map(object({
+    name                = string
+    location            = string
+    resource_group_name = string
+    offer_type          = string
+    kind                = string
+    database_name       = string
+    container_name      = string
+    partition_key_path  = string
+  }))
+  default = {}
+}
+
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
     key_vault              = string

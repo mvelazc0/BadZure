@@ -30,6 +30,7 @@ tenant:
   logic_apps: 1
   automation_accounts: 1
   function_apps: 1
+  cosmos_dbs: 0             # Cosmos DB accounts (optional)
 
 # =============================================================================
 # Attack Path Examples
