@@ -113,16 +113,28 @@ class OutputFormatter:
 
                         # Show group assignment details if applicable
                         assignment_type = assignment.get('assignment_type', 'direct')
-                        if assignment_type == 'group':
+                        if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
                             original_identity_type = assignment.get('original_identity_type', 'user')
-                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Principal Role: {role_display_name} (via Group)")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 {role_display_name}")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
                             logging.info(f"Principal Role: {role_display_name} (via Group)")
                         else:
                             logging.info(f"Principal Role: {role_display_name}")
@@ -178,25 +190,37 @@ class OutputFormatter:
                                     logging.info(f"Client Secret: {sp_creds['client_secret']}")
 
                         # Show group assignment details if applicable
-                        if assignment_type == 'group':
+                        if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
                             original_identity_type = assignment.get('original_identity_type', 'user')
-                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 KeyVaultSecretTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
                         else:
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
-                        
+
                         # Show target application and privileges
                         app_name = assignment.get('app_name')
                         if app_name:
                             logging.info(f"Target Application: {app_name}")
-                        
+
                         # Show what privileges the application has
                         if key in attack_path_application_role_assignments:
                             role_info = attack_path_application_role_assignments[key]
@@ -208,11 +232,11 @@ class OutputFormatter:
                             api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
                             perm_ids_str = ', '.join(perm_info['api_permission_ids'])
                             logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
-                        
+
                         logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
                         break
-            
+
             elif attack_path_data['privilege_escalation'] == 'StorageCertificateTheft':
                 # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_storage_abuse_assignments.items():
@@ -239,25 +263,37 @@ class OutputFormatter:
                                     logging.info(f"Client Secret: {sp_creds['client_secret']}")
 
                         # Show group assignment details if applicable
-                        if assignment_type == 'group':
+                        if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
                             original_identity_type = assignment.get('original_identity_type', 'user')
-                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader via Group)")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 StorageCertificateTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader via Group)")
                         else:
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
-                        
+
                         # Show target application and privileges
                         app_name = assignment.get('app_name')
                         if app_name:
                             logging.info(f"Target Application: {app_name}")
-                        
+
                         # Show what privileges the application has
                         if key in attack_path_application_role_assignments:
                             role_info = attack_path_application_role_assignments[key]
@@ -269,11 +305,11 @@ class OutputFormatter:
                             api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
                             perm_ids_str = ', '.join(perm_info['api_permission_ids'])
                             logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
-                        
+
                         logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
                         break
-            
+
             elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
                 # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_managed_identity_theft_assignments.items():
@@ -314,19 +350,30 @@ class OutputFormatter:
                                     logging.info(f"Client Secret: {sp_creds['client_secret']}")
 
                         # Show group assignment details if applicable
-                        if assignment_type == 'group':
+                        if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', initial_access_principal)
                             original_identity_type = assignment.get('original_identity_type', 'user')
-                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', initial_access_principal)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
 
                         # Display source information with role (via Group if applicable)
-                        role_suffix = " via Group" if assignment_type == 'group' else ""
+                        role_suffix = " via Group" if assignment_type in ('group_member', 'group_owner') else ""
                         if source_type == 'vm':
                             logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")
@@ -365,10 +412,10 @@ class OutputFormatter:
                             else:
                                 logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
                                 logging.info(f"Secret stored in: {target_name}/mi-credentials/{app_name}-secret.txt")
-                        
+
                         # Display application with privileges
                         logging.info(f"Target Application: {app_name}")
-                        
+
                         # Show what privileges the application has
                         if key in attack_path_application_role_assignments:
                             role_info = attack_path_application_role_assignments[key]
@@ -380,11 +427,11 @@ class OutputFormatter:
                             api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
                             perm_ids_str = ', '.join(perm_info['api_permission_ids'])
                             logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
-                        
+
                         logging.info("")  # Blank line after attack path
                         # Only show one assignment per attack path
                         break
-    
+
     def format_targeted_mode_attack_paths(
         self,
         config: Dict,
@@ -466,16 +513,28 @@ class OutputFormatter:
 
                             # Show group assignment details if applicable
                             assignment_type = assignment.get('assignment_type', 'direct')
-                            if assignment_type == 'group':
+                            if assignment_type == 'group_member':
                                 group_name = assignment.get('group_name', 'N/A')
                                 original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
                                 original_identity_type = assignment.get('original_identity_type', 'user')
-                                logging.info(f"Assignment Type: Group (indirect)")
+                                logging.info(f"Assignment Type: Group Member (indirect)")
                                 logging.info(f"Group: {group_name}")
                                 if original_identity_type == 'user':
                                     logging.info(f"Group Member: User - {original_principal}@{domain}")
                                 else:
                                     logging.info(f"Group Member: Service Principal - {original_principal}")
+                                logging.info(f"Principal Role: {role_display_name} (via Group)")
+                            elif assignment_type == 'group_owner':
+                                group_name = assignment.get('group_name', 'N/A')
+                                original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
+                                original_identity_type = assignment.get('original_identity_type', 'user')
+                                logging.info(f"Assignment Type: Group Owner (indirect)")
+                                logging.info(f"Attack Chain: Group Ownership \u2192 {role_display_name}")
+                                logging.info(f"Group: {group_name}")
+                                if original_identity_type == 'user':
+                                    logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                                else:
+                                    logging.info(f"Group Owner: Service Principal - {original_principal}")
                                 logging.info(f"Principal Role: {role_display_name} (via Group)")
                             else:
                                 logging.info(f"Principal Role: {role_display_name}")
@@ -523,16 +582,28 @@ class OutputFormatter:
                                     logging.info(f"Client Secret: {sp_creds['client_secret']}")
 
                         # Show group assignment details if applicable
-                        if assignment_type == 'group':
+                        if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
                             original_identity_type = assignment.get('original_identity_type', 'user')
-                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 KeyVaultSecretTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
                         else:
                             logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
@@ -565,16 +636,28 @@ class OutputFormatter:
                                     logging.info(f"Client Secret: {sp_creds['client_secret']}")
 
                         # Show group assignment details if applicable
-                        if assignment_type == 'group':
+                        if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
                             original_identity_type = assignment.get('original_identity_type', 'user')
-                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader via Group)")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 StorageCertificateTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader via Group)")
                         else:
                             logging.info(f"Storage Account Access: {storage_account} (Storage Blob Data Reader)")
@@ -582,7 +665,7 @@ class OutputFormatter:
                         logging.info(f"Target Application: {assignment['app_name']}")
                         logging.info(f"Certificate stored in: {storage_account}/cert-container/")
                         break
-            
+
             elif priv_esc == 'ManagedIdentityTheft':
                 for key, assignment in assignments.get('managed_identity_theft', {}).items():
                     # Match the key to the path_name
@@ -623,19 +706,30 @@ class OutputFormatter:
                                     logging.info(f"Client Secret: {sp_creds['client_secret']}")
 
                         # Show group assignment details if applicable
-                        if assignment_type == 'group':
+                        if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', initial_access_principal)
                             original_identity_type = assignment.get('original_identity_type', 'user')
-                            logging.info(f"Assignment Type: Group (indirect)")
+                            logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Member: User - {original_principal}@{domain}")
                             else:
                                 logging.info(f"Group Member: Service Principal - {original_principal}")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', initial_access_principal)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
 
                         # Display source information with role (via Group if applicable)
-                        role_suffix = " via Group" if assignment_type == 'group' else ""
+                        role_suffix = " via Group" if assignment_type in ('group_member', 'group_owner') else ""
                         if source_type == 'vm':
                             logging.info(f"Source Resource: Virtual Machine - {source_name} (with {role_name}{role_suffix})")
                             logging.info(f"Managed Identity: {managed_identity_name}")

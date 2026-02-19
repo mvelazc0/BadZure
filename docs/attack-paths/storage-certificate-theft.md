@@ -61,9 +61,21 @@ BadZure automatically handles certificate lifecycle:
 
     A user account with Storage Blob Data Reader role. Simulates a compromised user with overly broad storage access.
 
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>User")) -->|"Blob Data<br/>Reader"| SA(("Azure Storage<br/>Account"))
+        SA -->|"download cert"| APP(("Privileged<br/>Application"))
+    ```
+
 === "Service Principal"
 
     A service principal with Storage Blob Data Reader role. Simulates a compromised pipeline with excessive storage permissions.
+
+    ``` mermaid
+    graph LR
+        SP(("Compromised<br/>Service Principal")) -->|"Blob Data<br/>Reader"| SA(("Azure Storage<br/>Account"))
+        SA -->|"download cert"| APP(("Privileged<br/>Application"))
+    ```
 
 ### By Assignment Type
 
@@ -71,13 +83,30 @@ BadZure automatically handles certificate lifecycle:
 
     Storage Blob Data Reader is assigned directly to the identity.
 
-=== "Group"
+    ``` mermaid
+    graph LR
+        ID(("Compromised<br/>Identity")) -->|"Blob Data<br/>Reader"| SA(("Azure Storage<br/>Account"))
+        SA -->|"download cert"| APP(("Privileged<br/>Application"))
+    ```
 
-    The identity is a member of a security group with Storage Blob Data Reader access.
+=== "Group Member"
+
+    The identity is a **member** of a security group with Storage Blob Data Reader access.
 
     ``` mermaid
     graph LR
         U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"Storage Blob<br/>Data Reader"| SA(("Azure Storage<br/>Account"))
+        SA -->|"download cert"| APP(("Privileged<br/>Application"))
+    ```
+
+=== "Group Owner"
+
+    The identity **owns** a security group with Storage Blob Data Reader access. As group owner, the attacker can add themselves as a member to inherit the group's privileges.
+
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>Identity")) -->|"owner of"| G(("Security<br/>Group"))
         G -->|"Storage Blob<br/>Data Reader"| SA(("Azure Storage<br/>Account"))
         SA -->|"download cert"| APP(("Privileged<br/>Application"))
     ```
@@ -117,7 +146,7 @@ attack_paths:
   storage_theft_group:
     enabled: true
     privilege_escalation: StorageCertificateTheft
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All

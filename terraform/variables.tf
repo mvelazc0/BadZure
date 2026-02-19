@@ -32,6 +32,8 @@ variable "groups" {
   type = map(object({
     display_name         = string
     is_attack_path_group = optional(bool, false)  # If true, group will be role-assignable for Entra ID roles
+    owner_name           = optional(string, null)  # Optional owner for group_owner assignment type
+    owner_type           = optional(string, null)  # "user" or "service_principal"
   }))
 }
 
@@ -212,7 +214,7 @@ variable "attack_path_kv_abuse_assignments" {
     identity_type          = string  # Options: "user", "service_principal"
     principal_name         = string  # Name of the principal
     app_name               = string  # The application to which a secret will be added
-    assignment_type        = optional(string, "direct")  # "direct" or "group"
+    assignment_type        = optional(string, "direct")  # "direct", "group_member", or "group_owner"
     group_name             = optional(string, "")  # Group name for indirect assignment
     original_principal     = optional(string, "")  # Original principal for group assignment
     original_identity_type = optional(string, "")  # Original identity type for group assignment
@@ -227,7 +229,7 @@ variable "attack_path_storage_abuse_assignments" {
     storage_account        = string
     identity_type          = string  # Options: "user", "service_principal"
     principal_name         = string  # Name of the principal
-    assignment_type        = optional(string, "direct")  # "direct" or "group"
+    assignment_type        = optional(string, "direct")  # "direct", "group_member", or "group_owner"
     group_name             = optional(string, "")  # Group name for indirect assignment
     original_principal     = optional(string, "")  # Original principal for group assignment
     original_identity_type = optional(string, "")  # Original identity type for group assignment
@@ -253,7 +255,7 @@ variable "attack_path_managed_identity_theft_assignments" {
     pfx_path                 = optional(string, "")  # PFX file path for convenient authentication
     credential_type          = optional(string, "secret")  # "secret" or "certificate" (only for key_vault targets)
     os_type                  = optional(string, "linux")  # OS type for function_app source type
-    assignment_type          = optional(string, "direct")  # "direct" or "group" for indirect assignment
+    assignment_type          = optional(string, "direct")  # "direct", "group_member", or "group_owner" for indirect assignment
     group_name               = optional(string, "")  # Group name for indirect assignment
     original_principal       = optional(string, "")  # Original principal for group assignment
     original_identity_type   = optional(string, "")  # Original identity type for group assignment

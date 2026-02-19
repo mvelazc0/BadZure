@@ -59,7 +59,7 @@ attack_paths:
   cloud_app_admin_group:
     enabled: true
     privilege_escalation: CloudAppAdministratorAbuse
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory

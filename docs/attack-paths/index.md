@@ -98,7 +98,7 @@ All attack paths share these configuration options:
 | Option | Values | Description |
 |---|---|---|
 | `identity_type` | `user` (default), `service_principal` | Type of compromised identity |
-| `assignment_type` | `direct` (default), `group` | Whether permissions are assigned directly or through a security group |
+| `assignment_type` | `direct` (default), `group_member`, `group_owner` | Whether permissions are assigned directly, through group membership, or through group ownership |
 | `method` | `AzureADRole`, `APIPermission` | How the target application gets its privileges |
 
 See the [Configuration Guide](../configuration.md) for full details on all parameters.

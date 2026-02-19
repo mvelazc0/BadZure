@@ -119,29 +119,41 @@ class EntityGenerator:
         
         return groups
     
-    def generate_attack_path_group(self) -> Dict:
+    def generate_attack_path_group(self, owner_name: str = None, owner_type: str = None) -> Dict:
         """
         Generate a dedicated group for an attack path using realistic names.
-        
+
         Groups created for attack paths are flagged with 'is_attack_path_group': True
         to prevent random user assignments in random mode.
-        
+
+        Args:
+            owner_name: Optional name of the identity to set as group owner (for group_owner assignment type)
+            owner_type: Optional type of the owner identity ('user' or 'service_principal')
+
         Returns:
             Dictionary with group specification including:
             - display_name: Realistic group name with random suffix for uniqueness
             - is_attack_path_group: True (flag to prevent random user assignment)
+            - owner_name: (optional) Name of the group owner
+            - owner_type: (optional) Type of the group owner
         """
         group_names = self._read_names_from_file('group-names.txt')
-        
+
         # Select a random realistic name and add suffix for uniqueness
         base_name = random.choice(group_names)
         random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
         group_name = f"{base_name}-{random_suffix}"
-        
-        return {
+
+        result = {
             'display_name': group_name,
             'is_attack_path_group': True  # Flag to prevent random user assignment
         }
+
+        if owner_name is not None:
+            result['owner_name'] = owner_name
+            result['owner_type'] = owner_type or 'user'
+
+        return result
     
     # Application generation
     def generate_applications(self, count: int) -> Dict:

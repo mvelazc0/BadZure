@@ -61,6 +61,24 @@ resource "azuread_group" "groups" {
   security_enabled = true
   # Attack path groups need to be role-assignable to receive Entra ID directory roles
   assignable_to_role = lookup(each.value, "is_attack_path_group", false)
+
+  # Set group owners for group_owner assignment type
+  # Include Terraform's executing principal to avoid "cannot remove last owner" errors
+  owners = (
+    lookup(each.value, "owner_name", null) != null ? toset(concat(
+      [data.azurerm_client_config.current.object_id],
+      [
+        lookup(each.value, "owner_type", "user") == "user" ?
+          azuread_user.users[each.value.owner_name].id :
+          azuread_service_principal.spns[each.value.owner_name].id
+      ]
+    )) : null
+  )
+
+  depends_on = [
+    azuread_user.users,
+    azuread_service_principal.spns
+  ]
 }
 
 resource "azuread_application_registration" "spns" {
@@ -139,7 +157,7 @@ resource "azuread_directory_role_assignment" "attack_path_user_role_assignments"
   for_each = var.attack_path_user_role_assignments
 
   # Support user, service_principal, and group identity types
-  # Groups are used for indirect assignment (assignment_type: group)
+  # Groups are used for indirect assignment (assignment_type: group_member or group_owner)
   principal_object_id = (
     lookup(each.value, "identity_type", "user") == "user" ?
       azuread_user.users[each.value.principal_name].id :
@@ -547,10 +565,10 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
   scope                = azurerm_key_vault.kvaults[each.value.key_vault].id
   role_definition_name = "Key Vault Contributor"
 
-  # Support group-based assignment (assignment_type: group)
-  # When assignment_type is "group", assign the role to the group instead of the user/SP
+  # Support group-based assignment (assignment_type: group_member or group_owner)
+  # When assignment_type is "group_member" or "group_owner", assign the role to the group instead of the user/SP
   principal_id = (
-    lookup(each.value, "assignment_type", "direct") == "group" ?
+    contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
       azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
     azuread_user.users[each.value.principal_name].id :
@@ -571,10 +589,10 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
   scope                = azurerm_storage_account.sas[each.value.storage_account].id
   role_definition_name = "Storage Blob Data Reader"
 
-  # Support group-based assignment (assignment_type: group)
-  # When assignment_type is "group", assign the role to the group instead of the user/SP
+  # Support group-based assignment (assignment_type: group_member or group_owner)
+  # When assignment_type is "group_member" or "group_owner", assign the role to the group instead of the user/SP
   principal_id = (
-    lookup(each.value, "assignment_type", "direct") == "group" ?
+    contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
       azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
     azuread_user.users[each.value.principal_name].id :
@@ -1268,9 +1286,9 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
   )
   
   # Support user, service_principal, and group identity types
-  # When assignment_type is "group", assign the role to the group instead of the user/SP
+  # When assignment_type is "group_member" or "group_owner", assign the role to the group instead of the user/SP
   principal_id = (
-    lookup(each.value, "assignment_type", "direct") == "group" ?
+    contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
       azuread_group.groups[each.value.group_name].id :
     each.value.identity_type == "user" ?
     azuread_user.users[each.value.initial_access_principal].id :

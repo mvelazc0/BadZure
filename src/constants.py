@@ -2605,8 +2605,9 @@ TECHNIQUES_USER_ONLY = [
 
 # Valid assignment types for attack paths
 # - direct: Permission assigned directly to the identity (default)
-# - group: Permission assigned to a group, identity added as member
-VALID_ASSIGNMENT_TYPES = ['direct', 'group']
+# - group_member: Permission assigned to a group, identity added as member
+# - group_owner: Permission assigned to a group, identity set as group owner (not member)
+VALID_ASSIGNMENT_TYPES = ['direct', 'group_member', 'group_owner']
 
 # Valid scope types for ApplicationAdministratorAbuse and CloudAppAdministratorAbuse
 # - directory: Role applies tenant-wide (default, existing behavior)

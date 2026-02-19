@@ -87,9 +87,23 @@ graph TD
 
     The target resource stores an application **client secret**. The attacker retrieves the client ID and secret, then authenticates using the standard OAuth2 client credentials flow.
 
+    ``` mermaid
+    graph LR
+        A(("Attacker")) -->|"steal token"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Key Vault /<br/>Storage Account"))
+        TGT -->|"retrieve secret"| APP(("Privileged<br/>Application"))
+    ```
+
 === "Certificate"
 
     The target resource stores an **X.509 certificate** with a private key. The attacker downloads the certificate and key files, then uses certificate-based authentication. This is harder to detect in logs than secret-based auth.
+
+    ``` mermaid
+    graph LR
+        A(("Attacker")) -->|"steal token"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Key Vault /<br/>Storage Account"))
+        TGT -->|"retrieve certificate"| APP(("Privileged<br/>Application"))
+    ```
 
 ### By Identity Type
 
@@ -97,9 +111,23 @@ graph TD
 
     A user account with contributor access to the source resource. Simulates a compromised developer or operator.
 
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>User")) -->|"Contributor on"| RES(("Azure<br/>Resource"))
+        RES -->|"has"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Target<br/>Resource"))
+    ```
+
 === "Service Principal"
 
     A service principal with contributor access. Simulates a compromised CI/CD pipeline or automation account with excessive resource permissions.
+
+    ``` mermaid
+    graph LR
+        SP(("Compromised<br/>Service Principal")) -->|"Contributor on"| RES(("Azure<br/>Resource"))
+        RES -->|"has"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Target<br/>Resource"))
+    ```
 
 ### By Assignment Type
 
@@ -107,13 +135,31 @@ graph TD
 
     Contributor access is assigned directly to the identity.
 
-=== "Group"
+    ``` mermaid
+    graph LR
+        ID(("Compromised<br/>Identity")) -->|"Contributor on"| RES(("Azure<br/>Resource"))
+        RES -->|"has"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Target<br/>Resource"))
+    ```
 
-    The identity is a member of a security group with contributor access to the source resource.
+=== "Group Member"
+
+    The identity is a **member** of a security group with contributor access to the source resource.
 
     ``` mermaid
     graph LR
         U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"contributor"| RES(("Azure<br/>Resource"))
+        RES -->|"managed identity<br/>token theft"| TGT(("Target<br/>Resource"))
+    ```
+
+=== "Group Owner"
+
+    The identity **owns** a security group with contributor access to the source resource. As group owner, the attacker can add themselves as a member to inherit the group's privileges.
+
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>Identity")) -->|"owner of"| G(("Security<br/>Group"))
         G -->|"contributor"| RES(("Azure<br/>Resource"))
         RES -->|"managed identity<br/>token theft"| TGT(("Target<br/>Resource"))
     ```
@@ -174,7 +220,7 @@ attack_paths:
     privilege_escalation: ManagedIdentityTheft
     source_type: automation_account
     target_resource_type: key_vault
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory

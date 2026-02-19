@@ -78,10 +78,10 @@ class AttackPathManager:
         scenario = attack_config.get('scenario', 'direct')
         assignment_type = attack_config.get('assignment_type', 'direct')
         
-        # Validate: assignment_type 'group' is NOT supported for ApplicationOwnershipAbuse
+        # Validate: assignment_type 'group_member'/'group_owner' is NOT supported for ApplicationOwnershipAbuse
         # Azure AD does not allow groups to be application owners
-        if assignment_type == 'group':
-            logging.warning(f"{path_name}: assignment_type 'group' is not supported for ApplicationOwnershipAbuse. "
+        if assignment_type in ('group_member', 'group_owner'):
+            logging.warning(f"{path_name}: assignment_type '{assignment_type}' is not supported for ApplicationOwnershipAbuse. "
                           "Azure AD does not allow groups to be application owners. Falling back to 'direct'.")
             assignment_type = 'direct'
         
@@ -143,28 +143,28 @@ class AttackPathManager:
                 }
             
             # App owner assignment for user - handle group-based assignment
-            if assignment_type == 'group':
+            if assignment_type == 'group_member':
                 # Generate a dedicated group for this attack path
                 group_spec = self.entity_generator.generate_attack_path_group()
                 group_name = group_spec['display_name']
-                
+
                 # Add group to be created
                 group_assignments[group_name] = group_spec
-                
+
                 # Add user to group
                 group_membership_assignments[key] = {
                     'group_name': group_name,
                     'identity_type': 'user',
                     'principal_name': principal_name
                 }
-                
+
                 # App owner assignment - group owns the application
                 app_owner_assignments[key] = {
                     'app_name': app_name,
                     'identity_type': 'group',
                     'principal_name': group_name,
                     'entry_point': entry_point,
-                    'assignment_type': 'group',
+                    'assignment_type': 'group_member',
                     'group_name': group_name,
                     'original_principal': principal_name,
                     'original_identity_type': 'user'
@@ -187,28 +187,28 @@ class AttackPathManager:
             }
             
             # App owner assignment for service principal - handle group-based assignment
-            if assignment_type == 'group':
+            if assignment_type == 'group_member':
                 # Generate a dedicated group for this attack path
                 group_spec = self.entity_generator.generate_attack_path_group()
                 group_name = group_spec['display_name']
-                
+
                 # Add group to be created
                 group_assignments[group_name] = group_spec
-                
+
                 # Add service principal to group
                 group_membership_assignments[key] = {
                     'group_name': group_name,
                     'identity_type': 'service_principal',
                     'principal_name': principal_name
                 }
-                
+
                 # App owner assignment - group owns the application
                 app_owner_assignments[key] = {
                     'app_name': app_name,
                     'identity_type': 'group',
                     'principal_name': group_name,
                     'entry_point': entry_point,
-                    'assignment_type': 'group',
+                    'assignment_type': 'group_member',
                     'group_name': group_name,
                     'original_principal': principal_name,
                     'original_identity_type': 'service_principal'
@@ -376,20 +376,26 @@ class AttackPathManager:
             }
 
             # Assign admin role - handle group-based assignment
-            if assignment_type == 'group':
+            if assignment_type in ('group_member', 'group_owner'):
                 # Generate a dedicated group for this attack path
-                group_spec = self.entity_generator.generate_attack_path_group()
+                if assignment_type == 'group_owner':
+                    group_spec = self.entity_generator.generate_attack_path_group(
+                        owner_name=principal_name, owner_type='user'
+                    )
+                else:
+                    group_spec = self.entity_generator.generate_attack_path_group()
                 group_name = group_spec['display_name']
 
                 # Add group to be created
                 group_assignments[group_name] = group_spec
 
-                # Add user to group
-                group_membership_assignments[key] = {
-                    'group_name': group_name,
-                    'identity_type': 'user',
-                    'principal_name': principal_name
-                }
+                # Only add membership for 'group_member' — NOT for 'group_owner'
+                if assignment_type == 'group_member':
+                    group_membership_assignments[key] = {
+                        'group_name': group_name,
+                        'identity_type': 'user',
+                        'principal_name': principal_name
+                    }
 
                 # Assign admin role to group
                 user_role_assignments[key] = {
@@ -397,7 +403,7 @@ class AttackPathManager:
                     'principal_name': group_name,
                     'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
-                    'assignment_type': 'group',
+                    'assignment_type': assignment_type,
                     'group_name': group_name,
                     'original_principal': principal_name,
                     'original_identity_type': 'user',
@@ -422,20 +428,26 @@ class AttackPathManager:
             }
 
             # Assign admin role - handle group-based assignment
-            if assignment_type == 'group':
+            if assignment_type in ('group_member', 'group_owner'):
                 # Generate a dedicated group for this attack path
-                group_spec = self.entity_generator.generate_attack_path_group()
+                if assignment_type == 'group_owner':
+                    group_spec = self.entity_generator.generate_attack_path_group(
+                        owner_name=principal_name, owner_type='service_principal'
+                    )
+                else:
+                    group_spec = self.entity_generator.generate_attack_path_group()
                 group_name = group_spec['display_name']
 
                 # Add group to be created
                 group_assignments[group_name] = group_spec
 
-                # Add service principal to group
-                group_membership_assignments[key] = {
-                    'group_name': group_name,
-                    'identity_type': 'service_principal',
-                    'principal_name': principal_name
-                }
+                # Only add membership for 'group_member' — NOT for 'group_owner'
+                if assignment_type == 'group_member':
+                    group_membership_assignments[key] = {
+                        'group_name': group_name,
+                        'identity_type': 'service_principal',
+                        'principal_name': principal_name
+                    }
 
                 # Assign admin role to group
                 user_role_assignments[key] = {
@@ -443,7 +455,7 @@ class AttackPathManager:
                     'principal_name': group_name,
                     'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
-                    'assignment_type': 'group',
+                    'assignment_type': assignment_type,
                     'group_name': group_name,
                     'original_principal': principal_name,
                     'original_identity_type': 'service_principal',
@@ -589,23 +601,29 @@ class AttackPathManager:
         }
         
         # Handle group-based assignment for the Contributor role
-        if assignment_type == 'group':
+        if assignment_type in ('group_member', 'group_owner'):
             # Generate a dedicated group for this attack path
-            group_spec = self.entity_generator.generate_attack_path_group()
+            if assignment_type == 'group_owner':
+                group_spec = self.entity_generator.generate_attack_path_group(
+                    owner_name=principal_name, owner_type=identity_type
+                )
+            else:
+                group_spec = self.entity_generator.generate_attack_path_group()
             group_name = group_spec['display_name']
-            
+
             # Add group to be created
             group_assignments[group_name] = group_spec
-            
-            # Add principal to group
-            group_membership_assignments[key] = {
-                'group_name': group_name,
-                'identity_type': identity_type,
-                'principal_name': principal_name
-            }
-            
+
+            # Only add membership for 'group_member' — NOT for 'group_owner'
+            if assignment_type == 'group_member':
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': identity_type,
+                    'principal_name': principal_name
+                }
+
             # Update MI theft assignment with group info
-            mi_theft_assignment['assignment_type'] = 'group'
+            mi_theft_assignment['assignment_type'] = assignment_type
             mi_theft_assignment['group_name'] = group_name
             mi_theft_assignment['original_principal'] = principal_name
             mi_theft_assignment['original_identity_type'] = identity_type
@@ -751,23 +769,29 @@ class AttackPathManager:
         }
         
         # Handle group-based assignment for Key Vault access
-        if assignment_type == 'group':
+        if assignment_type in ('group_member', 'group_owner'):
             # Generate a dedicated group for this attack path
-            group_spec = self.entity_generator.generate_attack_path_group()
+            if assignment_type == 'group_owner':
+                group_spec = self.entity_generator.generate_attack_path_group(
+                    owner_name=principal_name, owner_type=identity_type
+                )
+            else:
+                group_spec = self.entity_generator.generate_attack_path_group()
             group_name = group_spec['display_name']
-            
+
             # Add group to be created
             group_assignments[group_name] = group_spec
-            
-            # Add principal to group
-            group_membership_assignments[key] = {
-                'group_name': group_name,
-                'identity_type': identity_type,
-                'principal_name': principal_name
-            }
-            
+
+            # Only add membership for 'group_member' — NOT for 'group_owner'
+            if assignment_type == 'group_member':
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': identity_type,
+                    'principal_name': principal_name
+                }
+
             # Update KV abuse assignment with group info
-            kv_abuse_assignment['assignment_type'] = 'group'
+            kv_abuse_assignment['assignment_type'] = assignment_type
             kv_abuse_assignment['group_name'] = group_name
             kv_abuse_assignment['original_principal'] = principal_name
             kv_abuse_assignment['original_identity_type'] = identity_type
@@ -904,23 +928,29 @@ class AttackPathManager:
         }
         
         # Handle group-based assignment for Storage Account access
-        if assignment_type == 'group':
+        if assignment_type in ('group_member', 'group_owner'):
             # Generate a dedicated group for this attack path
-            group_spec = self.entity_generator.generate_attack_path_group()
+            if assignment_type == 'group_owner':
+                group_spec = self.entity_generator.generate_attack_path_group(
+                    owner_name=principal_name, owner_type=identity_type
+                )
+            else:
+                group_spec = self.entity_generator.generate_attack_path_group()
             group_name = group_spec['display_name']
-            
+
             # Add group to be created
             group_assignments[group_name] = group_spec
-            
-            # Add principal to group
-            group_membership_assignments[key] = {
-                'group_name': group_name,
-                'identity_type': identity_type,
-                'principal_name': principal_name
-            }
-            
+
+            # Only add membership for 'group_member' — NOT for 'group_owner'
+            if assignment_type == 'group_member':
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': identity_type,
+                    'principal_name': principal_name
+                }
+
             # Update storage abuse assignment with group info
-            storage_abuse_assignment['assignment_type'] = 'group'
+            storage_abuse_assignment['assignment_type'] = assignment_type
             storage_abuse_assignment['group_name'] = group_name
             storage_abuse_assignment['original_principal'] = principal_name
             storage_abuse_assignment['original_identity_type'] = identity_type

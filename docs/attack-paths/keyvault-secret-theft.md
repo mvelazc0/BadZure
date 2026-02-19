@@ -49,9 +49,21 @@ This attack path provides **direct access** to the Key Vault — there is no int
 
     A user account with Key Vault Contributor role. Simulates a compromised operator or developer with direct vault access.
 
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>User")) -->|"Key Vault<br/>Contributor"| KV(("Azure<br/>Key Vault"))
+        KV -->|"retrieve secret"| APP(("Privileged<br/>Application"))
+    ```
+
 === "Service Principal"
 
     A service principal with Key Vault Contributor role. Simulates a compromised automation pipeline with excessive Key Vault permissions.
+
+    ``` mermaid
+    graph LR
+        SP(("Compromised<br/>Service Principal")) -->|"Key Vault<br/>Contributor"| KV(("Azure<br/>Key Vault"))
+        KV -->|"retrieve secret"| APP(("Privileged<br/>Application"))
+    ```
 
 ### By Assignment Type
 
@@ -59,13 +71,30 @@ This attack path provides **direct access** to the Key Vault — there is no int
 
     Key Vault Contributor role is assigned directly to the identity.
 
-=== "Group"
+    ``` mermaid
+    graph LR
+        ID(("Compromised<br/>Identity")) -->|"Key Vault<br/>Contributor"| KV(("Azure<br/>Key Vault"))
+        KV -->|"retrieve secret"| APP(("Privileged<br/>Application"))
+    ```
 
-    The identity is a member of a security group with Key Vault Contributor access.
+=== "Group Member"
+
+    The identity is a **member** of a security group with Key Vault Contributor access.
 
     ``` mermaid
     graph LR
         U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"Key Vault<br/>Contributor"| KV(("Azure<br/>Key Vault"))
+        KV -->|"retrieve secret"| APP(("Privileged<br/>Application"))
+    ```
+
+=== "Group Owner"
+
+    The identity **owns** a security group with Key Vault Contributor access. As group owner, the attacker can add themselves as a member to inherit the group's privileges.
+
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>Identity")) -->|"owner of"| G(("Security<br/>Group"))
         G -->|"Key Vault<br/>Contributor"| KV(("Azure<br/>Key Vault"))
         KV -->|"retrieve secret"| APP(("Privileged<br/>Application"))
     ```
@@ -105,7 +134,7 @@ attack_paths:
   kv_theft_group:
     enabled: true
     privilege_escalation: KeyVaultSecretTheft
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All

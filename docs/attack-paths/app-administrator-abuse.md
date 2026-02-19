@@ -47,9 +47,21 @@ graph LR
 
     A user account with the Application Administrator role. Simulates a compromised IT admin.
 
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>User")) -->|"assigned"| ROLE(("Application<br/>Administrator Role"))
+        ROLE -->|"manage"| APP(("Privileged<br/>Application"))
+    ```
+
 === "Service Principal"
 
     A service principal with the Application Administrator role. Simulates a compromised automation pipeline with excessive permissions.
+
+    ``` mermaid
+    graph LR
+        SP(("Compromised<br/>Service Principal")) -->|"assigned"| ROLE(("Application<br/>Administrator Role"))
+        ROLE -->|"manage"| APP(("Privileged<br/>Application"))
+    ```
 
 ### By Assignment Type
 
@@ -57,13 +69,30 @@ graph LR
 
     The Application Administrator role is assigned directly to the identity.
 
-=== "Group"
+    ``` mermaid
+    graph LR
+        ID(("Compromised<br/>Identity")) -->|"assigned"| ROLE(("Application<br/>Administrator Role"))
+        ROLE -->|"manage"| APP(("Privileged<br/>Application"))
+    ```
 
-    The identity is a member of a security group that holds the Application Administrator role.
+=== "Group Member"
+
+    The identity is a **member** of a security group that holds the Application Administrator role.
 
     ``` mermaid
     graph LR
         U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
+        G -->|"has"| ROLE(("Application<br/>Administrator Role"))
+        ROLE -->|"manage"| APP(("Privileged<br/>Application"))
+    ```
+
+=== "Group Owner"
+
+    The identity **owns** a security group that holds the Application Administrator role. As group owner, the attacker can add themselves as a member to inherit the group's privileges.
+
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>Identity")) -->|"owner of"| G(("Security<br/>Group"))
         G -->|"has"| ROLE(("Application<br/>Administrator Role"))
         ROLE -->|"manage"| APP(("Privileged<br/>Application"))
     ```
@@ -73,6 +102,12 @@ graph LR
 === "Directory (default)"
 
     The Application Administrator role applies **tenant-wide**, allowing the identity to manage all applications.
+
+    ``` mermaid
+    graph LR
+        ID(("Compromised<br/>Identity")) -->|"assigned"| ROLE(("Application<br/>Administrator Role"))
+        ROLE -->|"tenant-wide"| APPS(("All<br/>Applications"))
+    ```
 
 === "Application"
 
@@ -118,7 +153,7 @@ attack_paths:
   app_admin_group:
     enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory

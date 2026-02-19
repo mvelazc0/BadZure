@@ -76,7 +76,7 @@ These options are available for **all** attack path types:
 | `privilege_escalation` | See below | — | The escalation technique |
 | `method` | `AzureADRole`, `APIPermission` | — | How the target app gets its privileges |
 | `identity_type` | `user`, `service_principal` | `user` | Type of compromised identity |
-| `assignment_type` | `direct`, `group` | `direct` | Direct assignment or via group membership |
+| `assignment_type` | `direct`, `group_member`, `group_owner` | `direct` | Direct assignment, via group membership, or via group ownership |
 
 ### Option Details
 
@@ -113,7 +113,8 @@ All attack paths support both identity types:
 **`assignment_type`** — How permissions are granted to the initial access identity:
 
 - **`direct`** — Permissions assigned directly to the identity (default). The user or service principal has explicit permissions.
-- **`group`** — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates more realistic attack scenarios that mirror enterprise configurations where permissions are managed through groups.
+- **`group_member`** — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates more realistic attack scenarios that mirror enterprise configurations where permissions are managed through groups.
+- **`group_owner`** — The identity is added as an owner of a security group that has permissions. This simulates scenarios where group ownership is leveraged to control privileged groups.
 
 ### Privilege Assignment
 
@@ -296,7 +297,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 
 ## Group-Based Assignment
 
-All privilege escalation techniques support group-based assignment using `assignment_type: group`. When enabled, permissions are assigned to a security group and the initial access identity is added as a member of that group, inheriting permissions through group membership.
+All privilege escalation techniques support group-based assignment using `assignment_type: group_member` or `assignment_type: group_owner`. When using `group_member`, permissions are assigned to a security group and the initial access identity is added as a member of that group, inheriting permissions through group membership. When using `group_owner`, the identity is added as an owner of the group instead.
 
 This creates more realistic attack scenarios that mirror enterprise configurations where:
 
@@ -318,7 +319,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
 
       privilege_escalation: ApplicationOwnershipAbuse
       identity_type: service_principal
-      assignment_type: group
+      assignment_type: group_member
       method: AzureADRole
       entra_role: e8611ab8-c189-46e8-94e1-60213ab1f814  # Privileged Role Administrator
     ```
@@ -333,7 +334,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
 
       privilege_escalation: ApplicationAdministratorAbuse
       identity_type: user
-      assignment_type: group
+      assignment_type: group_member
       method: APIPermission
       api_type: graph
       app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
@@ -349,7 +350,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
 
       privilege_escalation: CloudAppAdministratorAbuse
       identity_type: user
-      assignment_type: group
+      assignment_type: group_member
       method: APIPermission
       api_type: graph
       app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
@@ -368,7 +369,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       target_resource_type: key_vault
 
       identity_type: user
-      assignment_type: group
+      assignment_type: group_member
       method: APIPermission
       api_type: graph
       app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
@@ -384,7 +385,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
 
       privilege_escalation: KeyVaultSecretTheft
       identity_type: user
-      assignment_type: group
+      assignment_type: group_member
       method: APIPermission
       api_type: graph
       app_role: random
@@ -400,7 +401,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
 
       privilege_escalation: StorageCertificateTheft
       identity_type: user
-      assignment_type: group
+      assignment_type: group_member
       method: APIPermission
       api_type: graph
       app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
@@ -468,7 +469,7 @@ attack_paths:
   keyvault_group:
     enabled: true
     privilege_escalation: KeyVaultSecretTheft
-    assignment_type: group
+    assignment_type: group_member
     method: AzureADRole
     entra_role: random
 

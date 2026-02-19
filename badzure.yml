@@ -51,7 +51,8 @@ tenant:
 #
 # Assignment Types (optional, defaults to 'direct'):
 #   - direct: Permissions assigned directly to identity
-#   - group: Permissions assigned via security group membership
+#   - group_member: Permissions assigned via security group membership
+#   - group_owner: Permissions assigned via security group ownership
 #
 # Methods:
 #   - AzureADRole: Assign Entra ID directory roles
@@ -101,7 +102,7 @@ attack_paths:
   app_ownership_group:
     enabled: false
     privilege_escalation: ApplicationOwnershipAbuse
-    assignment_type: group
+    assignment_type: group_member
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
@@ -129,12 +130,12 @@ attack_paths:
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  # Example 7: Group-based App Admin - user inherits role via group
-  # Attack: User is member of group with Application Administrator role
-  app_admin_group:
+  # Example 7: Group Ownership Abuse - user owns group with App Admin role
+  # Attack: User owns a group with Application Administrator role, adds self as member
+  app_admin_group_owner:
     enabled: false
     privilege_escalation: ApplicationAdministratorAbuse
-    assignment_type: group
+    assignment_type: group_owner
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
@@ -201,7 +202,7 @@ attack_paths:
   kv_theft_group:
     enabled: false
     privilege_escalation: KeyVaultSecretTheft
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
@@ -237,7 +238,7 @@ attack_paths:
   storage_theft_group:
     enabled: false
     privilege_escalation: StorageCertificateTheft
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
@@ -307,7 +308,7 @@ attack_paths:
     privilege_escalation: ManagedIdentityTheft
     source_type: vm
     target_resource_type: key_vault
-    assignment_type: group
+    assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All

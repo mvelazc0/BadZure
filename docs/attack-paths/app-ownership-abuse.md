@@ -62,6 +62,13 @@ graph LR
 
     The attacker directly compromises the application owner.
 
+    ``` mermaid
+    graph LR
+        U(("Compromised<br/>Identity")) -->|"owns"| APP(("Privileged<br/>Application"))
+        U -->|"add credential"| APP
+        APP -->|"authenticate"| SP(("Service<br/>Principal"))
+    ```
+
 === "Helpdesk"
 
     The attacker first compromises a **Helpdesk Administrator**, resets the application owner's password, then exploits the ownership. Only available with `identity_type: user`.
@@ -80,15 +87,14 @@ graph LR
 
     The identity directly owns the application.
 
-=== "Group"
-
-    The identity is a member of a **security group** that owns the application. Mirrors enterprise configurations where permissions are managed through group membership.
-
     ``` mermaid
     graph LR
-        U(("Compromised<br/>Identity")) -->|"member of"| G(("Security<br/>Group"))
-        G -->|"owns"| APP(("Privileged<br/>Application"))
+        ID(("Compromised<br/>Identity")) -->|"owner of"| APP(("Privileged<br/>Application"))
+        APP -->|"assigned"| PRIV(("Entra ID Role<br/>or API Permission"))
     ```
+
+!!! warning
+    This technique only supports `direct` assignment. Azure AD does not allow security groups to be application owners, so `group_member` and `group_owner` assignment types are **not supported** and will fall back to `direct`.
 
 ## Configuration Examples
 
@@ -130,14 +136,3 @@ attack_paths:
     entra_role: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3  # Application Administrator
 ```
 
-Group-based assignment:
-
-```yaml
-attack_paths:
-  app_ownership_group:
-    enabled: true
-    privilege_escalation: ApplicationOwnershipAbuse
-    assignment_type: group
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
-```
