@@ -154,6 +154,7 @@ class BuildCommand:
         attack_path_kv_abuse_assignments = {}
         attack_path_storage_abuse_assignments = {}
         attack_path_managed_identity_theft_assignments = {}
+        attack_path_cosmos_abuse_assignments = {}
         attack_path_vm_contributor_assignments = {}
         attack_path_group_assignments = {}
         attack_path_group_membership_assignments = {}
@@ -307,12 +308,30 @@ class BuildCommand:
                 for assignment in result['storage_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
             
+            elif attack_path_data['privilege_escalation'] == 'CosmosDBSecretTheft':
+                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
+                result = self.attack_path_mgr.create_cosmosdb_secret_theft(
+                    attack_path_data, applications, cosmos_dbs, users, applications,
+                    domain, mode='random', path_name=attack_path_name,
+                    used_apps=used_apps
+                )
+                attack_path_cosmos_abuse_assignments.update(result['cosmos_abuse_assignments'])
+                attack_path_application_role_assignments.update(result['app_role_assignments'])
+                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
+                attack_path_group_assignments.update(result.get('group_assignments', {}))
+                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                user_creds[attack_path_name] = result['initial_access']
+                # Track used apps
+                for assignment in result['cosmos_abuse_assignments'].values():
+                    used_apps.add(assignment['app_name'])
+
             elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 result = self.attack_path_mgr.create_managed_identity_theft(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
                     domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='random', path_name=attack_path_name,
-                    used_apps=used_apps, used_users=used_users
+                    used_apps=used_apps, used_users=used_users,
+                    cosmos_dbs=cosmos_dbs
                 )
                 attack_path_managed_identity_theft_assignments.update(result['mi_theft_assignments'])
                 attack_path_application_role_assignments.update(result['app_role_assignments'])
@@ -369,6 +388,7 @@ class BuildCommand:
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
             attack_path_managed_identity_theft_assignments,
             attack_path_vm_contributor_assignments,
+            attack_path_cosmos_abuse_assignments,
             attack_path_group_membership_assignments,
             attack_path_compromised_sp_credentials=compromised_sp_creds
         )
@@ -408,6 +428,7 @@ class BuildCommand:
             config, attack_path_application_owner_assignments,
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
             attack_path_managed_identity_theft_assignments,
+            attack_path_cosmos_abuse_assignments,
             attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
             attack_path_user_role_assignments,
             user_creds, domain
@@ -495,7 +516,7 @@ class BuildCommand:
         attack_path_assignments = self._create_targeted_assignments(
             config, users, groups, applications, administrative_units,
             resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps,
-            automation_accounts, function_apps, domain
+            automation_accounts, function_apps, cosmos_dbs, domain
         )
         
         # Add attack path groups to the groups dictionary
@@ -530,6 +551,7 @@ class BuildCommand:
             attack_path_assignments.get('storage_abuse', {}),
             attack_path_assignments.get('managed_identity_theft', {}),
             attack_path_assignments.get('vm_contributor', {}),
+            attack_path_assignments.get('cosmos_abuse', {}),
             attack_path_assignments.get('group_membership_assignments', {}),
             attack_path_compromised_sp_credentials=compromised_sp_creds
         )
@@ -581,7 +603,7 @@ class BuildCommand:
         self, config: Dict, users: Dict, groups: Dict, applications: Dict,
         administrative_units: Dict, resource_groups: Dict, key_vaults: Dict,
         storage_accounts: Dict, virtual_machines: Dict, logic_apps: Dict,
-        automation_accounts: Dict, function_apps: Dict, domain: str
+        automation_accounts: Dict, function_apps: Dict, cosmos_dbs: Dict, domain: str
     ) -> Dict:
         """Create targeted attack path assignments using consolidated AttackPathManager."""
         assignments = {
@@ -591,6 +613,7 @@ class BuildCommand:
             'app_api_permissions': {},
             'kv_abuse': {},
             'storage_abuse': {},
+            'cosmos_abuse': {},
             'managed_identity_theft': {},
             'vm_contributor': {},
             'group_assignments': {},
@@ -684,10 +707,23 @@ class BuildCommand:
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
                 user_creds[path_name] = result['initial_access']
             
+            elif priv_esc == 'CosmosDBSecretTheft':
+                result = self.attack_path_mgr.create_cosmosdb_secret_theft(
+                    path_config, applications, cosmos_dbs, users, applications,
+                    domain, mode='targeted', entities=entities, path_name=path_name
+                )
+                assignments['cosmos_abuse'].update(result['cosmos_abuse_assignments'])
+                assignments['app_roles'].update(result['app_role_assignments'])
+                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
+                assignments['group_assignments'].update(result.get('group_assignments', {}))
+                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                user_creds[path_name] = result['initial_access']
+
             elif priv_esc == 'ManagedIdentityTheft':
                 result = self.attack_path_mgr.create_managed_identity_theft(
                     path_config, applications, key_vaults, storage_accounts, users,
-                    domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='targeted', entities=entities, path_name=path_name
+                    domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='targeted', entities=entities, path_name=path_name,
+                    cosmos_dbs=cosmos_dbs
                 )
                 assignments['managed_identity_theft'].update(result['mi_theft_assignments'])
                 assignments['app_roles'].update(result['app_role_assignments'])

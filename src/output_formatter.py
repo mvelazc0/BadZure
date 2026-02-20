@@ -31,6 +31,7 @@ class OutputFormatter:
         attack_path_kv_abuse_assignments: Dict,
         attack_path_storage_abuse_assignments: Dict,
         attack_path_managed_identity_theft_assignments: Dict,
+        attack_path_cosmos_abuse_assignments: Dict,
         attack_path_application_role_assignments: Dict,
         attack_path_app_api_permission_assignments: Dict,
         attack_path_user_role_assignments: Dict,
@@ -310,6 +311,76 @@ class OutputFormatter:
                         # Only show one assignment per attack path
                         break
 
+            elif attack_path_data['privilege_escalation'] == 'CosmosDBSecretTheft':
+                # Filter assignments to only show the one for this attack path
+                for key, assignment in attack_path_cosmos_abuse_assignments.items():
+                    if attack_path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+
+                        identity_type = assignment['identity_type']
+                        principal_name = assignment['principal_name']
+                        cosmos_db = assignment['cosmos_db']
+                        assignment_type = assignment.get('assignment_type', 'direct')
+
+                        if identity_type == "user":
+                            logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            if attack_path_name in user_creds and 'password' in user_creds[attack_path_name]:
+                                logging.info(f"Password: {user_creds[attack_path_name]['password']}")
+                        elif identity_type == "service_principal":
+                            logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                            if attack_path_name in user_creds:
+                                sp_creds = user_creds[attack_path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group_member':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Member (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Cosmos DB Access: {cosmos_db} (Data Contributor via Group)")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 CosmosDBSecretTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
+                            logging.info(f"Cosmos DB Access: {cosmos_db} (Data Contributor via Group)")
+                        else:
+                            logging.info(f"Cosmos DB Access: {cosmos_db} (Data Contributor)")
+
+                        # Show target application and privileges
+                        app_name = assignment.get('app_name')
+                        if app_name:
+                            logging.info(f"Target Application: {app_name}")
+
+                        if key in attack_path_application_role_assignments:
+                            role_info = attack_path_application_role_assignments[key]
+                            role_ids_str = ', '.join(role_info['role_ids'])
+                            logging.info(f"Application Privileges: Entra Role(s) - {role_ids_str}")
+                        elif key in attack_path_app_api_permission_assignments:
+                            perm_info = attack_path_app_api_permission_assignments[key]
+                            api_type = perm_info.get('api_type', 'graph')
+                            api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
+                            perm_ids_str = ', '.join(perm_info['api_permission_ids'])
+                            logging.info(f"Application Privileges: {api_display} - {perm_ids_str}")
+
+                        logging.info("")  # Blank line after attack path
+                        break
+
             elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
                 # Filter assignments to only show the one for this attack path
                 for key, assignment in attack_path_managed_identity_theft_assignments.items():
@@ -412,6 +483,8 @@ class OutputFormatter:
                             else:
                                 logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
                                 logging.info(f"Secret stored in: {target_name}/mi-credentials/{app_name}-secret.txt")
+                        elif target_resource_type == 'cosmos_db':
+                            logging.info(f"Target Resource: Cosmos DB - {target_name} (Data Contributor)")
 
                         # Display application with privileges
                         logging.info(f"Target Application: {app_name}")
@@ -666,6 +739,59 @@ class OutputFormatter:
                         logging.info(f"Certificate stored in: {storage_account}/cert-container/")
                         break
 
+            elif priv_esc == 'CosmosDBSecretTheft':
+                for key, assignment in assignments.get('cosmos_abuse', {}).items():
+                    if path_name in key:
+                        logging.info(f"Attack Path ID: {key}")
+
+                        identity_type = assignment['identity_type']
+                        principal_name = assignment['principal_name']
+                        cosmos_db = assignment['cosmos_db']
+                        assignment_type = assignment.get('assignment_type', 'direct')
+
+                        if identity_type == 'user':
+                            logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                            if principal_name in users:
+                                logging.info(f"Password: {users[principal_name]['password']}")
+                        elif identity_type == 'service_principal':
+                            logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                            if path_name in user_creds:
+                                sp_creds = user_creds[path_name]
+                                if 'client_id' in sp_creds:
+                                    logging.info(f"Client ID: {sp_creds['client_id']}")
+                                if 'client_secret' in sp_creds:
+                                    logging.info(f"Client Secret: {sp_creds['client_secret']}")
+
+                        # Show group assignment details if applicable
+                        if assignment_type == 'group_member':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Member (indirect)")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Member: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Member: Service Principal - {original_principal}")
+                            logging.info(f"Cosmos DB Access: {cosmos_db} (Data Contributor via Group)")
+                        elif assignment_type == 'group_owner':
+                            group_name = assignment.get('group_name', 'N/A')
+                            original_principal = assignment.get('original_principal', principal_name)
+                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            logging.info(f"Assignment Type: Group Owner (indirect)")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 CosmosDBSecretTheft")
+                            logging.info(f"Group: {group_name}")
+                            if original_identity_type == 'user':
+                                logging.info(f"Group Owner: User - {original_principal}@{domain}")
+                            else:
+                                logging.info(f"Group Owner: Service Principal - {original_principal}")
+                            logging.info(f"Cosmos DB Access: {cosmos_db} (Data Contributor via Group)")
+                        else:
+                            logging.info(f"Cosmos DB Access: {cosmos_db} (Data Contributor)")
+
+                        logging.info(f"Target Application: {assignment['app_name']}")
+                        break
+
             elif priv_esc == 'ManagedIdentityTheft':
                 for key, assignment in assignments.get('managed_identity_theft', {}).items():
                     # Match the key to the path_name
@@ -768,6 +894,8 @@ class OutputFormatter:
                             else:
                                 logging.info(f"App ID stored in: {target_name}/mi-credentials/{app_name}-app-id.txt")
                                 logging.info(f"Secret stored in: {target_name}/mi-credentials/{app_name}-secret.txt")
+                        elif target_resource_type == 'cosmos_db':
+                            logging.info(f"Target Resource: Cosmos DB - {target_name} (Data Contributor)")
 
                         # Display application with privileges
                         logging.info(f"Target Application: {app_name}")

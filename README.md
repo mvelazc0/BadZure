@@ -36,19 +36,21 @@ BadZure creates attack paths that assume the initial access identity has already
 BadZure provides the credentials for these compromised identities, allowing security practitioners to immediately begin exploring privilege escalation paths without needing to simulate the initial compromise. This approach enables teams to focus on understanding and defending against post-compromise attack techniques in Azure and Entra ID environments.
 
 ### Privilege Escalation
-BadZure supports five distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
+BadZure supports seven distinct privilege escalation attack paths that introduce realistic misconfigurations across both Azure AD identity and Azure cloud infrastructure layers:
 
 ### Identity-Based Privilege Escalation
 - **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to owned applications with high privileges
 - **ApplicationAdministratorAbuse**: Exploits the Application Administrator Entra ID role to manage any application and add credentials to privileged applications
+- **CloudAppAdministratorAbuse**: Exploits the Cloud Application Administrator Entra ID role — narrower scope than Application Administrator
 - **ManagedIdentityTheft**: Exploits access to Azure resources (VMs, Logic Apps, Automation Accounts, Function Apps) with managed identities to steal identity tokens and pivot to other cloud resources
   - **Supported Sources**: Virtual Machines, Logic Apps, Automation Accounts, Function Apps (Linux/Python)
-  - **Supported Targets**: Key Vault, Storage Account
+  - **Supported Targets**: Key Vault, Storage Account, Cosmos DB
   - **Credential Types**: Secrets (default) or certificates
 
 ### Resource-Based Privilege Escalation
 - **KeyVaultSecretTheft**: Direct privilege escalation through Azure Key Vault access to retrieve application secrets
 - **StorageCertificateTheft**: Direct privilege escalation through Azure Storage Account access to retrieve application certificates
+- **CosmosDBSecretTheft**: Direct privilege escalation through Azure Cosmos DB access to retrieve application secrets stored as database documents
 
 Each attack path can be configured with specific or random role assignments and supports various principal types depending on the technique. For detailed configuration options and attack path descriptions, refer to the [documentation](https://mvelazc0.github.io/BadZure/attack-paths/).
 

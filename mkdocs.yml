@@ -46,6 +46,7 @@ nav:
     - ManagedIdentityTheft: attack-paths/managed-identity-theft.md
     - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
     - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
+    - CosmosDBSecretTheft: attack-paths/cosmosdb-secret-theft.md
 
 markdown_extensions:
   - admonition

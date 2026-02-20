@@ -144,6 +144,6 @@ See the [Configuration Guide](configuration.md) for the full reference of all op
 
 ## What's Next?
 
-- Browse the [Attack Paths](attack-paths/index.md) to understand the five privilege escalation techniques BadZure supports
+- Browse the [Attack Paths](attack-paths/index.md) to understand the seven privilege escalation techniques BadZure supports
 - Read the [Configuration Guide](configuration.md) to customize your environment
 - Check out the example configurations in the `scenarios/` directory

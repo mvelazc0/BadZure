@@ -249,6 +249,18 @@ resource "azurerm_key_vault" "kvaults" {
 
 }
 
+
+# Grant Terraform's deploying identity Key Vault data plane access to write secrets
+resource "azurerm_role_assignment" "terraform_kv_access" {
+  for_each = var.key_vaults
+
+  scope                = azurerm_key_vault.kvaults[each.key].id
+  role_definition_name = "Key Vault Secrets Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+
+  depends_on = [azurerm_key_vault.kvaults]
+}
+
 resource "azuread_application_password" "attack_path_kv_secrets" {
   for_each = var.attack_path_kv_abuse_assignments
 
@@ -277,7 +289,8 @@ resource "azurerm_key_vault_secret" "attack_path_kv_secrets" {
 
   depends_on = [
     azurerm_key_vault.kvaults,
-    azuread_application_password.attack_path_kv_secrets
+    azuread_application_password.attack_path_kv_secrets,
+    azurerm_role_assignment.terraform_kv_access
   ]
 }
 
@@ -812,6 +825,100 @@ resource "azurerm_cosmosdb_sql_container" "cosmos_containers" {
 }
 
 # ============================================================================
+# CosmosDBSecretTheft Attack Path Resources
+# ============================================================================
+
+# Create application passwords for CosmosDBSecretTheft
+resource "azuread_application_password" "attack_path_cosmos_secrets" {
+  for_each = var.attack_path_cosmos_abuse_assignments
+
+  application_id    = azuread_application_registration.spns[each.value.app_name].id
+  display_name      = "BadZureClientSecret"
+  end_date_relative = "8760h" # 1 year
+
+  depends_on = [azuread_application_registration.spns]
+}
+
+# Grant attacker identity Cosmos DB Built-in Data Contributor role on Cosmos DB account
+resource "azurerm_cosmosdb_sql_role_assignment" "attack_path_cosmos_data_contributor" {
+  for_each = var.attack_path_cosmos_abuse_assignments
+
+  resource_group_name = azurerm_cosmosdb_account.cosmos_dbs[each.value.cosmos_db].resource_group_name
+  account_name        = azurerm_cosmosdb_account.cosmos_dbs[each.value.cosmos_db].name
+  # Cosmos DB Built-in Data Contributor role definition ID
+  role_definition_id  = "${azurerm_cosmosdb_account.cosmos_dbs[each.value.cosmos_db].id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
+  scope               = azurerm_cosmosdb_account.cosmos_dbs[each.value.cosmos_db].id
+
+  # Support group-based assignment (assignment_type: group_member or group_owner)
+  principal_id = (
+    contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
+      azuread_group.groups[each.value.group_name].id :
+    each.value.identity_type == "user" ?
+    azuread_user.users[each.value.principal_name].id :
+    azuread_service_principal.spns[each.value.principal_name].id
+  )
+
+  depends_on = [
+    azurerm_cosmosdb_account.cosmos_dbs,
+    azuread_user.users,
+    azuread_service_principal.spns,
+    azuread_group.groups
+  ]
+}
+
+# ============================================================================
+# ManagedIdentityTheft - Cosmos DB Target Resources
+# ============================================================================
+
+# Create application passwords for ManagedIdentityTheft targeting Cosmos DB with secrets
+resource "azuread_application_password" "attack_path_mi_theft_cosmos_secrets" {
+  for_each = {
+    for k, v in var.attack_path_managed_identity_theft_assignments : k => v
+    if v.target_resource_type == "cosmos_db" && lookup(v, "credential_type", "secret") == "secret"
+  }
+
+  application_id    = azuread_application_registration.spns[each.value.app_name].id
+  display_name      = "BadZureMITheftSecret"
+  end_date_relative = "8760h" # 1 year
+
+  depends_on = [azuread_application_registration.spns]
+}
+
+# Grant managed identity Cosmos DB Built-in Data Contributor role on Cosmos DB account
+resource "azurerm_cosmosdb_sql_role_assignment" "attack_path_mi_theft_cosmos_data_contributor" {
+  for_each = { for k, v in var.attack_path_managed_identity_theft_assignments : k => v if v.target_resource_type == "cosmos_db" }
+
+  resource_group_name = azurerm_cosmosdb_account.cosmos_dbs[each.value.target_name].resource_group_name
+  account_name        = azurerm_cosmosdb_account.cosmos_dbs[each.value.target_name].name
+  # Cosmos DB Built-in Data Contributor role definition ID
+  role_definition_id  = "${azurerm_cosmosdb_account.cosmos_dbs[each.value.target_name].id}/sqlRoleDefinitions/00000000-0000-0000-0000-000000000002"
+  scope               = azurerm_cosmosdb_account.cosmos_dbs[each.value.target_name].id
+
+  principal_id = (
+    each.value.source_type == "vm" ?
+    (contains(keys(azurerm_linux_virtual_machine.linux_vms), each.value.source_name) ?
+      azurerm_linux_virtual_machine.linux_vms[each.value.source_name].identity[0].principal_id :
+    azurerm_windows_virtual_machine.windows_vms[each.value.source_name].identity[0].principal_id) :
+    each.value.source_type == "logic_app" ?
+    azurerm_logic_app_workflow.logic_apps[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "automation_account" ?
+    azurerm_automation_account.automation_accounts[each.value.source_name].identity[0].principal_id :
+    each.value.source_type == "function_app" ?
+    azurerm_function_app_flex_consumption.function_apps[each.value.source_name].identity[0].principal_id :
+    null
+  )
+
+  depends_on = [
+    azurerm_cosmosdb_account.cosmos_dbs,
+    azurerm_linux_virtual_machine.linux_vms,
+    azurerm_windows_virtual_machine.windows_vms,
+    azurerm_logic_app_workflow.logic_apps,
+    azurerm_automation_account.automation_accounts,
+    azurerm_function_app_flex_consumption.function_apps
+  ]
+}
+
+# ============================================================================
 # ManagedIdentityTheft Attack Path Resources
 # ============================================================================
 
@@ -843,7 +950,8 @@ resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_secrets" {
   depends_on = [
     azurerm_key_vault.kvaults,
     azuread_application_password.attack_path_mi_theft_kv_secrets,
-    azurerm_role_assignment.attack_path_mi_theft_kv_access
+    azurerm_role_assignment.attack_path_mi_theft_kv_access,
+    azurerm_role_assignment.terraform_kv_access
   ]
 }
 
@@ -861,7 +969,8 @@ resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_app_ids" {
   depends_on = [
     azurerm_key_vault.kvaults,
     azuread_application_registration.spns,
-    azurerm_role_assignment.attack_path_mi_theft_kv_access
+    azurerm_role_assignment.attack_path_mi_theft_kv_access,
+    azurerm_role_assignment.terraform_kv_access
   ]
 }
 
@@ -900,7 +1009,8 @@ resource "azurerm_key_vault_certificate" "attack_path_mi_theft_kv_cert_import" {
     azurerm_key_vault.kvaults,
     azuread_application_certificate.attack_path_mi_theft_kv_certificates,
     azurerm_role_assignment.attack_path_mi_theft_kv_access,
-    azurerm_role_assignment.attack_path_mi_theft_kv_certificates_officer
+    azurerm_role_assignment.attack_path_mi_theft_kv_certificates_officer,
+    azurerm_role_assignment.terraform_kv_access
   ]
 }
 
@@ -918,7 +1028,8 @@ resource "azurerm_key_vault_secret" "attack_path_mi_theft_kv_cert_app_ids" {
   depends_on = [
     azurerm_key_vault.kvaults,
     azuread_application_registration.spns,
-    azurerm_role_assignment.attack_path_mi_theft_kv_access
+    azurerm_role_assignment.attack_path_mi_theft_kv_access,
+    azurerm_role_assignment.terraform_kv_access
   ]
 }
 

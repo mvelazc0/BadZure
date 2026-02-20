@@ -58,7 +58,7 @@ The `tenant` section defines your Azure environment and resource counts.
 | `logic_apps` | Number of Logic Apps (with system-assigned managed identities) | ManagedIdentityTheft (logic_app source) |
 | `automation_accounts` | Number of Automation Accounts (with system-assigned managed identities) | ManagedIdentityTheft (automation_account source) |
 | `function_apps` | Number of Function Apps (with system-assigned managed identities) | ManagedIdentityTheft (function_app source) |
-| `cosmos_dbs` | Number of Cosmos DB accounts (serverless, SQL API) | — (not yet integrated into attack paths) |
+| `cosmos_dbs` | Number of Cosmos DB accounts (serverless, SQL API) | CosmosDBSecretTheft, ManagedIdentityTheft (cosmos_db target) |
 
 !!! warning
     Make sure resource counts match your attack path requirements. For example, if you enable a ManagedIdentityTheft path with `source_type: vm`, you need at least `virtual_machines: 1`.
@@ -89,6 +89,7 @@ These options are available for **all** attack path types:
 - **`ManagedIdentityTheft`** — Exploits access to Azure resources with managed identities to steal tokens and pivot to other resources
 - **`KeyVaultSecretTheft`** — Retrieves application secrets stored in Azure Key Vault through direct access
 - **`StorageCertificateTheft`** — Retrieves application certificates and private keys from Azure Storage through direct access
+- **`CosmosDBSecretTheft`** — Retrieves application secrets stored in Azure Cosmos DB through direct data plane access
 
 For detailed descriptions of each technique, see the [Attack Paths](attack-paths/index.md) section.
 
@@ -107,6 +108,7 @@ All attack paths support both identity types:
 | ManagedIdentityTheft | User with Contributor access | SP with Contributor access |
 | KeyVaultSecretTheft | User with Key Vault access | SP with Key Vault access |
 | StorageCertificateTheft | User with Storage access | SP with Storage access |
+| CosmosDBSecretTheft | User with Cosmos DB access | SP with Cosmos DB access |
 
 !!! note
     The `helpdesk` scenario for ApplicationOwnershipAbuse is only available when `identity_type: user`.
@@ -260,6 +262,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 |---|---|---|
 | `key_vault` | Azure Key Vault | Key Vault Contributor — retrieves secrets or certificates |
 | `storage_account` | Azure Storage Account | Storage Blob Data Reader — retrieves certificates |
+| `cosmos_db` | Azure Cosmos DB | Cosmos DB Built-in Data Contributor — retrieves secrets |
 
 **`credential_type`** — The type of credential stored in the target resource:
 
@@ -295,6 +298,21 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 
 !!! note
     For scenarios involving managed identity token theft to access Storage Account, use `ManagedIdentityTheft` with `target_resource_type: storage_account` instead.
+
+### CosmosDBSecretTheft
+
+**Required fields:**
+
+- `privilege_escalation: CosmosDBSecretTheft`
+- `method`: `AzureADRole` or `APIPermission`
+- `entra_role` or `app_role`: The privileges assigned to the application
+
+**Optional fields:**
+
+- `identity_type`: `user` (default) or `service_principal`
+
+!!! note
+    For scenarios involving managed identity token theft to access Cosmos DB, use `ManagedIdentityTheft` with `target_resource_type: cosmos_db` instead.
 
 ## Group-Based Assignment
 
@@ -408,6 +426,22 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
     ```
 
+=== "CosmosDBSecretTheft"
+
+    User inherits Cosmos DB Data Contributor through group membership:
+
+    ```yaml
+    attack_path_cosmos_group:
+      enabled: true
+
+      privilege_escalation: CosmosDBSecretTheft
+      identity_type: user
+      assignment_type: group_member
+      method: APIPermission
+      api_type: graph
+      app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    ```
+
 ## Full Example
 
 A complete configuration demonstrating multiple attack path types:
@@ -482,4 +516,11 @@ attack_paths:
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+
+  # Resource: Direct Cosmos DB access
+  cosmos_secrets:
+    enabled: true
+    privilege_escalation: CosmosDBSecretTheft
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
 ```

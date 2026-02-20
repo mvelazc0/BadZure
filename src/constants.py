@@ -2542,7 +2542,8 @@ VALID_TECHNIQUES = [
     'CloudAppAdministratorAbuse',
     'ManagedIdentityTheft',
     'KeyVaultSecretTheft',
-    'StorageCertificateTheft'
+    'StorageCertificateTheft',
+    'CosmosDBSecretTheft'
 ]
 
 # Role ID constants for admin role abuse techniques
@@ -2569,6 +2570,7 @@ FUNCTION_APP_OS_TYPES = [
 MI_TARGET_RESOURCE_TYPES = [
     'key_vault',
     'storage_account',
+    'cosmos_db',
     'subscription',
     'resource_group'
 ]
@@ -2589,6 +2591,7 @@ IDENTITY_TYPES = ['user', 'service_principal']
 TECHNIQUES_SUPPORTING_SERVICE_PRINCIPAL = [
     'KeyVaultSecretTheft',
     'StorageCertificateTheft',
+    'CosmosDBSecretTheft',
     'ManagedIdentityTheft'
 ]
 

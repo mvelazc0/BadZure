@@ -503,7 +503,8 @@ class AttackPathManager:
         entities: Optional[Dict] = None,
         path_name: Optional[str] = None,
         used_apps: Optional[set] = None,
-        used_users: Optional[set] = None
+        used_users: Optional[set] = None,
+        cosmos_dbs: Optional[Dict] = None
     ) -> Dict:
         """
         Create Managed Identity Theft attack path.
@@ -561,13 +562,15 @@ class AttackPathManager:
             app_name, target_name, source_name, principal_name = self._select_random_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, source_type, target_resource_type,
-                identity_type, used_apps, used_users
+                identity_type, used_apps, used_users,
+                cosmos_dbs=cosmos_dbs or {}
             )
         else:  # targeted mode
             app_name, target_name, source_name, principal_name = self._select_targeted_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, entities, source_type, target_resource_type,
-                identity_type, path_name
+                identity_type, path_name,
+                cosmos_dbs=cosmos_dbs or {}
             )
         
         # Create initial access credentials based on identity_type
@@ -975,10 +978,154 @@ class AttackPathManager:
             'group_membership_assignments': group_membership_assignments
         }
     
+    def create_cosmosdb_secret_theft(
+        self,
+        attack_config: Dict,
+        applications: Dict,
+        cosmos_dbs: Dict,
+        users: Dict,
+        service_principals: Dict,
+        domain: str,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None
+    ) -> Dict:
+        """
+        Create Cosmos DB Secret Theft attack path.
+
+        This technique only supports identity_type 'user' or 'service_principal'.
+        For managed identity scenarios, use ManagedIdentityTheft with target_resource_type 'cosmos_db'.
+
+        Args:
+            attack_config: Attack path configuration
+            applications: Dictionary of applications
+            cosmos_dbs: Dictionary of Cosmos DB accounts
+            users: Dictionary of users
+            service_principals: Dictionary of service principals
+            domain: Domain name
+            mode: 'random' or 'targeted'
+            entities: Entity specifications (required for targeted mode)
+            path_name: Attack path name (used for targeted mode)
+            used_apps: Set of already-used application names
+
+        Returns:
+            Dictionary with keys:
+                - cosmos_abuse_assignments: Cosmos DB abuse assignments
+                - app_role_assignments: Application role assignments
+                - app_api_permission_assignments: API permission assignments
+                - group_assignments: Groups to create for indirect assignment
+                - group_membership_assignments: Group membership assignments
+        """
+        # Validate identity_type
+        identity_type = attack_config.get('identity_type', 'user')
+        if identity_type == 'managed_identity':
+            raise ValueError(
+                "CosmosDBSecretTheft does not support identity_type 'managed_identity'. "
+                "Use 'ManagedIdentityTheft' with target_resource_type 'cosmos_db' instead."
+            )
+
+        attack_path_cosmos_abuse_assignments = {}
+        app_role_assignments = {}
+        app_api_permission_assignments = {}
+        group_assignments = {}
+        group_membership_assignments = {}
+
+        # Get assignment_type from config
+        assignment_type = attack_config.get('assignment_type', 'direct')
+
+        # Generate attack path key
+        attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
+        if mode == 'targeted' and path_name:
+            key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            key = f"{path_name}-{attack_path_id}"
+        else:
+            key = f"attack-path-{attack_path_id}"
+
+        # Select entities based on mode
+        if mode == 'random':
+            app_name, cosmos_db_name, principal_name = self._select_random_entities_cosmos_secret_theft(
+                applications, cosmos_dbs, users, service_principals,
+                identity_type, used_apps
+            )
+        else:  # targeted mode
+            app_name, cosmos_db_name, principal_name = self._select_targeted_entities_cosmos_secret_theft(
+                applications, cosmos_dbs, users,
+                entities, identity_type, path_name
+            )
+
+        # Build initial access credentials
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        if identity_type == 'user':
+            initial_access = {
+                "identity_type": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point
+            }
+        else:  # service_principal
+            initial_access = {
+                "identity_type": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point
+            }
+
+        # Create Cosmos DB abuse assignment
+        cosmos_abuse_assignment = {
+            "cosmos_db": cosmos_db_name,
+            "identity_type": identity_type,
+            "principal_name": principal_name,
+            "app_name": app_name
+        }
+
+        # Handle group-based assignment for Cosmos DB access
+        if assignment_type in ('group_member', 'group_owner'):
+            if assignment_type == 'group_owner':
+                group_spec = self.entity_generator.generate_attack_path_group(
+                    owner_name=principal_name, owner_type=identity_type
+                )
+            else:
+                group_spec = self.entity_generator.generate_attack_path_group()
+            group_name = group_spec['display_name']
+
+            group_assignments[group_name] = group_spec
+
+            if assignment_type == 'group_member':
+                group_membership_assignments[key] = {
+                    'group_name': group_name,
+                    'identity_type': identity_type,
+                    'principal_name': principal_name
+                }
+
+            cosmos_abuse_assignment['assignment_type'] = assignment_type
+            cosmos_abuse_assignment['group_name'] = group_name
+            cosmos_abuse_assignment['original_principal'] = principal_name
+            cosmos_abuse_assignment['original_identity_type'] = identity_type
+        else:
+            cosmos_abuse_assignment['assignment_type'] = 'direct'
+
+        attack_path_cosmos_abuse_assignments[key] = cosmos_abuse_assignment
+
+        # Assign privileges
+        self._assign_app_privileges(
+            attack_config, app_name, key,
+            app_role_assignments, app_api_permission_assignments
+        )
+
+        return {
+            'initial_access': initial_access,
+            'cosmos_abuse_assignments': attack_path_cosmos_abuse_assignments,
+            'app_role_assignments': app_role_assignments,
+            'app_api_permission_assignments': app_api_permission_assignments,
+            'group_assignments': group_assignments,
+            'group_membership_assignments': group_membership_assignments
+        }
+
     # ========================================================================
     # Random Mode Entity Selection
     # ========================================================================
-    
+
     def _select_random_entities_app_ownership(
         self, users: Dict, applications: Dict, scenario: str, identity_type: str,
         used_apps: set = None, used_users: set = None
@@ -1123,15 +1270,39 @@ class AttackPathManager:
             principal_name = random.choice(list(service_principals.keys()))
         
         return app_name, sa_name, principal_name
-    
+
+    def _select_random_entities_cosmos_secret_theft(
+        self, applications: Dict, cosmos_dbs: Dict, users: Dict,
+        service_principals: Dict, identity_type: str,
+        used_apps: set = None
+    ) -> Tuple[str, str, str]:
+        """Select random entities for Cosmos DB Secret Theft."""
+        app_keys = list(applications.keys())
+
+        if used_apps:
+            available_apps = [app for app in app_keys if app not in used_apps]
+            if available_apps:
+                app_keys = available_apps
+
+        app_name = random.choice(app_keys)
+        cosmos_db_name = random.choice(list(cosmos_dbs.keys()))
+
+        if identity_type == "user":
+            principal_name = random.choice(list(users.keys()))
+        elif identity_type == "service_principal":
+            principal_name = random.choice(list(service_principals.keys()))
+
+        return app_name, cosmos_db_name, principal_name
+
     def _select_random_entities_mi_theft(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
         source_type: str, target_resource_type: str, identity_type: str,
-        used_apps: set = None, used_users: set = None
+        used_apps: set = None, used_users: set = None,
+        cosmos_dbs: Dict = None
     ) -> Tuple[str, str, str, str]:
         """Select random entities for Managed Identity Theft.
-        
+
         Args:
             applications: Dictionary of applications
             key_vaults: Dictionary of key vaults
@@ -1142,11 +1313,12 @@ class AttackPathManager:
             function_apps: Dictionary of function apps
             users: Dictionary of users (used when identity_type is 'user')
             source_type: Type of source resource ('vm', 'logic_app', etc.)
-            target_resource_type: Type of target resource ('key_vault', 'storage_account')
+            target_resource_type: Type of target resource ('key_vault', 'storage_account', 'cosmos_db')
             identity_type: Type of initial access identity ('user' or 'service_principal')
             used_apps: Set of already-used application names
             used_users: Set of already-used user names
-        
+            cosmos_dbs: Dictionary of Cosmos DB accounts
+
         Returns:
             Tuple of (app_name, target_name, source_name, principal_name)
         """
@@ -1178,6 +1350,8 @@ class AttackPathManager:
             target_name = random.choice(list(key_vaults.keys()))
         elif target_resource_type == 'storage_account':
             target_name = random.choice(list(storage_accounts.keys()))
+        elif target_resource_type == 'cosmos_db' and cosmos_dbs:
+            target_name = random.choice(list(cosmos_dbs.keys()))
         else:
             # For future expansion: subscription, resource_group
             target_name = random.choice(list(key_vaults.keys()))
@@ -1404,13 +1578,51 @@ class AttackPathManager:
         
         return app_name, sa_name, principal_name
     
+    def _select_targeted_entities_cosmos_secret_theft(
+        self, applications: Dict, cosmos_dbs: Dict, users: Dict,
+        entities: Dict, identity_type: str, path_name: str
+    ) -> Tuple[str, str, str]:
+        """Select targeted entities for Cosmos DB Secret Theft."""
+        # Get application
+        app_list = list(entities.get('applications', []))
+        if not app_list:
+            raise ValueError(f"{path_name}: No applications specified")
+        app_spec = app_list[0]
+        app_name = app_spec.get('name', 'random')
+        if app_name == 'random':
+            app_name = random.choice(list(applications.keys()))
+
+        # Get Cosmos DB account
+        cosmos_list = list(entities.get('cosmos_dbs', []))
+        if not cosmos_list:
+            raise ValueError(f"{path_name}: No cosmos_dbs specified")
+        cosmos_spec = cosmos_list[0]
+        cosmos_db_name = cosmos_spec.get('name', 'random')
+        if cosmos_db_name == 'random':
+            cosmos_db_name = random.choice(list(cosmos_dbs.keys()))
+
+        # Get principal based on type
+        if identity_type == 'user':
+            user_list = list(entities.get('users', []))
+            if not user_list:
+                raise ValueError(f"{path_name}: identity_type 'user' requires users")
+            user_spec = user_list[0]
+            principal_name = user_spec.get('name', 'random')
+            if principal_name == 'random':
+                principal_name = random.choice(list(users.keys()))
+        elif identity_type == 'service_principal':
+            principal_name = app_name
+
+        return app_name, cosmos_db_name, principal_name
+
     def _select_targeted_entities_mi_theft(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
-        entities: Dict, source_type: str, target_resource_type: str, identity_type: str, path_name: str
+        entities: Dict, source_type: str, target_resource_type: str, identity_type: str, path_name: str,
+        cosmos_dbs: Dict = None
     ) -> Tuple[str, str, str, str]:
         """Select targeted entities for Managed Identity Theft.
-        
+
         Args:
             applications: Dictionary of applications
             key_vaults: Dictionary of key vaults
@@ -1422,10 +1634,11 @@ class AttackPathManager:
             users: Dictionary of users
             entities: Entity specifications from config
             source_type: Type of source resource ('vm', 'logic_app', etc.)
-            target_resource_type: Type of target resource ('key_vault', 'storage_account')
+            target_resource_type: Type of target resource ('key_vault', 'storage_account', 'cosmos_db')
             identity_type: Type of initial access identity ('user' or 'service_principal')
             path_name: Attack path name for error messages
-        
+            cosmos_dbs: Dictionary of Cosmos DB accounts
+
         Returns:
             Tuple of (app_name, target_name, source_name, principal_name)
         """
@@ -1492,6 +1705,14 @@ class AttackPathManager:
             target_name = sa_spec.get('name', 'random')
             if target_name == 'random':
                 target_name = random.choice(list(storage_accounts.keys()))
+        elif target_resource_type == 'cosmos_db' and cosmos_dbs:
+            cosmos_list = list(entities.get('cosmos_dbs', []))
+            if not cosmos_list:
+                raise ValueError(f"{path_name}: target_resource_type 'cosmos_db' requires cosmos_dbs")
+            cosmos_spec = cosmos_list[0]
+            target_name = cosmos_spec.get('name', 'random')
+            if target_name == 'random':
+                target_name = random.choice(list(cosmos_dbs.keys()))
         else:
             # For future expansion
             target_name = random.choice(list(key_vaults.keys()))

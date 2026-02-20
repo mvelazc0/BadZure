@@ -78,6 +78,7 @@ class TerraformManager:
         attack_path_storage_abuse_assignments: Dict,
         attack_path_managed_identity_theft_assignments: Dict,
         attack_path_vm_contributor_assignments: Dict,
+        attack_path_cosmos_abuse_assignments: Dict = None,
         attack_path_group_memberships: Dict = None,
         attack_path_compromised_sp_credentials: Dict = None
     ) -> Dict:
@@ -92,6 +93,7 @@ class TerraformManager:
             Dictionary of Terraform variables
         """
         # Initialize optional parameters
+        attack_path_cosmos_abuse_assignments = attack_path_cosmos_abuse_assignments or {}
         attack_path_group_memberships = attack_path_group_memberships or {}
         attack_path_compromised_sp_credentials = attack_path_compromised_sp_credentials or {}
         
@@ -140,6 +142,7 @@ class TerraformManager:
             'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
             'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments,
             'attack_path_managed_identity_theft_assignments': attack_path_managed_identity_theft_assignments,
+            'attack_path_cosmos_abuse_assignments': attack_path_cosmos_abuse_assignments,
             'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments,
             'attack_path_group_memberships': attack_path_group_memberships,
             'attack_path_compromised_sp_credentials': attack_path_compromised_sp_credentials

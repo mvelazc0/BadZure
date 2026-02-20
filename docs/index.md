@@ -40,7 +40,7 @@ graph LR
 
 ## Supported Attack Paths
 
-BadZure supports six privilege escalation techniques across two categories. To learn more about what attack paths are and how they emerge in cloud environments, see [What Are Attack Paths?](what-are-attack-paths.md).
+BadZure supports seven privilege escalation techniques across two categories. To learn more about what attack paths are and how they emerge in cloud environments, see [What Are Attack Paths?](what-are-attack-paths.md).
 
 ### Identity-Based
 
@@ -49,7 +49,7 @@ BadZure supports six privilege escalation techniques across two categories. To l
 | [**ApplicationOwnershipAbuse**](attack-paths/app-ownership-abuse.md) | Exploit application ownership to add credentials to a privileged app |
 | [**ApplicationAdministratorAbuse**](attack-paths/app-administrator-abuse.md) | Exploit the Application Administrator role to manage any app in the tenant |
 | [**CloudAppAdministratorAbuse**](attack-paths/cloud-app-administrator-abuse.md) | Exploit the Cloud Application Administrator role — narrower scope than Application Administrator |
-| [**ManagedIdentityTheft**](attack-paths/managed-identity-theft.md) | Steal managed identity tokens from Azure resources to pivot to other services |
+| [**ManagedIdentityTheft**](attack-paths/managed-identity-theft.md) | Steal managed identity tokens from Azure resources to pivot to Key Vaults, Storage Accounts, or Cosmos DB |
 
 ### Resource-Based
 
@@ -57,6 +57,7 @@ BadZure supports six privilege escalation techniques across two categories. To l
 |---|---|
 | [**KeyVaultSecretTheft**](attack-paths/keyvault-secret-theft.md) | Retrieve application secrets directly from Azure Key Vault |
 | [**StorageCertificateTheft**](attack-paths/storage-certificate-theft.md) | Retrieve application certificates from Azure Storage |
+| [**CosmosDBSecretTheft**](attack-paths/cosmosdb-secret-theft.md) | Retrieve application secrets from Azure Cosmos DB |
 
 ## Quick Start
 

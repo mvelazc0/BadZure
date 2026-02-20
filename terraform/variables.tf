@@ -252,6 +252,21 @@ variable "attack_path_storage_abuse_assignments" {
   }))
 }
 
+variable "attack_path_cosmos_abuse_assignments" {
+  description = "A map of Cosmos DB abuse assignments for CosmosDBSecretTheft attack paths"
+  default = {}
+  type = map(object({
+    cosmos_db               = string  # Key into cosmos_dbs map
+    identity_type           = string  # Options: "user", "service_principal"
+    principal_name          = string  # Name of the principal
+    app_name                = string  # The application to which a secret will be added
+    assignment_type         = optional(string, "direct")  # "direct", "group_member", or "group_owner"
+    group_name              = optional(string, "")  # Group name for indirect assignment
+    original_principal      = optional(string, "")  # Original principal for group assignment
+    original_identity_type  = optional(string, "")  # Original identity type for group assignment
+  }))
+}
+
 variable "attack_path_managed_identity_theft_assignments" {
   description = "A map of managed identity theft assignments for attack paths"
   default = {}

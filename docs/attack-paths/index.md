@@ -20,14 +20,17 @@ graph TD
     IA --> CONTRIB["Has Contributor on<br/>Azure Resource"]
     IA --> KV["Has Key Vault Access"]
     IA --> SA["Has Storage Access"]
+    IA --> CDB["Has Cosmos DB Access"]
 
     OWN --> CRED1["Add Credentials<br/>to Owned App"]
     ADMIN --> CRED2["Add Credentials<br/>to Any App"]
     CONTRIB --> MI["Steal Managed<br/>Identity Token"]
     MI --> RETRIEVE1["Retrieve Secrets<br/>from Key Vault"]
     MI --> RETRIEVE2["Retrieve Certs<br/>from Storage"]
+    MI --> RETRIEVE5["Retrieve Secrets<br/>from Cosmos DB"]
     KV --> RETRIEVE3["Retrieve Secrets<br/>from Key Vault"]
     SA --> RETRIEVE4["Retrieve Certs<br/>from Storage"]
+    CDB --> RETRIEVE6["Retrieve Secrets<br/>from Cosmos DB"]
 
     CRED1 --> PRIV["Authenticate as<br/>Privileged Application"]
     CRED2 --> PRIV
@@ -35,6 +38,8 @@ graph TD
     RETRIEVE2 --> PRIV
     RETRIEVE3 --> PRIV
     RETRIEVE4 --> PRIV
+    RETRIEVE5 --> PRIV
+    RETRIEVE6 --> PRIV
 
 
 ```
@@ -67,7 +72,7 @@ These paths exploit misconfigurations in Entra ID identity management, applicati
 
     ---
 
-    Steal managed identity tokens from Azure resources (VMs, Logic Apps, Automation Accounts, Function Apps) and use them to retrieve credentials from Key Vaults or Storage Accounts.
+    Steal managed identity tokens from Azure resources (VMs, Logic Apps, Automation Accounts, Function Apps) and use them to retrieve credentials from Key Vaults, Storage Accounts, or Cosmos DB.
 
 </div>
 
@@ -88,6 +93,12 @@ These paths exploit direct access to Azure resources that store application cred
     ---
 
     Retrieve application certificates and private keys from Azure Blob Storage. Simulates scenarios where authentication certificates are stored without proper access controls.
+
+-   **[CosmosDBSecretTheft](cosmosdb-secret-theft.md)**
+
+    ---
+
+    Retrieve application client secrets from Azure Cosmos DB documents. Simulates scenarios where sensitive credentials are stored in database documents instead of proper secret management.
 
 </div>
 

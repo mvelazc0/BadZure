@@ -95,10 +95,13 @@ class ConfigManager:
 
             elif priv_esc == 'KeyVaultSecretTheft':
                 self._validate_kv_secret_theft(path_name, path_config, entities, errors)
-                    
+
             elif priv_esc == 'StorageCertificateTheft':
                 self._validate_storage_certificate_theft(path_name, path_config, entities, errors)
-            
+
+            elif priv_esc == 'CosmosDBSecretTheft':
+                self._validate_cosmosdb_secret_theft(path_name, path_config, entities, errors)
+
             elif priv_esc == 'ManagedIdentityTheft':
                 self._validate_managed_identity_theft(path_name, path_config, entities, errors)
         
@@ -294,6 +297,25 @@ class ConfigManager:
         elif identity_type == 'user' and ('users' not in entities or not entities['users']):
             errors.append(f"{path_name}: identity_type 'user' requires at least one user")
     
+    def _validate_cosmosdb_secret_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
+        """Validate Cosmos DB Secret Theft configuration."""
+        if 'applications' not in entities or not entities['applications']:
+            errors.append(f"{path_name}: CosmosDBSecretTheft requires at least one application")
+        if 'cosmos_dbs' not in entities or not entities['cosmos_dbs']:
+            errors.append(f"{path_name}: CosmosDBSecretTheft requires at least one cosmos_db")
+        if 'resource_groups' not in entities or not entities['resource_groups']:
+            errors.append(f"{path_name}: CosmosDBSecretTheft requires at least one resource_group")
+
+        # Validate assignment_type parameter
+        self._validate_assignment_type(path_name, path_config, errors)
+
+        # Validate identity_type requirements (only user and service_principal supported)
+        identity_type = path_config.get('identity_type', 'user')
+        if identity_type not in ['user', 'service_principal']:
+            errors.append(f"{path_name}: CosmosDBSecretTheft only supports identity_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+        elif identity_type == 'user' and ('users' not in entities or not entities['users']):
+            errors.append(f"{path_name}: identity_type 'user' requires at least one user")
+
     def _validate_managed_identity_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Managed Identity Theft configuration."""
         if 'applications' not in entities or not entities['applications']:
@@ -350,6 +372,9 @@ class ConfigManager:
         elif target_resource_type == 'storage_account':
             if 'storage_accounts' not in entities or not entities['storage_accounts']:
                 errors.append(f"{path_name}: target_resource_type 'storage_account' requires at least one storage_account")
+        elif target_resource_type == 'cosmos_db':
+            if 'cosmos_dbs' not in entities or not entities['cosmos_dbs']:
+                errors.append(f"{path_name}: target_resource_type 'cosmos_db' requires at least one cosmos_db")
     
     def validate_random_mode_resources(self, config: Dict) -> Tuple[bool, List[str]]:
         """
@@ -382,7 +407,8 @@ class ConfigManager:
             if path.get('privilege_escalation') in [
                 'ServicePrincipalAbuse', 'ApplicationOwnershipAbuse',
                 'ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse',
-                'KeyVaultSecretTheft', 'StorageCertificateTheft', 'ManagedIdentityTheft'
+                'KeyVaultSecretTheft', 'StorageCertificateTheft', 'CosmosDBSecretTheft',
+                'ManagedIdentityTheft'
             ]
         )
         

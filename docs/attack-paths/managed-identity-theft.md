@@ -2,7 +2,7 @@
 
 **Category:** Identity-Based Privilege Escalation
 
-An attacker compromises an identity with **contributor access** to an Azure resource that has a **managed identity**. The attacker extracts the managed identity token from the resource, then uses it to retrieve application credentials from a Key Vault or Storage Account. The target application has high privileges, completing the escalation chain.
+An attacker compromises an identity with **contributor access** to an Azure resource that has a **managed identity**. The attacker extracts the managed identity token from the resource, then uses it to retrieve application credentials from a Key Vault, Storage Account, or Cosmos DB. The target application has high privileges, completing the escalation chain.
 
 This is the most complex attack path BadZure supports, with multiple source resources, target resources, and credential types.
 
@@ -12,7 +12,7 @@ This is the most complex attack path BadZure supports, with multiple source reso
 graph LR
     ID(("Compromised<br/>Identity")) -->|"Contributor on"| RES(("Azure Resource<br/>VM / Logic App /<br/>Automation / Function App"))
     RES -->|"has"| MI(("System Managed<br/>Identity"))
-    MI -->|"can access"| TGT(("Target Resource<br/>Key Vault /<br/>Storage Account"))
+    MI -->|"can access"| TGT(("Target Resource<br/>Key Vault / Storage /<br/>Cosmos DB"))
     TGT -->|"stores credentials for"| APP(("Privileged<br/>Application"))
     APP -->|"assigned"| PRIV(("Entra ID Role or<br/>API Permission"))
 ```
@@ -32,7 +32,7 @@ graph LR
 1. The attacker gains access to a **user account** or **service principal** with **contributor-level access** to an Azure resource
 2. The Azure resource has a **system-assigned managed identity** with permissions to access another resource
 3. The attacker interacts with the source resource to **extract the managed identity token** (via IMDS on VMs, workflow modification on Logic Apps, runbook execution on Automation Accounts, or code modification on Function Apps)
-4. Using the stolen token, the attacker accesses a **Key Vault** (to retrieve secrets) or **Storage Account** (to retrieve certificates)
+4. Using the stolen token, the attacker accesses a **Key Vault** (to retrieve secrets), **Storage Account** (to retrieve certificates), or **Cosmos DB** (to retrieve secrets stored as documents)
 5. The attacker uses the retrieved credentials to **authenticate as a privileged application**
 
 ## Source and Target Combinations
@@ -51,16 +51,21 @@ graph TD
     subgraph Targets
         KV(("Key Vault<br/>Secrets or Certificates"))
         SA(("Storage Account<br/>Certificates"))
+        CDB(("Cosmos DB<br/>Secrets"))
     end
 
     VM --> KV
     VM --> SA
+    VM --> CDB
     LA --> KV
     LA --> SA
+    LA --> CDB
     AA --> KV
     AA --> SA
+    AA --> CDB
     FA --> KV
     FA --> SA
+    FA --> CDB
 ```
 
 ### Source Types
@@ -78,6 +83,7 @@ graph TD
 |---|---|---|
 | `key_vault` | Key Vault Contributor | Application client secrets or certificates |
 | `storage_account` | Storage Blob Data Reader | Application certificates and private keys |
+| `cosmos_db` | Cosmos DB Built-in Data Contributor | Application client secrets stored as documents |
 
 ## Variations
 
@@ -90,7 +96,7 @@ graph TD
     ``` mermaid
     graph LR
         A(("Attacker")) -->|"steal token"| MI(("Managed<br/>Identity"))
-        MI -->|"access"| TGT(("Key Vault /<br/>Storage Account"))
+        MI -->|"access"| TGT(("Key Vault / Storage /<br/>Cosmos DB"))
         TGT -->|"retrieve secret"| APP(("Privileged<br/>Application"))
     ```
 
@@ -226,11 +232,18 @@ attack_paths:
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
-## Real-World Relevance
+VM to Cosmos DB with Graph API permissions:
 
-Managed identity abuse is a core technique in cloud-native attacks. Organizations frequently grant contributor access to Azure resources without considering the attack surface created by managed identities. A developer with VM Contributor access can extract managed identity tokens to access resources far beyond what their direct permissions allow. This attack path is particularly relevant for:
-
-- Testing managed identity configurations
-- Validating resource access controls
-- Understanding lateral movement in Azure environments
-- Detecting token theft and unauthorized resource access
+```yaml
+attack_paths:
+  mi_vm_cosmos:
+    enabled: true
+    privilege_escalation: ManagedIdentityTheft
+    source_type: vm
+    target_resource_type: cosmos_db
+    method: APIPermission
+    api_type: graph
+    app_role:
+      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+      - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
+```
