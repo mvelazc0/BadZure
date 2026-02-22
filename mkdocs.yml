@@ -8,18 +8,18 @@ repo_url: https://github.com/mvelazc0/BadZure
 
 theme:
   name: material
-  logo: img/BadZure.png
-  favicon: img/BadZure.png
+  logo: img/BadZure-cropped.png
+  favicon: img/BadZure-cropped.png
   palette:
     - scheme: slate
-      primary: red
-      accent: red
+      primary: blue
+      accent: deep orange
       toggle:
         icon: material/brightness-4
         name: Switch to light mode
     - scheme: default
-      primary: red
-      accent: red
+      primary: blue
+      accent: deep orange
       toggle:
         icon: material/brightness-7
         name: Switch to dark mode
@@ -67,6 +67,9 @@ markdown_extensions:
   - tables
   - toc:
       permalink: true
+
+extra_css:
+  - stylesheets/extra.css
 
 extra:
   social:

@@ -1,7 +1,7 @@
 # BadZure
 
 <div align="center">
-    <img src="img/BadZure.png" alt="BadZure" style="width: 30%;">
+    <img src="img/BadZure-cropped.png" alt="BadZure" style="width: 30%;">
 </div>
 
 **BadZure** is a Python tool that automates the creation of vulnerable Azure environments for security testing and training. It uses Terraform to populate Entra ID tenants and Azure subscriptions with realistic entities and intentional misconfigurations, producing complete attack paths that span identity and cloud infrastructure layers.
