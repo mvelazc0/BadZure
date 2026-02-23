@@ -72,6 +72,9 @@ extra_css:
   - stylesheets/extra.css
 
 extra:
+  analytics:
+    provider: google
+    property: G-1B8G0DW1EN
   social:
     - icon: fontawesome/brands/github
       link: https://github.com/mvelazc0/BadZure
