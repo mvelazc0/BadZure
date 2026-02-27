@@ -145,3 +145,11 @@ tokens.txt
 *.pem
 *.key
 *.pfx
+
+plans/
+
+# MkDocs build output
+site/
+
+scenarios/
+scenarios2/

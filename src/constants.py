@@ -1,5 +1,8 @@
 # https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/permissions-reference
 
+# Recon permission: Directory.Read.All (Microsoft Graph)
+RECON_DIRECTORY_READ_ALL_ID = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"
+
 # Roles used by BadZure for attack paths
 
 HIGH_PRIVILEGED_ENTRA_ROLES = {
@@ -534,11 +537,11 @@ GRAPH_API_PERMISSIONS = {
         "id": "b47b160b-1054-4efd-9ca0-e2f614696086",
         "origin": "Application",
     },
-    #"RoleManagement.ReadWrite.Directory": {
-    #    "allowedMemberTypes": ["Application"],
-    #    "id": "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8",
-    #    "origin": "Application",
-    #},
+    "RoleManagement.ReadWrite.Directory": {
+        "allowedMemberTypes": ["Application"],
+        "id": "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8",
+        "origin": "Application",
+    },
     "CloudPC.Read.All": {
         "allowedMemberTypes": ["Application"],
         "id": "a9e09520-8ed4-4cde-838e-4fdea192c227",
@@ -2478,5 +2481,141 @@ GRAPH_API_PERMISSIONS = {
         "allowedMemberTypes": ["Application"],
         "id": "50483e42-d915-4231-9639-7fdb7fd190e5",
         "origin": "Application",
-    },
+    }
 }
+
+# ============================================================================
+# Multi-API Permission Support
+# ============================================================================
+
+# API Registry - Metadata for supported APIs
+API_REGISTRY = {
+    "graph": {
+        "display_name": "Microsoft Graph",
+        "service_principal_name": "Microsoft Graph",
+        "description": "Microsoft Graph API - Azure AD, SharePoint, Teams, OneDrive, etc."
+    },
+    "exchange": {
+        "display_name": "Exchange Online",
+        "service_principal_name": "Office 365 Exchange Online",
+        "description": "Exchange Online API - Direct mailbox and configuration access"
+    }
+}
+
+# Exchange Online API Permissions
+EXCHANGE_API_PERMISSIONS = {
+    "full_access_as_app": {
+        "allowedMemberTypes": ["Application"],
+        "id": "dc890d15-9560-4a4c-9b7f-a736ec74ec40",
+        "origin": "Application",
+        "description": "Full mailbox access to all mailboxes"
+    },
+    "Exchange.ManageAsApp": {
+        "allowedMemberTypes": ["Application"],
+        "id": "dc50a0fb-09a3-484d-be87-e023b12c6440",
+        "origin": "Application",
+        "description": "Manage Exchange as application"
+    }
+}
+
+HIGH_PRIVILEGED_EXCHANGE_API_PERMISSIONS = {
+    "full_access_as_app": EXCHANGE_API_PERMISSIONS["full_access_as_app"],
+    "Exchange.ManageAsApp": EXCHANGE_API_PERMISSIONS["Exchange.ManageAsApp"]
+}
+
+# Unified permission lookup dictionaries
+ALL_API_PERMISSIONS = {
+    "graph": GRAPH_API_PERMISSIONS,
+    "exchange": EXCHANGE_API_PERMISSIONS
+}
+
+ALL_HIGH_PRIVILEGED_PERMISSIONS = {
+    "graph": HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS,
+    "exchange": HIGH_PRIVILEGED_EXCHANGE_API_PERMISSIONS
+}
+
+# ============================================================================
+# Privilege Escalation Technique Validation
+# ============================================================================
+
+# Valid privilege escalation technique names
+VALID_TECHNIQUES = [
+    'ApplicationOwnershipAbuse',
+    'ApplicationAdministratorAbuse',
+    'CloudAppAdministratorAbuse',
+    'ManagedIdentityTheft',
+    'KeyVaultSecretTheft',
+    'StorageCertificateTheft',
+    'CosmosDBSecretTheft'
+]
+
+# Role ID constants for admin role abuse techniques
+APP_ADMIN_ROLE_ID = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
+CLOUD_APP_ADMIN_ROLE_ID = "158c047a-c907-4556-b7ef-446551a6b5f7"
+
+# Managed identity source types for ManagedIdentityTheft
+MANAGED_IDENTITY_SOURCE_TYPES = [
+    'vm',
+    'logic_app',
+    'automation_account',
+    'function_app',
+    'container_instance',
+    'app_service'
+]
+
+# Function App OS types
+FUNCTION_APP_OS_TYPES = [
+    'linux',
+    'windows'
+]
+
+# Target resource types for ManagedIdentityTheft
+MI_TARGET_RESOURCE_TYPES = [
+    'key_vault',
+    'storage_account',
+    'cosmos_db',
+    'subscription',
+    'resource_group'
+]
+
+# ============================================================================
+# Initial Access Parameter Constants
+# ============================================================================
+
+# Entry point types for attack paths
+# - compromised_identity: Attacker has compromised a user or service principal
+# - vulnerability: (Future) Attacker exploits a vulnerability in a resource
+ENTRY_POINT_TYPES = ['compromised_identity', 'vulnerability']
+
+# Identity types for compromised_identity entry point
+IDENTITY_TYPES = ['user', 'service_principal']
+
+# Techniques that support service_principal identity type
+TECHNIQUES_SUPPORTING_SERVICE_PRINCIPAL = [
+    'KeyVaultSecretTheft',
+    'StorageCertificateTheft',
+    'CosmosDBSecretTheft',
+    'ManagedIdentityTheft'
+]
+
+# Techniques that only support user identity type
+TECHNIQUES_USER_ONLY = [
+    'ApplicationOwnershipAbuse',
+    'ApplicationAdministratorAbuse',
+    'CloudAppAdministratorAbuse'
+]
+
+# ============================================================================
+# Assignment Type Constants
+# ============================================================================
+
+# Valid assignment types for attack paths
+# - direct: Permission assigned directly to the identity (default)
+# - group_member: Permission assigned to a group, identity added as member
+# - group_owner: Permission assigned to a group, identity set as group owner (not member)
+VALID_ASSIGNMENT_TYPES = ['direct', 'group_member', 'group_owner']
+
+# Valid scope types for ApplicationAdministratorAbuse and CloudAppAdministratorAbuse
+# - directory: Role applies tenant-wide (default, existing behavior)
+# - application: Role scoped to a specific application only
+VALID_SCOPE_TYPES = ['directory', 'application']

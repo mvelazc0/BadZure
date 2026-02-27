@@ -2,6 +2,7 @@ from cryptography import x509
 from cryptography.x509.oid import NameOID
 from cryptography.hazmat.primitives import serialization, hashes
 from cryptography.hazmat.primitives.asymmetric import rsa
+from cryptography.hazmat.primitives.serialization import pkcs12
 import datetime
 import random
 import string
@@ -58,12 +59,14 @@ def generate_certificate_and_key(app_name):
     ])
 
     # Certificate validity (1 year)
+    # Use timezone-aware datetime to avoid Azure AD validation issues
+    now = datetime.datetime.now(datetime.timezone.utc)
     cert = x509.CertificateBuilder().subject_name(subject) \
         .issuer_name(issuer) \
         .public_key(private_key.public_key()) \
         .serial_number(x509.random_serial_number()) \
-        .not_valid_before(datetime.datetime.utcnow()) \
-        .not_valid_after(datetime.datetime.utcnow() + datetime.timedelta(days=365)) \
+        .not_valid_before(now) \
+        .not_valid_after(now + datetime.timedelta(days=365)) \
         .sign(private_key, hashes.SHA256())
 
 
@@ -71,6 +74,7 @@ def generate_certificate_and_key(app_name):
     random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
     cert_filename = f"{app_name}-{random_suffix}.pem"
     key_filename = f"{app_name}-{random_suffix}.key"
+    pfx_filename = f"{app_name}-{random_suffix}.pfx"
 
     # Ensure the certs directory exists
     #os.makedirs("certs", exist_ok=True)
@@ -87,4 +91,16 @@ def generate_certificate_and_key(app_name):
             encryption_algorithm=serialization.NoEncryption()
         ))
 
-    return cert_filename, key_filename
+    # Save PFX/PKCS#12 format (single file with cert + key for easy authentication)
+    with open("terraform/" + pfx_filename, "wb") as pfx_file:
+        pfx_file.write(
+            pkcs12.serialize_key_and_certificates(
+                name=app_name.encode(),
+                key=private_key,
+                cert=cert,
+                cas=None,
+                encryption_algorithm=serialization.NoEncryption()
+            )
+        )
+
+    return cert_filename, key_filename, pfx_filename

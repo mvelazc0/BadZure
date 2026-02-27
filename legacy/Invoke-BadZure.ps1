@@ -1,4 +1,27 @@
+<#
+.SYNOPSIS
+    DEPRECATED - This is the legacy PowerShell version of BadZure.
+    Last Updated: December 4, 2023
 
+.DESCRIPTION
+    DEPRECATION NOTICE
+    
+    This PowerShell script is the original version of BadZure and is no longer actively maintained.
+    It has been superseded by the Python version which offers significantly more features.
+    
+    To use the latest version:
+    1. Install Python 3.8+ and Terraform
+    2. Run: pip install -r requirements.txt
+    3. Configure your badzure.yml file
+    4. Run: python BadZure.py -c badzure.yml
+    
+    Documentation: See wiki/YAMLConfigurationGuide.md and wiki/SupportedAttackPaths.md
+    
+    This legacy script is preserved for historical reference only.
+
+.LINK
+    https://github.com/mvelazc0/BadZure/
+#>
 
 $banner = @"
 

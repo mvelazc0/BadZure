@@ -1,0 +1,734 @@
+"""
+Entity generators for BadZure.
+Handles generation of all Entra ID and Azure resource entities.
+"""
+import random
+import string
+import logging
+from typing import Dict, List
+
+
+class EntityGenerator:
+    """Generates entities for both random and targeted modes."""
+    
+    def __init__(self, data_dir: str = "entity_data"):
+        self.data_dir = data_dir
+        self._name_cache = {}
+        # Cache app naming components for reuse
+        self.app_prefixes = None
+        self.app_core_names = None
+        self.app_suffixes = None
+    
+    def _read_names_from_file(self, filename: str) -> List[str]:
+        """Read names from file with caching."""
+        if filename not in self._name_cache:
+            file_path = f"{self.data_dir}/{filename}"
+            with open(file_path, 'r') as file:
+                self._name_cache[filename] = [line.strip() for line in file.readlines()]
+        return self._name_cache[filename]
+    
+    def _generate_random_password(self, length: int = 15) -> str:
+        """Generate a random password."""
+        if length < 8:
+            raise ValueError("Password length must be at least 8 characters")
+        
+        password = [
+            random.choice(string.ascii_uppercase),
+            random.choice(string.ascii_lowercase),
+            random.choice(string.digits),
+            random.choice(string.punctuation)
+        ]
+        
+        password += random.choices(
+            string.ascii_letters + string.digits + string.punctuation,
+            k=length - 4
+        )
+        random.shuffle(password)
+        return ''.join(password)
+    
+    # User generation
+    def generate_users(self, count: int) -> Dict:
+        """Generate random users."""
+        users = {}
+        first_names = self._read_names_from_file('first-names.txt')
+        last_names = self._read_names_from_file('last-names.txt')
+        
+        for _ in range(count):
+            first_name = random.choice(first_names)
+            last_name = random.choice(last_names)
+            key = f"{first_name}.{last_name}".lower()
+            users[key] = {
+                'user_principal_name': key,
+                'display_name': f"{first_name.capitalize()} {last_name.capitalize()}",
+                'mail_nickname': key,
+                'password': self._generate_random_password()
+            }
+        
+        return users
+    
+    def generate_users_targeted(self, user_specs: List[Dict]) -> Dict:
+        """Generate users from targeted specifications."""
+        users = {}
+        first_names = self._read_names_from_file('first-names.txt')
+        last_names = self._read_names_from_file('last-names.txt')
+        
+        for spec in user_specs:
+            name = spec.get('name', 'random')
+            password_spec = spec.get('password', 'random')
+            
+            if name == 'random':
+                first_name = random.choice(first_names)
+                last_name = random.choice(last_names)
+                name = f"{first_name}.{last_name}".lower()
+            
+            password = (self._generate_random_password() 
+                       if password_spec == 'random' 
+                       else password_spec)
+            
+            users[name] = {
+                'user_principal_name': name,
+                'display_name': name.replace('.', ' ').title(),
+                'mail_nickname': name,
+                'password': password
+            }
+        
+        return users
+    
+    # Group generation
+    def generate_groups(self, count: int) -> Dict:
+        """Generate random groups."""
+        groups = {}
+        group_names = self._read_names_from_file('group-names.txt')
+        selected_groups = random.sample(group_names, count)
+        
+        for group_name in selected_groups:
+            groups[group_name] = {'display_name': group_name}
+        
+        return groups
+    
+    def generate_groups_targeted(self, group_specs: List[Dict]) -> Dict:
+        """Generate groups from targeted specifications."""
+        groups = {}
+        group_names = self._read_names_from_file('group-names.txt')
+        
+        for spec in group_specs:
+            name = spec.get('name', 'random')
+            if name == 'random':
+                name = random.choice(group_names)
+            groups[name] = {'display_name': name}
+        
+        return groups
+    
+    def generate_attack_path_group(self, owner_name: str = None, owner_type: str = None) -> Dict:
+        """
+        Generate a dedicated group for an attack path using realistic names.
+
+        Groups created for attack paths are flagged with 'is_attack_path_group': True
+        to prevent random user assignments in random mode.
+
+        Args:
+            owner_name: Optional name of the identity to set as group owner (for group_owner assignment type)
+            owner_type: Optional type of the owner identity ('user' or 'service_principal')
+
+        Returns:
+            Dictionary with group specification including:
+            - display_name: Realistic group name with random suffix for uniqueness
+            - is_attack_path_group: True (flag to prevent random user assignment)
+            - owner_name: (optional) Name of the group owner
+            - owner_type: (optional) Type of the group owner
+        """
+        group_names = self._read_names_from_file('group-names.txt')
+
+        # Select a random realistic name and add suffix for uniqueness
+        base_name = random.choice(group_names)
+        random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+        group_name = f"{base_name}-{random_suffix}"
+
+        result = {
+            'display_name': group_name,
+            'is_attack_path_group': True  # Flag to prevent random user assignment
+        }
+
+        if owner_name is not None:
+            result['owner_name'] = owner_name
+            result['owner_type'] = owner_type or 'user'
+
+        return result
+    
+    # Application generation
+    def generate_applications(self, count: int) -> Dict:
+        """Generate random applications."""
+        applications = {}
+        self.app_prefixes = self._read_names_from_file('app-prefixes.txt')
+        self.app_core_names = self._read_names_from_file('app-core-names.txt')
+        self.app_suffixes = self._read_names_from_file('app-sufixes.txt')
+        
+        prefixes = self.app_prefixes
+        core_names = self.app_core_names
+        suffixes = self.app_suffixes
+        
+        app_names = set()
+        while len(app_names) < count:
+            prefix = random.choice(prefixes)
+            core_name = random.choice(core_names)
+            suffix = random.choice(suffixes) if random.random() > 0.5 else ""
+            app_name = f"{prefix}{core_name}{suffix}"
+            app_names.add(app_name)
+        
+        for name in app_names:
+            applications[name] = {'display_name': name}
+        
+        return applications
+    
+    def generate_applications_targeted(self, app_specs: List[Dict]) -> Dict:
+        """Generate applications from targeted specifications."""
+        applications = {}
+        prefixes = self._read_names_from_file('app-prefixes.txt')
+        core_names = self._read_names_from_file('app-core-names.txt')
+        suffixes = self._read_names_from_file('app-sufixes.txt')
+        
+        for spec in app_specs:
+            name = spec.get('name', 'random')
+            if name == 'random':
+                prefix = random.choice(prefixes)
+                core_name = random.choice(core_names)
+                suffix = random.choice(suffixes) if random.random() > 0.5 else ""
+                name = f"{prefix}{core_name}{suffix}"
+            applications[name] = {'display_name': name}
+        
+        return applications
+    
+    # Administrative Unit generation
+    def generate_administrative_units(self, count: int) -> Dict:
+        """Generate random administrative units."""
+        aunits = {}
+        aunit_names = self._read_names_from_file('administrative-units.txt')
+        selected_aunits = random.sample(aunit_names, count)
+        
+        for name in selected_aunits:
+            aunits[name] = {'display_name': name}
+        
+        return aunits
+    
+    def generate_administrative_units_targeted(self, au_specs: List[Dict]) -> Dict:
+        """Generate administrative units from targeted specifications."""
+        aunits = {}
+        au_names = self._read_names_from_file('administrative-units.txt')
+        
+        for spec in au_specs:
+            name = spec.get('name', 'random')
+            if name == 'random':
+                name = random.choice(au_names)
+            aunits[name] = {'display_name': name}
+        
+        return aunits
+    
+    # Resource Group generation
+    def generate_resource_groups(self, count: int) -> Dict:
+        """Generate random resource groups."""
+        rgs = {}
+        rg_names = self._read_names_from_file('resource-groups.txt')
+        random_rgs = random.sample(rg_names, count)
+        
+        for rg in random_rgs:
+            rgs[rg] = {
+                'name': rg,
+                'location': "West US"
+            }
+        
+        return rgs
+    
+    def generate_resource_groups_targeted(self, rg_specs: List[Dict]) -> Dict:
+        """Generate resource groups from targeted specifications."""
+        rgs = {}
+        rg_names = self._read_names_from_file('resource-groups.txt')
+        
+        for spec in rg_specs:
+            name = spec.get('name', 'random')
+            location = spec.get('location', 'West US')
+            
+            if name == 'random':
+                name = random.choice(rg_names)
+            
+            rgs[name] = {
+                'name': name,
+                'location': location
+            }
+        
+        return rgs
+    
+    # Key Vault generation
+    def generate_key_vaults(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random key vaults."""
+        kvs = {}
+        
+        # Early return if no resource groups available
+        if count == 0:
+            return kvs
+        
+        if not resource_groups:
+            logging.warning(
+                f"Cannot create {count} key vault(s): No resource groups available. "
+                f"Set 'resource_groups' to at least 1 in tenant configuration."
+            )
+            return kvs
+        
+        kv_names = self._read_names_from_file('keyvaults.txt')
+        selected_kvs = random.sample(kv_names, count)
+        
+        for kv in selected_kvs:
+            random_rg = random.choice(list(resource_groups.keys()))
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            kv_name = f"{kv}{random_suffix}"
+            
+            kvs[kv_name] = {
+                'name': kv_name,
+                'location': "West US",
+                'resource_group_name': random_rg,
+                'sku_name': "standard"
+            }
+        
+        return kvs
+    
+    def generate_key_vaults_targeted(self, kv_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate key vaults from targeted specifications."""
+        kvs = {}
+        kv_names = self._read_names_from_file('keyvaults.txt')
+        
+        for spec in kv_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group')
+            
+            if name == 'random':
+                base_name = random.choice(kv_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+                name = f"{base_name}{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = list(resource_groups.keys())[0]
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            kvs[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'sku_name': 'standard'
+            }
+        
+        return kvs
+    
+    # Storage Account generation
+    def generate_storage_accounts(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random storage accounts."""
+        sas = {}
+        
+        # Early return if no resource groups available
+        if count == 0:
+            return sas
+        
+        if not resource_groups:
+            logging.warning(
+                f"Cannot create {count} storage account(s): No resource groups available. "
+                f"Set 'resource_groups' to at least 1 in tenant configuration."
+            )
+            return sas
+        
+        sa_names = self._read_names_from_file('storage-accounts.txt')
+        selected_sas = random.sample(sa_names, count)
+        
+        for sa in selected_sas:
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=3))
+            unique_sa_name = f"{sa}{random_suffix}"
+            random_rg = random.choice(list(resource_groups.keys()))
+            
+            sas[unique_sa_name] = {
+                'name': unique_sa_name.lower(),
+                'location': "West US",
+                'resource_group_name': random_rg,
+                'account_tier': "Standard",
+                'account_replication_type': "LRS"
+            }
+        
+        return sas
+    
+    def generate_storage_accounts_targeted(self, sa_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate storage accounts from targeted specifications."""
+        sas = {}
+        sa_names = self._read_names_from_file('storage-accounts.txt')
+        
+        for spec in sa_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group')
+            
+            if name == 'random':
+                base_name = random.choice(sa_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=3))
+                name = f"{base_name}{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = list(resource_groups.keys())[0]
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            sas[name] = {
+                'name': name.lower(),
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'account_tier': 'Standard',
+                'account_replication_type': 'LRS'
+            }
+        
+        return sas
+    
+    # Virtual Machine generation
+    def generate_virtual_machines(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random virtual machines."""
+        vms = {}
+        
+        # Early return if no resource groups available
+        if count == 0:
+            return vms
+        
+        if not resource_groups:
+            logging.warning(
+                f"Cannot create {count} virtual machine(s): No resource groups available. "
+                f"Set 'resource_groups' to at least 1 in tenant configuration."
+            )
+            return vms
+        
+        vm_names = self._read_names_from_file('virtual-machines.txt')
+        selected_vms = random.sample(vm_names, count)
+        
+        for vm in selected_vms:
+            random_rg = random.choice(list(resource_groups.keys()))
+            os_type = "Linux"
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+            vm_name = f"{vm}-{random_suffix}"
+            
+            vms[vm_name] = {
+                "name": vm_name,
+                "location": "West US",
+                "resource_group_name": random_rg,
+                "vm_size": "Standard_D2s_v3",
+                "admin_username": "badzureadmin",
+                "admin_password": self._generate_random_password(12),
+                "os_type": os_type
+            }
+        
+        return vms
+    
+    def generate_virtual_machines_targeted(self, vm_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate virtual machines from targeted specifications."""
+        vms = {}
+        vm_names = self._read_names_from_file('virtual-machines.txt')
+        
+        for spec in vm_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group')
+            os_type = spec.get('os_type', 'Linux')
+            
+            if name == 'random':
+                base_name = random.choice(vm_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = list(resource_groups.keys())[0]
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            vms[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'vm_size': 'Standard_D2s_v3',
+                'admin_username': 'badzureadmin',
+                'admin_password': self._generate_random_password(12),
+                'os_type': os_type
+            }
+        
+        return vms
+    
+    # Logic App generation
+    def generate_logic_apps(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random Logic Apps."""
+        logic_apps = {}
+        
+        if count == 0 or not resource_groups:
+            return logic_apps
+        
+        # Load Logic App names from file
+        logic_app_names = self._read_names_from_file('logic-apps.txt')
+        
+        # Shuffle and select the required number of names
+        random.shuffle(logic_app_names)
+        selected_names = logic_app_names[:count]
+        
+        rg_list = list(resource_groups.keys())
+        
+        for name in selected_names:
+            rg_name = random.choice(rg_list)
+            
+            logic_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return logic_apps
+    
+    def generate_logic_apps_targeted(self, logic_app_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Logic Apps from targeted specifications."""
+        logic_apps = {}
+        
+        # Load Logic App names from file
+        logic_app_names = self._read_names_from_file('logic-apps.txt')
+        
+        for spec in logic_app_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            
+            if name == 'random':
+                # Select random name from file
+                base_name = random.choice(logic_app_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            logic_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return logic_apps
+    
+    # Automation Account generation
+    def generate_automation_accounts(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random Automation Accounts."""
+        automation_accounts = {}
+        
+        if count == 0 or not resource_groups:
+            return automation_accounts
+        
+        # Load Automation Account names from file
+        automation_account_names = self._read_names_from_file('automation-accounts.txt')
+        
+        # Shuffle and select the required number of names
+        random.shuffle(automation_account_names)
+        selected_names = automation_account_names[:count]
+        
+        rg_list = list(resource_groups.keys())
+        
+        for name in selected_names:
+            rg_name = random.choice(rg_list)
+            
+            automation_accounts[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return automation_accounts
+    
+    def generate_automation_accounts_targeted(self, automation_account_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Automation Accounts from targeted specifications."""
+        automation_accounts = {}
+        
+        # Load Automation Account names from file
+        automation_account_names = self._read_names_from_file('automation-accounts.txt')
+        
+        for spec in automation_account_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            
+            if name == 'random':
+                # Select random name from file
+                base_name = random.choice(automation_account_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+            
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+            
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+            
+            automation_accounts[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name
+            }
+        
+        return automation_accounts
+    
+    # Function App generation
+    def generate_function_apps(self, count: int, resource_groups: Dict, os_type: str = 'linux') -> Dict:
+        """Generate random Function Apps with specified OS type (default: linux)."""
+        function_apps = {}
+        
+        if count == 0 or not resource_groups:
+            return function_apps
+        
+        # Load Function App names from file
+        function_app_names = self._read_names_from_file('function-apps.txt')
+        
+        # Shuffle and select the required number of names
+        random.shuffle(function_app_names)
+        selected_names = function_app_names[:count]
+        
+        rg_list = list(resource_groups.keys())
+        
+        for base_name in selected_names:
+            rg_name = random.choice(rg_list)
+            # Add random suffix for global uniqueness (Function App names must be globally unique)
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            name = f"{base_name}-{random_suffix}"
+            
+            function_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'os_type': os_type
+            }
+        
+        return function_apps
+    
+    def generate_function_apps_targeted(self, function_app_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Function Apps from targeted specifications."""
+        function_apps = {}
+
+        # Load Function App names from file
+        function_app_names = self._read_names_from_file('function-apps.txt')
+
+        for spec in function_app_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            os_type = spec.get('os_type', 'linux')  # Default to linux if not specified
+
+            if name == 'random':
+                # Select random name from file
+                base_name = random.choice(function_app_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+
+            function_apps[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'os_type': os_type
+            }
+
+        return function_apps
+
+    # Cosmos DB generation
+    def generate_cosmos_dbs(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random Cosmos DB accounts."""
+        cosmos_dbs = {}
+
+        if count == 0 or not resource_groups:
+            return cosmos_dbs
+
+        cosmos_db_names = self._read_names_from_file('cosmos-dbs.txt')
+        random.shuffle(cosmos_db_names)
+        selected_names = cosmos_db_names[:count]
+
+        rg_list = list(resource_groups.keys())
+
+        for base_name in selected_names:
+            rg_name = random.choice(rg_list)
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            name = f"{base_name}-{random_suffix}"
+
+            cosmos_dbs[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'offer_type': 'Standard',
+                'kind': 'GlobalDocumentDB',
+                'database_name': f"{base_name}-db",
+                'container_name': f"{base_name}-container",
+                'partition_key_path': '/id'
+            }
+
+        return cosmos_dbs
+
+    def generate_cosmos_dbs_targeted(self, cosmos_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate Cosmos DB accounts from targeted specifications."""
+        cosmos_dbs = {}
+
+        cosmos_db_names = self._read_names_from_file('cosmos-dbs.txt')
+
+        for spec in cosmos_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+            database_name = spec.get('database_name', None)
+            container_name = spec.get('container_name', None)
+            partition_key_path = spec.get('partition_key_path', '/id')
+
+            if name == 'random':
+                base_name = random.choice(cosmos_db_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+                name = f"{base_name}-{random_suffix}"
+
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+
+            cosmos_dbs[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'offer_type': 'Standard',
+                'kind': 'GlobalDocumentDB',
+                'database_name': database_name or f"{name}-db",
+                'container_name': container_name or f"{name}-container",
+                'partition_key_path': partition_key_path
+            }
+
+        return cosmos_dbs
