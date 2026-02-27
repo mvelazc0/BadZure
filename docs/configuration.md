@@ -318,18 +318,8 @@ Groups created for attack paths use realistic names from the `entity_data/group-
 
 === "ApplicationOwnershipAbuse"
 
-    Service principal is a member of a group that owns the application:
-
-    ```yaml
-    attack_path_owner_group:
-      enabled: true
-
-      privilege_escalation: ApplicationOwnershipAbuse
-      identity_type: service_principal
-      assignment_type: group_member
-      method: AzureADRole
-      entra_role: e8611ab8-c189-46e8-94e1-60213ab1f814  # Privileged Role Administrator
-    ```
+    !!! warning
+        `ApplicationOwnershipAbuse` only supports `direct` assignment. Azure AD does not allow security groups to be application owners, so `group_member` and `group_owner` are **not supported** for this technique and will automatically fall back to `direct`. See [ApplicationOwnershipAbuse](attack-paths/app-ownership-abuse.md) for details.
 
 === "ApplicationAdministratorAbuse"
 

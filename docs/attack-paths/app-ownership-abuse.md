@@ -30,6 +30,16 @@ graph LR
 5. The attacker uses the new credentials to **authenticate as the application's service principal**
 6. The attacker now has all the privileges assigned to that application
 
+## How It Differs From ApplicationAdministratorAbuse
+
+| | ApplicationOwnershipAbuse | ApplicationAdministratorAbuse |
+|---|---|---|
+| **Scope** | Only owned applications | **All** applications in the tenant |
+| **Prerequisite** | Application ownership | Application Administrator role |
+| **Attack surface** | Narrow — one app | Broad — every app |
+| **Group assignment** | Not supported (direct only) | Supported (group_member, group_owner) |
+| **Real-world scenario** | Compromised developer | Compromised admin account |
+
 ## Variations
 
 ### By Identity Type
