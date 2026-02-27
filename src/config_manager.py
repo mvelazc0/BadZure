@@ -109,10 +109,10 @@ class ConfigManager:
     
     def _validate_app_ownership_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Application Ownership Abuse configuration."""
-        identity_type = path_config.get('identity_type', 'user')
+        identity_type = path_config.get('initial_access', 'user')
         if identity_type == 'service_principal':
             if 'service_principals' not in entities or not entities['service_principals']:
-                errors.append(f"{path_name}: ApplicationOwnershipAbuse with identity_type 'service_principal' requires at least one service_principal")
+                errors.append(f"{path_name}: ApplicationOwnershipAbuse with initial_access 'service_principal' requires at least one service_principal")
         else:
             if 'users' not in entities or not entities['users']:
                 errors.append(f"{path_name}: ApplicationOwnershipAbuse requires at least one user")
@@ -139,10 +139,10 @@ class ConfigManager:
     
     def _validate_app_administrator_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Application Administrator Abuse configuration."""
-        identity_type = path_config.get('identity_type', 'user')
+        identity_type = path_config.get('initial_access', 'user')
         if identity_type == 'service_principal':
             if 'service_principals' not in entities or not entities['service_principals']:
-                errors.append(f"{path_name}: ApplicationAdministratorAbuse with identity_type 'service_principal' requires at least one service_principal")
+                errors.append(f"{path_name}: ApplicationAdministratorAbuse with initial_access 'service_principal' requires at least one service_principal")
         else:
             if 'users' not in entities or not entities['users']:
                 errors.append(f"{path_name}: ApplicationAdministratorAbuse requires at least one user")
@@ -271,12 +271,12 @@ class ConfigManager:
         # Validate assignment_type parameter
         self._validate_assignment_type(path_name, path_config, errors)
         
-        # Validate identity_type requirements (only user and service_principal supported)
-        identity_type = path_config.get('identity_type', 'user')
+        # Validate initial_access requirements (only user and service_principal supported)
+        identity_type = path_config.get('initial_access', 'user')
         if identity_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: KeyVaultSecretTheft only supports identity_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+            errors.append(f"{path_name}: KeyVaultSecretTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
         elif identity_type == 'user' and ('users' not in entities or not entities['users']):
-            errors.append(f"{path_name}: identity_type 'user' requires at least one user")
+            errors.append(f"{path_name}: initial_access 'user' requires at least one user")
     
     def _validate_storage_certificate_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Storage Certificate Theft configuration."""
@@ -290,12 +290,12 @@ class ConfigManager:
         # Validate assignment_type parameter
         self._validate_assignment_type(path_name, path_config, errors)
             
-        # Validate identity_type requirements (only user and service_principal supported)
-        identity_type = path_config.get('identity_type', 'user')
+        # Validate initial_access requirements (only user and service_principal supported)
+        identity_type = path_config.get('initial_access', 'user')
         if identity_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: StorageCertificateTheft only supports identity_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+            errors.append(f"{path_name}: StorageCertificateTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
         elif identity_type == 'user' and ('users' not in entities or not entities['users']):
-            errors.append(f"{path_name}: identity_type 'user' requires at least one user")
+            errors.append(f"{path_name}: initial_access 'user' requires at least one user")
     
     def _validate_cosmosdb_secret_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Cosmos DB Secret Theft configuration."""
@@ -309,22 +309,22 @@ class ConfigManager:
         # Validate assignment_type parameter
         self._validate_assignment_type(path_name, path_config, errors)
 
-        # Validate identity_type requirements (only user and service_principal supported)
-        identity_type = path_config.get('identity_type', 'user')
+        # Validate initial_access requirements (only user and service_principal supported)
+        identity_type = path_config.get('initial_access', 'user')
         if identity_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: CosmosDBSecretTheft only supports identity_type 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+            errors.append(f"{path_name}: CosmosDBSecretTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
         elif identity_type == 'user' and ('users' not in entities or not entities['users']):
-            errors.append(f"{path_name}: identity_type 'user' requires at least one user")
+            errors.append(f"{path_name}: initial_access 'user' requires at least one user")
 
     def _validate_managed_identity_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
         """Validate Managed Identity Theft configuration."""
         if 'applications' not in entities or not entities['applications']:
             errors.append(f"{path_name}: ManagedIdentityTheft requires at least one application")
         
-        # Only require user if identity_type is 'user' (or not specified, defaulting to user)
-        identity_type = path_config.get('identity_type', 'user')
+        # Only require user if initial_access is 'user' (or not specified, defaulting to user)
+        identity_type = path_config.get('initial_access', 'user')
         if identity_type == 'user' and ('users' not in entities or not entities['users']):
-            errors.append(f"{path_name}: ManagedIdentityTheft with identity_type 'user' requires at least one user for Contributor access")
+            errors.append(f"{path_name}: ManagedIdentityTheft with initial_access 'user' requires at least one user for Contributor access")
         
         if 'resource_groups' not in entities or not entities['resource_groups']:
             errors.append(f"{path_name}: ManagedIdentityTheft requires at least one resource_group")

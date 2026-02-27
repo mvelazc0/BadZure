@@ -1,36 +1,37 @@
 # BadZure Configuration File
 # =============================================================================
 # This example configuration demonstrates all supported privilege escalation
-# techniques in BadZure. Use this as a reference for creating your own
-# attack path configurations.
+# techniques and parameter variations in BadZure. Use this as a reference for
+# creating your own attack path configurations.
 #
 # Documentation: https://mvelazc0.github.io/BadZure/configuration/
 # =============================================================================
 
 tenant:
   # REQUIRED: Replace with your Azure tenant information
-  tenant_id: 
-  domain: 
-  subscription_id: 
+  tenant_id:
+  domain:
+  subscription_id:
 
   # Identity resources (required for all attack paths)
-  users: 5
-  applications: 5
-  groups: 3
+  users: 10
+  applications: 15
+  groups: 5
   administrative_units: 2
 
   # Azure resources (adjust counts based on enabled attack paths)
   # - KeyVaultSecretTheft requires key_vaults >= 1
   # - StorageCertificateTheft requires storage_accounts >= 1
+  # - CosmosDBSecretTheft requires cosmos_dbs >= 1
   # - ManagedIdentityTheft requires the corresponding source resource >= 1
-  resource_groups: 0
-  key_vaults: 0
-  storage_accounts: 0
-  virtual_machines: 0
-  logic_apps: 0
-  automation_accounts: 0
-  function_apps: 0
-  cosmos_dbs: 0             # Cosmos DB accounts (optional)
+  resource_groups: 2
+  key_vaults: 2
+  storage_accounts: 2
+  virtual_machines: 1
+  logic_apps: 1
+  automation_accounts: 1
+  function_apps: 1
+  cosmos_dbs: 2
 
 # =============================================================================
 # Attack Path Examples
@@ -44,9 +45,10 @@ tenant:
 #   - CloudAppAdministratorAbuse: Exploit Cloud Application Administrator role
 #   - KeyVaultSecretTheft: Retrieve secrets from Key Vault
 #   - StorageCertificateTheft: Retrieve certificates from Storage
+#   - CosmosDBSecretTheft: Retrieve secrets from Cosmos DB
 #   - ManagedIdentityTheft: Steal managed identity tokens
 #
-# Identity Types (optional, defaults to 'user'):
+# Initial Access (optional, defaults to 'user'):
 #   - user: Regular user account
 #   - service_principal: Application service principal
 #
@@ -57,72 +59,106 @@ tenant:
 #
 # Methods:
 #   - AzureADRole: Assign Entra ID directory roles
+#     - entra_role: UUID of the role, a list of UUIDs, or 'random'
 #   - APIPermission: Assign API permissions (Graph, Exchange)
+#     - api_type: 'graph' (default) or 'exchange'
+#     - app_role: UUID of the permission, a list of UUIDs, or 'random'
+#
+# Scope (ApplicationAdministratorAbuse / CloudAppAdministratorAbuse only):
+#   - directory: Role applies tenant-wide (default)
+#   - application: Role scoped to a specific application
+#
+# ManagedIdentityTheft source types: vm, logic_app, automation_account, function_app
+# ManagedIdentityTheft target types: key_vault, storage_account, cosmos_db
+# ManagedIdentityTheft credential types: secret (default), certificate
 # =============================================================================
 
 attack_paths:
 
   # ===========================================================================
-  # ApplicationOwnershipAbuse
+  # ApplicationOwnershipAbuse (Examples 1-3)
   # ===========================================================================
   # Exploits application ownership to add credentials to privileged applications.
   # The attacker owns an application that has high-privileged roles or permissions.
+  #
+  # NOTE: group_member and group_owner are NOT supported for this technique.
+  # If specified, they will silently fall back to 'direct'. Use
+  # ApplicationAdministratorAbuse or CloudAppAdministratorAbuse for group-based
+  # attack paths targeting applications.
 
   # Example 1: User owns application with Global Administrator role
   # Attack: Compromised user adds credentials to owned app, authenticates as app
+  # New concept: Explicit initial_access: user (the default if omitted)
   app_ownership_user_role:
     enabled: false
     privilege_escalation: ApplicationOwnershipAbuse
+    initial_access: user
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
   # Example 2: Service principal owns application with Graph API permissions
   # Attack: Compromised CI/CD service principal adds credentials to owned app
+  # New concept: initial_access: service_principal + APIPermission(graph) + multiple permissions
   app_ownership_sp_api:
     enabled: true
     privilege_escalation: ApplicationOwnershipAbuse
-    identity_type: service_principal
+    initial_access: service_principal
     method: APIPermission
     api_type: graph
     app_role:
       - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
       - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 
-  # Example 3: Group-based ownership - user inherits ownership via group
-  # Attack: User is member of group that owns the application
-  app_ownership_group:
+  # Example 3: Service principal owns application with Exchange permissions
+  # Attack: Compromised automation SP accesses all mailboxes via Exchange API
+  # New concept: api_type: exchange
+  app_ownership_sp_exchange:
     enabled: false
     privilege_escalation: ApplicationOwnershipAbuse
-    assignment_type: group_member
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
-
-  # ===========================================================================
-  # ApplicationAdministratorAbuse
-  # ===========================================================================
-  # Exploits the Application Administrator role to manage ANY application.
-  # Unlike ownership abuse, this grants access to all applications in the tenant.
-
-  # Example 5: User with App Admin role targets Exchange permissions
-  # Attack: App Admin adds credentials to app with Exchange full_access_as_app
-  app_admin_user_exchange:
-    enabled: false
-    privilege_escalation: ApplicationAdministratorAbuse
+    initial_access: service_principal
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
 
-  # Example 6: Service principal with App Admin role targets privileged app
-  # Attack: Automation SP with App Admin manages app with Global Admin role
-  app_admin_sp_role:
+  # ===========================================================================
+  # ApplicationAdministratorAbuse (Examples 4-9)
+  # ===========================================================================
+  # Exploits the Application Administrator role to manage ANY application.
+  # Unlike ownership abuse, this grants access to all applications in the tenant.
+
+  # Example 4: User with App Admin role targets app with random Entra role
+  # Attack: App Admin adds credentials to app with a high-privileged role
+  # New concept: entra_role: random (picks a random high-privileged role)
+  app_admin_user_role:
     enabled: false
     privilege_escalation: ApplicationAdministratorAbuse
-    identity_type: service_principal
+    method: AzureADRole
+    entra_role: random
+
+  # Example 5: Service principal with App Admin role scoped to one application
+  # Attack: Automation SP with scoped App Admin manages a specific privileged app
+  # New concept: initial_access: service_principal + scope: application
+  app_admin_sp_scoped:
+    enabled: false
+    privilege_escalation: ApplicationAdministratorAbuse
+    initial_access: service_principal
+    scope: application
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  # Example 7: Group Ownership Abuse - user owns group with App Admin role
+  # Example 6: User inherits App Admin via group membership
+  # Attack: User is member of group with Application Administrator role
+  # New concept: assignment_type: group_member
+  app_admin_group_member:
+    enabled: false
+    privilege_escalation: ApplicationAdministratorAbuse
+    assignment_type: group_member
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example 7: User owns group with App Admin role + API permissions
   # Attack: User owns a group with Application Administrator role, adds self as member
+  # New concept: assignment_type: group_owner + APIPermission
   app_admin_group_owner:
     enabled: false
     privilege_escalation: ApplicationAdministratorAbuse
@@ -131,30 +167,57 @@ attack_paths:
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 
-  # Example 8: Scoped App Admin - role only applies to one specific application
-  # Attack: App Admin role scoped to target app (not tenant-wide)
-  app_admin_scoped:
+  # Example 8: User with App Admin role and multiple Entra roles on target app
+  # Attack: App Admin adds credentials to app with multiple high-privileged roles
+  # New concept: Multiple entra_role list syntax
+  app_admin_multi_role:
     enabled: false
     privilege_escalation: ApplicationAdministratorAbuse
-    scope: application
     method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    entra_role:
+      - 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+      - 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3  # Application Administrator
+
+  # Example 9: User with App Admin role targets Exchange permissions
+  # Attack: App Admin adds credentials to app with Exchange full_access_as_app
+  # New concept: APIPermission(exchange) for ApplicationAdministratorAbuse
+  app_admin_exchange:
+    enabled: false
+    privilege_escalation: ApplicationAdministratorAbuse
+    method: APIPermission
+    api_type: exchange
+    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
 
   # ===========================================================================
-  # CloudAppAdministratorAbuse
+  # CloudAppAdministratorAbuse (Examples 10-12)
   # ===========================================================================
   # Similar to ApplicationAdministratorAbuse but uses the Cloud Application
   # Administrator role instead. This role cannot manage applications with
   # certain sensitive permissions (e.g., those assigned to first-party apps).
 
-  # Example: User with Cloud App Admin role targets app with Entra role
+  # Example 10: User with Cloud App Admin role targets app with Entra role
+  # Attack: Cloud App Admin adds credentials to app with Global Admin role
+  # New concept: Basic CloudAppAdministratorAbuse with user + AzureADRole
   cloud_app_admin_user:
     enabled: false
     privilege_escalation: CloudAppAdministratorAbuse
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  # Example: Cloud App Admin role scoped to a specific application
+  # Example 11: Service principal with Cloud App Admin targets app with API permissions
+  # Attack: SP with Cloud App Admin adds credentials to app with Graph permissions
+  # New concept: SP + APIPermission for CloudAppAdministratorAbuse
+  cloud_app_admin_sp:
+    enabled: false
+    privilege_escalation: CloudAppAdministratorAbuse
+    initial_access: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+
+  # Example 12: Cloud App Admin role scoped to a specific application
+  # Attack: Role only applies to one specific application, not tenant-wide
+  # New concept: scope: application for CloudAppAdministratorAbuse
   cloud_app_admin_scoped:
     enabled: false
     privilege_escalation: CloudAppAdministratorAbuse
@@ -163,34 +226,37 @@ attack_paths:
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
   # ===========================================================================
-  # KeyVaultSecretTheft
+  # KeyVaultSecretTheft (Examples 13-16)
   # ===========================================================================
   # Direct access to Key Vault to retrieve application client secrets.
   # The identity has Key Vault Contributor role on the vault.
 
-  # Example 8: User with Key Vault access retrieves app secrets
+  # Example 13: User with Key Vault access retrieves app secrets
   # Attack: User reads client secret from Key Vault, authenticates as privileged app
+  # New concept: Basic KeyVaultSecretTheft with user + AzureADRole
   kv_theft_user:
     enabled: false
     privilege_escalation: KeyVaultSecretTheft
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  # Example 9: Service principal with Key Vault access retrieves app secrets
+  # Example 14: Service principal with Key Vault access retrieves app secrets
   # Attack: SP reads client secret from Key Vault, authenticates as privileged app
+  # New concept: SP + APIPermission + multiple permissions for KV
   kv_theft_sp:
     enabled: false
     privilege_escalation: KeyVaultSecretTheft
-    identity_type: service_principal
+    initial_access: service_principal
     method: APIPermission
     api_type: graph
     app_role:
       - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
       - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 
-  # Example 10: Group-based Key Vault access
+  # Example 15: Group membership-based Key Vault access
   # Attack: User inherits Key Vault Contributor through group membership
-  kv_theft_group:
+  # New concept: group_member for resource-based technique
+  kv_theft_group_member:
     enabled: false
     privilege_escalation: KeyVaultSecretTheft
     assignment_type: group_member
@@ -198,34 +264,47 @@ attack_paths:
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 
+  # Example 16: Group ownership-based Key Vault access
+  # Attack: User owns group with Key Vault Contributor, adds self as member
+  # New concept: group_owner for resource-based technique
+  kv_theft_group_owner:
+    enabled: false
+    privilege_escalation: KeyVaultSecretTheft
+    assignment_type: group_owner
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
   # ===========================================================================
-  # StorageCertificateTheft
+  # StorageCertificateTheft (Examples 17-19)
   # ===========================================================================
   # Direct access to Storage Account to retrieve application certificates.
   # The identity has Storage Blob Data Reader role on the storage account.
 
-  # Example 11: User with storage access retrieves certificates
+  # Example 17: User with storage access retrieves certificates
   # Attack: User downloads cert/key from blob storage, authenticates as privileged app
+  # New concept: Basic StorageCertificateTheft with user + AzureADRole
   storage_theft_user:
     enabled: false
     privilege_escalation: StorageCertificateTheft
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  # Example 12: Service principal with storage access retrieves certificates
+  # Example 18: Service principal with storage access retrieves certificates
   # Attack: SP downloads cert/key from blob storage, authenticates as privileged app
+  # New concept: SP + APIPermission for StorageCertificateTheft
   storage_theft_sp:
     enabled: false
     privilege_escalation: StorageCertificateTheft
-    identity_type: service_principal
+    initial_access: service_principal
     method: APIPermission
     api_type: graph
     app_role:
       - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
       - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 
-  # Example 13: Group-based Storage access
+  # Example 19: Group-based Storage access
   # Attack: User inherits Storage Blob Data Reader through group membership
+  # New concept: group_member for StorageCertificateTheft
   storage_theft_group:
     enabled: false
     privilege_escalation: StorageCertificateTheft
@@ -235,18 +314,56 @@ attack_paths:
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 
   # ===========================================================================
-  # ManagedIdentityTheft
+  # CosmosDBSecretTheft (Examples 20-22)
+  # ===========================================================================
+  # Direct access to Cosmos DB to retrieve application client secrets.
+  # The identity has Cosmos DB Account Reader role on the account.
+
+  # Example 20: User with Cosmos DB access retrieves app secrets
+  # Attack: User reads client secret from Cosmos DB, authenticates as privileged app
+  # New concept: CosmosDBSecretTheft technique — user + AzureADRole
+  cosmos_theft_user:
+    enabled: false
+    privilege_escalation: CosmosDBSecretTheft
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example 21: Service principal with Cosmos DB access retrieves app secrets
+  # Attack: SP reads client secret from Cosmos DB, authenticates as privileged app
+  # New concept: SP + APIPermission for CosmosDBSecretTheft
+  cosmos_theft_sp:
+    enabled: false
+    privilege_escalation: CosmosDBSecretTheft
+    initial_access: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+
+  # Example 22: Group-based Cosmos DB access with random API permissions
+  # Attack: User inherits Cosmos DB access through group membership
+  # New concept: group_member + app_role: random
+  cosmos_theft_group:
+    enabled: false
+    privilege_escalation: CosmosDBSecretTheft
+    assignment_type: group_member
+    method: APIPermission
+    api_type: graph
+    app_role: random
+
+  # ===========================================================================
+  # ManagedIdentityTheft (Examples 23-29)
   # ===========================================================================
   # Exploits access to Azure resources with managed identities to steal tokens.
   # The attacker has Contributor access to the source resource, extracts the
   # managed identity token, and uses it to access target resources.
   #
   # Source Types: vm, logic_app, automation_account, function_app
-  # Target Types: key_vault, storage_account
+  # Target Types: key_vault, storage_account, cosmos_db
   # Credential Types: secret (default), certificate
 
-  # Example 14: VM with managed identity - user access
+  # Example 23: VM with managed identity - user access with secret
   # Attack: Run commands on VM to extract MI token, access Key Vault secrets
+  # New concept: vm -> key_vault + user + secret (default credential_type)
   mi_theft_vm_user:
     enabled: false
     privilege_escalation: ManagedIdentityTheft
@@ -258,19 +375,21 @@ attack_paths:
       - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
       - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 
-  # Example 15: Logic App with managed identity - service principal access
+  # Example 24: Logic App with managed identity - service principal access
   # Attack: Modify Logic App workflow to extract MI token, access storage certs
+  # New concept: logic_app -> storage_account + SP
   mi_theft_logicapp_sp:
     enabled: false
     privilege_escalation: ManagedIdentityTheft
     source_type: logic_app
     target_resource_type: storage_account
-    identity_type: service_principal
+    initial_access: service_principal
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  # Example 16: Function App with certificate-based credentials
+  # Example 25: Function App with certificate-based credentials
   # Attack: Modify Function App code to extract MI token, retrieve certs from Key Vault
+  # New concept: function_app -> key_vault + credential_type: certificate
   mi_theft_functionapp_cert:
     enabled: false
     privilege_escalation: ManagedIdentityTheft
@@ -281,8 +400,9 @@ attack_paths:
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 
-  # Example 17: Automation Account with certificate-based credentials
+  # Example 26: Automation Account with certificate-based credentials
   # Attack: Modify runbook to extract MI token, download certs from blob storage
+  # New concept: automation_account -> storage_account + certificate
   mi_theft_automation_cert:
     enabled: false
     privilege_escalation: ManagedIdentityTheft
@@ -292,8 +412,9 @@ attack_paths:
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 
-  # Example 18: VM with group-based assignment
+  # Example 27: VM with group-based assignment
   # Attack: User is member of group with VM Contributor, extracts MI token
+  # New concept: vm -> key_vault + group_member
   mi_theft_vm_group:
     enabled: false
     privilege_escalation: ManagedIdentityTheft
@@ -304,12 +425,27 @@ attack_paths:
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 
-  # Example 19: Service principal with Exchange full mailbox access
-  # Attack: Compromised automation SP accesses all mailboxes via Exchange API
-  app_ownership_sp_exchange:
+  # Example 28: VM targeting Cosmos DB
+  # Attack: Run commands on VM to extract MI token, access Cosmos DB secrets
+  # New concept: vm -> cosmos_db target
+  mi_theft_vm_cosmos:
     enabled: false
-    privilege_escalation: ApplicationOwnershipAbuse
-    identity_type: service_principal
+    privilege_escalation: ManagedIdentityTheft
+    source_type: vm
+    target_resource_type: cosmos_db
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+
+  # Example 29: Automation Account targeting Cosmos DB with group ownership
+  # Attack: SP owns group with Contributor on automation account, extracts MI token
+  # New concept: automation_account -> cosmos_db + SP + group_owner
+  mi_theft_automation_cosmos_sp:
+    enabled: false
+    privilege_escalation: ManagedIdentityTheft
+    source_type: automation_account
+    target_resource_type: cosmos_db
+    initial_access: service_principal
+    assignment_type: group_owner
     method: APIPermission
-    api_type: exchange
-    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
+    api_type: graph
+    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory

@@ -185,7 +185,7 @@ class BuildCommand:
                 attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used resources from owner assignments
                 for assignment in result['app_owner_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -211,7 +211,7 @@ class BuildCommand:
                 attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used resources from owner assignments
                 for assignment in result['app_owner_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -236,7 +236,7 @@ class BuildCommand:
                 attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used resources from both role and API permission assignments
                 for assignment in result['app_role_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -260,7 +260,7 @@ class BuildCommand:
                 attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used resources from both role and API permission assignments
                 for assignment in result['app_role_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -285,7 +285,7 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used apps
                 for assignment in result['kv_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -303,7 +303,7 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used apps
                 for assignment in result['storage_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -320,7 +320,7 @@ class BuildCommand:
                 attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used apps
                 for assignment in result['cosmos_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -339,7 +339,7 @@ class BuildCommand:
                 attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
                 attack_path_group_assignments.update(result.get('group_assignments', {}))
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
-                user_creds[attack_path_name] = result['initial_access']
+                user_creds[attack_path_name] = result['credentials']
                 # Track used apps and users/service principals
                 for assignment in result['mi_theft_assignments'].values():
                     used_apps.add(assignment['app_name'])
@@ -370,7 +370,7 @@ class BuildCommand:
         # Collect compromised SP credentials for Terraform
         compromised_sp_creds = {}
         for ap_name, creds in user_creds.items():
-            if creds.get('identity_type') == 'service_principal':
+            if creds.get('initial_access') == 'service_principal':
                 sp_name = creds.get('service_principal_name')
                 if sp_name:
                     compromised_sp_creds[ap_name] = {'app_name': sp_name}
@@ -537,7 +537,7 @@ class BuildCommand:
         user_creds = attack_path_assignments.get('user_creds', {})
         compromised_sp_creds = {}
         for ap_name, creds in user_creds.items():
-            if creds.get('identity_type') == 'service_principal':
+            if creds.get('initial_access') == 'service_principal':
                 sp_name = creds.get('service_principal_name')
                 if sp_name:
                     compromised_sp_creds[ap_name] = {'app_name': sp_name}
@@ -654,7 +654,7 @@ class BuildCommand:
                 assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'ApplicationOwnershipAbuse':
                 result = self.attack_path_mgr.create_application_ownership_abuse(
@@ -667,7 +667,7 @@ class BuildCommand:
                 assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
                 result = self.attack_path_mgr.create_application_administrator_abuse(
@@ -679,7 +679,7 @@ class BuildCommand:
                 assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
 
             elif priv_esc == 'CloudAppAdministratorAbuse':
                 result = self.attack_path_mgr.create_cloud_app_administrator_abuse(
@@ -691,7 +691,7 @@ class BuildCommand:
                 assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
 
             elif priv_esc == 'KeyVaultSecretTheft':
                 result = self.attack_path_mgr.create_keyvault_secret_theft(
@@ -704,7 +704,7 @@ class BuildCommand:
                 assignments['vm_contributor'].update(result['vm_contributor_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'StorageCertificateTheft':
                 result = self.attack_path_mgr.create_storage_certificate_theft(
@@ -717,7 +717,7 @@ class BuildCommand:
                 assignments['vm_contributor'].update(result['vm_contributor_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'CosmosDBSecretTheft':
                 result = self.attack_path_mgr.create_cosmosdb_secret_theft(
@@ -729,7 +729,7 @@ class BuildCommand:
                 assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
 
             elif priv_esc == 'ManagedIdentityTheft':
                 result = self.attack_path_mgr.create_managed_identity_theft(
@@ -743,7 +743,7 @@ class BuildCommand:
                 assignments['vm_contributor'].update(result['vm_contributor_assignments'])
                 assignments['group_assignments'].update(result.get('group_assignments', {}))
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
-                user_creds[path_name] = result['initial_access']
+                user_creds[path_name] = result['credentials']
         
         # Store user credentials for output
         assignments['user_creds'] = user_creds

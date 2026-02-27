@@ -59,10 +59,10 @@ class OutputFormatter:
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        # Display initial access based on identity_type
+                        # Display initial access based on initial_access
                         if attack_path_name in user_creds:
                             creds = user_creds[attack_path_name]
-                            identity_type = creds.get('identity_type', 'user')
+                            identity_type = creds.get('initial_access', 'user')
                             if identity_type == 'user':
                                 logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
                                 if 'password' in creds:
@@ -97,10 +97,10 @@ class OutputFormatter:
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
 
-                        # Display initial access based on identity_type
+                        # Display initial access based on initial_access
                         if attack_path_name in user_creds:
                             creds = user_creds[attack_path_name]
-                            identity_type = creds.get('identity_type', 'user')
+                            identity_type = creds.get('initial_access', 'user')
                             if identity_type == 'user':
                                 logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
                                 if 'password' in creds:
@@ -117,7 +117,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -128,7 +128,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 {role_display_name}")
                             logging.info(f"Group: {group_name}")
@@ -172,7 +172,7 @@ class OutputFormatter:
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        identity_type = assignment['identity_type']
+                        identity_type = assignment['initial_access']
                         principal_name = assignment['principal_name']
                         key_vault = assignment['key_vault']
                         assignment_type = assignment.get('assignment_type', 'direct')
@@ -194,7 +194,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -205,7 +205,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 KeyVaultSecretTheft")
                             logging.info(f"Group: {group_name}")
@@ -245,7 +245,7 @@ class OutputFormatter:
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        identity_type = assignment['identity_type']
+                        identity_type = assignment['initial_access']
                         principal_name = assignment['principal_name']
                         storage_account = assignment['storage_account']
                         assignment_type = assignment.get('assignment_type', 'direct')
@@ -267,7 +267,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -278,7 +278,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 StorageCertificateTheft")
                             logging.info(f"Group: {group_name}")
@@ -317,7 +317,7 @@ class OutputFormatter:
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
 
-                        identity_type = assignment['identity_type']
+                        identity_type = assignment['initial_access']
                         principal_name = assignment['principal_name']
                         cosmos_db = assignment['cosmos_db']
                         assignment_type = assignment.get('assignment_type', 'direct')
@@ -339,7 +339,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -350,7 +350,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 CosmosDBSecretTheft")
                             logging.info(f"Group: {group_name}")
@@ -392,7 +392,7 @@ class OutputFormatter:
                         source_name = assignment['source_name']
                         target_resource_type = assignment['target_resource_type']
                         target_name = assignment['target_name']
-                        identity_type = assignment.get('identity_type', 'user')
+                        identity_type = assignment.get('initial_access', 'user')
                         initial_access_principal = assignment.get('initial_access_principal')
                         app_name = assignment.get('app_name')
                         managed_identity_name = assignment.get('managed_identity_name')
@@ -406,7 +406,7 @@ class OutputFormatter:
                             'function_app': 'Website Contributor'
                         }.get(source_type, 'Contributor')
                         
-                        # Display initial access identity based on identity_type
+                        # Display initial access identity based on initial_access
                         if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {initial_access_principal}@{domain}")
                             if attack_path_name in user_creds and 'password' in user_creds[attack_path_name]:
@@ -424,7 +424,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', initial_access_principal)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -434,7 +434,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', initial_access_principal)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityTheft")
                             logging.info(f"Group: {group_name}")
@@ -538,9 +538,9 @@ class OutputFormatter:
                         logging.info(f"Attack Path ID: {key}")
                         logging.info(f"Privilege Escalation: {priv_esc}")
                         
-                        # Display initial access based on identity_type
+                        # Display initial access based on initial_access
                         creds = user_creds[path_name]
-                        identity_type = creds.get('identity_type', 'user')
+                        identity_type = creds.get('initial_access', 'user')
                         if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
                             if 'password' in creds:
@@ -570,9 +570,9 @@ class OutputFormatter:
                             logging.info(f"Attack Path ID: {key}")
                             logging.info(f"Privilege Escalation: {priv_esc}")
 
-                            # Display initial access based on identity_type
+                            # Display initial access based on initial_access
                             creds = user_creds[path_name]
-                            identity_type = creds.get('identity_type', 'user')
+                            identity_type = creds.get('initial_access', 'user')
                             if identity_type == 'user':
                                 logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
                                 if 'password' in creds:
@@ -589,7 +589,7 @@ class OutputFormatter:
                             if assignment_type == 'group_member':
                                 group_name = assignment.get('group_name', 'N/A')
                                 original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
-                                original_identity_type = assignment.get('original_identity_type', 'user')
+                                original_identity_type = assignment.get('original_initial_access', 'user')
                                 logging.info(f"Assignment Type: Group Member (indirect)")
                                 logging.info(f"Group: {group_name}")
                                 if original_identity_type == 'user':
@@ -600,7 +600,7 @@ class OutputFormatter:
                             elif assignment_type == 'group_owner':
                                 group_name = assignment.get('group_name', 'N/A')
                                 original_principal = assignment.get('original_principal', assignment.get('principal_name', 'N/A'))
-                                original_identity_type = assignment.get('original_identity_type', 'user')
+                                original_identity_type = assignment.get('original_initial_access', 'user')
                                 logging.info(f"Assignment Type: Group Owner (indirect)")
                                 logging.info(f"Attack Chain: Group Ownership \u2192 {role_display_name}")
                                 logging.info(f"Group: {group_name}")
@@ -636,7 +636,7 @@ class OutputFormatter:
                     if path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        identity_type = assignment['identity_type']
+                        identity_type = assignment['initial_access']
                         principal_name = assignment['principal_name']
                         key_vault = assignment['key_vault']
                         assignment_type = assignment.get('assignment_type', 'direct')
@@ -658,7 +658,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -669,7 +669,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 KeyVaultSecretTheft")
                             logging.info(f"Group: {group_name}")
@@ -690,7 +690,7 @@ class OutputFormatter:
                     if path_name in key:
                         logging.info(f"Attack Path ID: {key}")
                         
-                        identity_type = assignment['identity_type']
+                        identity_type = assignment['initial_access']
                         principal_name = assignment['principal_name']
                         storage_account = assignment['storage_account']
                         assignment_type = assignment.get('assignment_type', 'direct')
@@ -712,7 +712,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -723,7 +723,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 StorageCertificateTheft")
                             logging.info(f"Group: {group_name}")
@@ -744,7 +744,7 @@ class OutputFormatter:
                     if path_name in key:
                         logging.info(f"Attack Path ID: {key}")
 
-                        identity_type = assignment['identity_type']
+                        identity_type = assignment['initial_access']
                         principal_name = assignment['principal_name']
                         cosmos_db = assignment['cosmos_db']
                         assignment_type = assignment.get('assignment_type', 'direct')
@@ -766,7 +766,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -777,7 +777,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', principal_name)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 CosmosDBSecretTheft")
                             logging.info(f"Group: {group_name}")
@@ -803,7 +803,7 @@ class OutputFormatter:
                         source_name = assignment['source_name']
                         target_resource_type = assignment['target_resource_type']
                         target_name = assignment['target_name']
-                        identity_type = assignment.get('identity_type', 'user')
+                        identity_type = assignment.get('initial_access', 'user')
                         initial_access_principal = assignment.get('initial_access_principal')
                         app_name = assignment.get('app_name')
                         managed_identity_name = assignment.get('managed_identity_name')
@@ -817,7 +817,7 @@ class OutputFormatter:
                             'function_app': 'Website Contributor'
                         }.get(source_type, 'Contributor')
                         
-                        # Display initial access identity based on identity_type
+                        # Display initial access identity based on initial_access
                         if identity_type == 'user':
                             logging.info(f"Initial Access Identity: User - {initial_access_principal}@{domain}")
                             if initial_access_principal in users:
@@ -835,7 +835,7 @@ class OutputFormatter:
                         if assignment_type == 'group_member':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', initial_access_principal)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Member (indirect)")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
@@ -845,7 +845,7 @@ class OutputFormatter:
                         elif assignment_type == 'group_owner':
                             group_name = assignment.get('group_name', 'N/A')
                             original_principal = assignment.get('original_principal', initial_access_principal)
-                            original_identity_type = assignment.get('original_identity_type', 'user')
+                            original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
                             logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityTheft")
                             logging.info(f"Group: {group_name}")

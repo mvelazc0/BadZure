@@ -112,7 +112,7 @@ resource "azuread_group_member" "attack_path_group_memberships" {
 
   group_object_id = azuread_group.groups[each.value.group_name].id
   member_object_id = (
-    each.value.identity_type == "user" ?
+    each.value.initial_access == "user" ?
       azuread_user.users[each.value.principal_name].id :
       azuread_service_principal.spns[each.value.principal_name].id
   )
@@ -159,9 +159,9 @@ resource "azuread_directory_role_assignment" "attack_path_user_role_assignments"
   # Support user, service_principal, and group identity types
   # Groups are used for indirect assignment (assignment_type: group_member or group_owner)
   principal_object_id = (
-    lookup(each.value, "identity_type", "user") == "user" ?
+    lookup(each.value, "initial_access", "user") == "user" ?
       azuread_user.users[each.value.principal_name].id :
-    lookup(each.value, "identity_type", "user") == "group" ?
+    lookup(each.value, "initial_access", "user") == "group" ?
       azuread_group.groups[each.value.principal_name].id :
       azuread_service_principal.spns[each.value.principal_name].id
   )
@@ -222,7 +222,7 @@ resource "azuread_application_owner" "attack_path_application_owner_assignments"
   # Note: Azure AD does not support groups as application owners
   # Only users and service principals can own applications
   owner_object_id = (
-    lookup(each.value, "identity_type", "user") == "user" ?
+    lookup(each.value, "initial_access", "user") == "user" ?
     azuread_user.users[each.value.principal_name].object_id :
     azuread_service_principal.spns[each.value.principal_name].object_id
   )
@@ -583,7 +583,7 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
       azuread_group.groups[each.value.group_name].id :
-    each.value.identity_type == "user" ?
+    each.value.initial_access == "user" ?
     azuread_user.users[each.value.principal_name].id :
     azuread_service_principal.spns[each.value.principal_name].id
   )
@@ -607,7 +607,7 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
       azuread_group.groups[each.value.group_name].id :
-    each.value.identity_type == "user" ?
+    each.value.initial_access == "user" ?
     azuread_user.users[each.value.principal_name].id :
     azuread_service_principal.spns[each.value.principal_name].id
   )
@@ -646,7 +646,7 @@ resource "azurerm_role_assignment" "attack_path_subscription_reader_access" {
   role_definition_name = "Reader"
 
   principal_id = (
-    each.value.identity_type == "user" ?
+    each.value.initial_access == "user" ?
     azuread_user.users[each.value.principal_name].id :
     azuread_service_principal.spns[each.value.principal_name].id
   )
@@ -872,7 +872,7 @@ resource "azurerm_cosmosdb_sql_role_assignment" "attack_path_cosmos_data_contrib
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
       azuread_group.groups[each.value.group_name].id :
-    each.value.identity_type == "user" ?
+    each.value.initial_access == "user" ?
     azuread_user.users[each.value.principal_name].id :
     azuread_service_principal.spns[each.value.principal_name].id
   )
@@ -1471,7 +1471,7 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
       azuread_group.groups[each.value.group_name].id :
-    each.value.identity_type == "user" ?
+    each.value.initial_access == "user" ?
     azuread_user.users[each.value.initial_access_principal].id :
     azuread_service_principal.spns[each.value.initial_access_principal].id
   )

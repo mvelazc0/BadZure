@@ -76,7 +76,7 @@ These options are available for **all** attack path types:
 | `enabled` | `true`, `false` | — | Whether this attack path is active |
 | `privilege_escalation` | See below | — | The escalation technique |
 | `method` | `AzureADRole`, `APIPermission` | — | How the target app gets its privileges |
-| `identity_type` | `user`, `service_principal` | `user` | Type of compromised identity |
+| `initial_access` | `user`, `service_principal` | `user` | Type of initial access identity |
 | `assignment_type` | `direct`, `group_member`, `group_owner` | `direct` | Direct assignment, via group membership, or via group ownership |
 
 ### Option Details
@@ -93,7 +93,7 @@ These options are available for **all** attack path types:
 
 For detailed descriptions of each technique, see the [Attack Paths](attack-paths/index.md) section.
 
-**`identity_type`** — The type of identity used for initial access:
+**`initial_access`** — The type of identity used for initial access:
 
 - **`user`** — A regular user account (default). Simulates compromised employee, developer, or administrator accounts
 - **`service_principal`** — An application's service principal. Simulates compromised CI/CD pipelines, automation accounts, or third-party integrations
@@ -185,7 +185,7 @@ How the target application receives its high privileges.
 
 **Optional fields:**
 
-- `identity_type`: `user` (default) or `service_principal`
+- `initial_access`: `user` (default) or `service_principal`
 
 ### ApplicationAdministratorAbuse
 
@@ -197,7 +197,7 @@ How the target application receives its high privileges.
 
 **Optional fields:**
 
-- `identity_type`: `user` (default) or `service_principal`
+- `initial_access`: `user` (default) or `service_principal`
 - `scope`: `directory` (default) or `application`
 
 **`scope`** — Controls whether the Application Administrator role is assigned tenant-wide or scoped to a specific application:
@@ -215,7 +215,7 @@ How the target application receives its high privileges.
 
 **Optional fields:**
 
-- `identity_type`: `user` (default) or `service_principal`
+- `initial_access`: `user` (default) or `service_principal`
 - `scope`: `directory` (default) or `application`
 
 This technique is identical to `ApplicationAdministratorAbuse` in configuration, but uses the **Cloud Application Administrator** role (`158c047a-c907-4556-b7ef-446551a6b5f7`) instead. The Cloud Application Administrator role has a narrower scope — it cannot manage applications with certain sensitive permissions. See [CloudAppAdministratorAbuse](attack-paths/cloud-app-administrator-abuse.md) for details.
@@ -232,7 +232,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 
 **Optional fields:**
 
-- `identity_type`: `user` (default) or `service_principal`
+- `initial_access`: `user` (default) or `service_principal`
 - `credential_type`: `secret` (default) or `certificate`
 
 **`source_type`** — The Azure resource with the managed identity:
@@ -267,7 +267,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 
 **Optional fields:**
 
-- `identity_type`: `user` (default) or `service_principal`
+- `initial_access`: `user` (default) or `service_principal`
 
 !!! note
     For scenarios involving managed identity token theft to access Key Vault, use `ManagedIdentityTheft` with `target_resource_type: key_vault` instead.
@@ -282,7 +282,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 
 **Optional fields:**
 
-- `identity_type`: `user` (default) or `service_principal`
+- `initial_access`: `user` (default) or `service_principal`
 
 !!! note
     For scenarios involving managed identity token theft to access Storage Account, use `ManagedIdentityTheft` with `target_resource_type: storage_account` instead.
@@ -297,7 +297,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 
 **Optional fields:**
 
-- `identity_type`: `user` (default) or `service_principal`
+- `initial_access`: `user` (default) or `service_principal`
 
 !!! note
     For scenarios involving managed identity token theft to access Cosmos DB, use `ManagedIdentityTheft` with `target_resource_type: cosmos_db` instead.
@@ -330,7 +330,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       enabled: true
 
       privilege_escalation: ApplicationAdministratorAbuse
-      identity_type: user
+      initial_access: user
       assignment_type: group_member
       method: APIPermission
       api_type: graph
@@ -346,7 +346,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       enabled: true
 
       privilege_escalation: CloudAppAdministratorAbuse
-      identity_type: user
+      initial_access: user
       assignment_type: group_member
       method: APIPermission
       api_type: graph
@@ -365,7 +365,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       source_type: vm
       target_resource_type: key_vault
 
-      identity_type: user
+      initial_access: user
       assignment_type: group_member
       method: APIPermission
       api_type: graph
@@ -381,7 +381,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       enabled: true
 
       privilege_escalation: KeyVaultSecretTheft
-      identity_type: user
+      initial_access: user
       assignment_type: group_member
       method: APIPermission
       api_type: graph
@@ -397,7 +397,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       enabled: true
 
       privilege_escalation: StorageCertificateTheft
-      identity_type: user
+      initial_access: user
       assignment_type: group_member
       method: APIPermission
       api_type: graph
@@ -413,7 +413,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       enabled: true
 
       privilege_escalation: CosmosDBSecretTheft
-      identity_type: user
+      initial_access: user
       assignment_type: group_member
       method: APIPermission
       api_type: graph
@@ -457,7 +457,7 @@ attack_paths:
   admin_abuse:
     enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
-    identity_type: service_principal
+    initial_access: service_principal
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40

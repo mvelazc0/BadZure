@@ -141,7 +141,7 @@ attack_paths:
   app_admin_sp:
     enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
-    identity_type: service_principal
+    initial_access: service_principal
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```

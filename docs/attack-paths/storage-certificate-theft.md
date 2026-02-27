@@ -131,7 +131,7 @@ attack_paths:
   storage_theft_sp:
     enabled: true
     privilege_escalation: StorageCertificateTheft
-    identity_type: service_principal
+    initial_access: service_principal
     method: APIPermission
     api_type: graph
     app_role:

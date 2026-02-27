@@ -119,7 +119,7 @@ attack_paths:
   cosmos_theft_sp:
     enabled: true
     privilege_escalation: CosmosDBSecretTheft
-    identity_type: service_principal
+    initial_access: service_principal
     method: APIPermission
     api_type: graph
     app_role:

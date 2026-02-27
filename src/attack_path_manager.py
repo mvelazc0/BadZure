@@ -43,11 +43,11 @@ class AttackPathManager:
         recon_api_permissions = {}
         subscription_reader_assignments = {}
 
-        for path_name, initial_access in user_creds.items():
-            identity_type = initial_access.get('identity_type')
+        for path_name, credentials in user_creds.items():
+            identity_type = credentials.get('initial_access')
 
             if identity_type == 'service_principal':
-                sp_name = initial_access.get('service_principal_name')
+                sp_name = credentials.get('service_principal_name')
                 if sp_name:
                     # Directory.Read.All for Entra ID enumeration
                     api_key = f"recon_{sp_name}"
@@ -61,20 +61,20 @@ class AttackPathManager:
                     reader_key = f"recon_{sp_name}"
                     if reader_key not in subscription_reader_assignments:
                         subscription_reader_assignments[reader_key] = {
-                            'identity_type': 'service_principal',
+                            'initial_access': 'service_principal',
                             'principal_name': sp_name
                         }
 
             elif identity_type == 'user':
                 # Extract bare username from UPN (remove @domain)
-                upn = initial_access.get('user_principal_name', '')
+                upn = credentials.get('user_principal_name', '')
                 principal_name = upn.split('@')[0] if '@' in upn else upn
                 if principal_name:
                     # Subscription Reader only (users already have directory read)
                     reader_key = f"recon_{principal_name}"
                     if reader_key not in subscription_reader_assignments:
                         subscription_reader_assignments[reader_key] = {
-                            'identity_type': 'user',
+                            'initial_access': 'user',
                             'principal_name': principal_name
                         }
 
@@ -106,7 +106,7 @@ class AttackPathManager:
         
         Returns:
             Dictionary with keys:
-                - initial_access: Initial access credentials
+                - credentials: Initial access credentials
                 - app_owner_assignments: Application owner assignments
                 - user_role_assignments: User role assignments
                 - app_role_assignments: Application role assignments
@@ -121,8 +121,8 @@ class AttackPathManager:
         group_assignments = {}
         group_membership_assignments = {}
         
-        # Get identity_type, entry_point, and assignment_type from config
-        identity_type = attack_config.get('identity_type', 'user')
+        # Get initial_access, entry_point, and assignment_type from config
+        identity_type = attack_config.get('initial_access', 'user')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         scenario = attack_config.get('scenario', 'direct')
         assignment_type = attack_config.get('assignment_type', 'direct')
@@ -136,7 +136,7 @@ class AttackPathManager:
         
         # Validate: helpdesk scenario only works with user identity_type
         if scenario == 'helpdesk' and identity_type == 'service_principal':
-            logging.warning(f"{path_name}: Helpdesk scenario is not supported with service_principal identity_type. Falling back to user.")
+            logging.warning(f"{path_name}: Helpdesk scenario is not supported with service_principal initial_access. Falling back to user.")
             identity_type = 'user'
         
         # Generate attack path key
@@ -166,8 +166,8 @@ class AttackPathManager:
             password = users[principal_name]['password']
             
             if scenario == "direct":
-                initial_access = {
-                    "identity_type": "user",
+                credentials = {
+                    "initial_access": "user",
                     "user_principal_name": user_principal_name,
                     "password": password,
                     "entry_point": entry_point
@@ -177,15 +177,15 @@ class AttackPathManager:
                 second_user_principal_name = f"{second_user_name}@{domain}"
                 second_user_password = users[second_user_name]['password']
                 
-                initial_access = {
-                    "identity_type": "user",
+                credentials = {
+                    "initial_access": "user",
                     "user_principal_name": second_user_principal_name,
                     "password": second_user_password,
                     "entry_point": entry_point
                 }
                 
                 user_role_assignments[key] = {
-                    'identity_type': 'user',
+                    'initial_access': 'user',
                     'principal_name': second_user_name,
                     'role_definition_id': helpdesk_admin_role_id,
                     'entry_point': entry_point
@@ -203,34 +203,34 @@ class AttackPathManager:
                 # Add user to group
                 group_membership_assignments[key] = {
                     'group_name': group_name,
-                    'identity_type': 'user',
+                    'initial_access': 'user',
                     'principal_name': principal_name
                 }
 
                 # App owner assignment - group owns the application
                 app_owner_assignments[key] = {
                     'app_name': app_name,
-                    'identity_type': 'group',
+                    'initial_access': 'group',
                     'principal_name': group_name,
                     'entry_point': entry_point,
                     'assignment_type': 'group_member',
                     'group_name': group_name,
                     'original_principal': principal_name,
-                    'original_identity_type': 'user'
+                    'original_initial_access': 'user'
                 }
             else:
                 # Direct assignment
                 app_owner_assignments[key] = {
                     'app_name': app_name,
-                    'identity_type': 'user',
+                    'initial_access': 'user',
                     'principal_name': principal_name,
                     'entry_point': entry_point,
                     'assignment_type': 'direct'
                 }
         else:  # service_principal
             # For service principal, we need to generate credentials
-            initial_access = {
-                "identity_type": "service_principal",
+            credentials = {
+                "initial_access": "service_principal",
                 "service_principal_name": principal_name,
                 "entry_point": entry_point
             }
@@ -247,26 +247,26 @@ class AttackPathManager:
                 # Add service principal to group
                 group_membership_assignments[key] = {
                     'group_name': group_name,
-                    'identity_type': 'service_principal',
+                    'initial_access': 'service_principal',
                     'principal_name': principal_name
                 }
 
                 # App owner assignment - group owns the application
                 app_owner_assignments[key] = {
                     'app_name': app_name,
-                    'identity_type': 'group',
+                    'initial_access': 'group',
                     'principal_name': group_name,
                     'entry_point': entry_point,
                     'assignment_type': 'group_member',
                     'group_name': group_name,
                     'original_principal': principal_name,
-                    'original_identity_type': 'service_principal'
+                    'original_initial_access': 'service_principal'
                 }
             else:
                 # Direct assignment
                 app_owner_assignments[key] = {
                     'app_name': app_name,
-                    'identity_type': 'service_principal',
+                    'initial_access': 'service_principal',
                     'principal_name': principal_name,
                     'entry_point': entry_point,
                     'assignment_type': 'direct'
@@ -279,7 +279,7 @@ class AttackPathManager:
         )
         
         return {
-            'initial_access': initial_access,
+            'credentials': credentials,
             'app_owner_assignments': app_owner_assignments,
             'user_role_assignments': user_role_assignments,
             'app_role_assignments': app_role_assignments,
@@ -370,7 +370,7 @@ class AttackPathManager:
 
         Returns:
             Dictionary with keys:
-                - initial_access: Initial access credentials
+                - credentials: Initial access credentials
                 - user_role_assignments: User role assignments
                 - app_role_assignments: Application role assignments
                 - app_api_permission_assignments: API permission assignments
@@ -383,8 +383,8 @@ class AttackPathManager:
         group_assignments = {}
         group_membership_assignments = {}
 
-        # Get identity_type, entry_point, assignment_type, and scope from config
-        identity_type = attack_config.get('identity_type', 'user')
+        # Get initial_access, entry_point, assignment_type, and scope from config
+        identity_type = attack_config.get('initial_access', 'user')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         assignment_type = attack_config.get('assignment_type', 'direct')
         scope = attack_config.get('scope', 'directory')
@@ -417,8 +417,8 @@ class AttackPathManager:
             user_principal_name = f"{principal_name}@{domain}"
             password = users[principal_name]['password']
 
-            initial_access = {
-                "identity_type": "user",
+            credentials = {
+                "initial_access": "user",
                 "user_principal_name": user_principal_name,
                 "password": password,
                 "entry_point": entry_point
@@ -442,26 +442,26 @@ class AttackPathManager:
                 if assignment_type == 'group_member':
                     group_membership_assignments[key] = {
                         'group_name': group_name,
-                        'identity_type': 'user',
+                        'initial_access': 'user',
                         'principal_name': principal_name
                     }
 
                 # Assign admin role to group
                 user_role_assignments[key] = {
-                    'identity_type': 'group',
+                    'initial_access': 'group',
                     'principal_name': group_name,
                     'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
                     'assignment_type': assignment_type,
                     'group_name': group_name,
                     'original_principal': principal_name,
-                    'original_identity_type': 'user',
+                    'original_initial_access': 'user',
                     'scope_app_name': scope_app_name
                 }
             else:
                 # Direct assignment
                 user_role_assignments[key] = {
-                    'identity_type': 'user',
+                    'initial_access': 'user',
                     'principal_name': principal_name,
                     'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
@@ -470,8 +470,8 @@ class AttackPathManager:
                 }
         else:  # service_principal
             # For service principal, we need to generate credentials
-            initial_access = {
-                "identity_type": "service_principal",
+            credentials = {
+                "initial_access": "service_principal",
                 "service_principal_name": principal_name,
                 "entry_point": entry_point
             }
@@ -494,26 +494,26 @@ class AttackPathManager:
                 if assignment_type == 'group_member':
                     group_membership_assignments[key] = {
                         'group_name': group_name,
-                        'identity_type': 'service_principal',
+                        'initial_access': 'service_principal',
                         'principal_name': principal_name
                     }
 
                 # Assign admin role to group
                 user_role_assignments[key] = {
-                    'identity_type': 'group',
+                    'initial_access': 'group',
                     'principal_name': group_name,
                     'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
                     'assignment_type': assignment_type,
                     'group_name': group_name,
                     'original_principal': principal_name,
-                    'original_identity_type': 'service_principal',
+                    'original_initial_access': 'service_principal',
                     'scope_app_name': scope_app_name
                 }
             else:
                 # Direct assignment
                 user_role_assignments[key] = {
-                    'identity_type': 'service_principal',
+                    'initial_access': 'service_principal',
                     'principal_name': principal_name,
                     'role_definition_id': admin_role_id,
                     'entry_point': entry_point,
@@ -528,7 +528,7 @@ class AttackPathManager:
         )
 
         return {
-            'initial_access': initial_access,
+            'credentials': credentials,
             'user_role_assignments': user_role_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
@@ -598,11 +598,11 @@ class AttackPathManager:
         else:
             key = f"attack-path-{attack_path_id}"
         
-        # Get source_type, target_resource_type, entry_point, identity_type, credential_type, and assignment_type from config
+        # Get source_type, target_resource_type, entry_point, initial_access, credential_type, and assignment_type from config
         source_type = attack_config.get('source_type', 'vm')
         target_resource_type = attack_config.get('target_resource_type')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
-        identity_type = attack_config.get('identity_type', 'user')
+        identity_type = attack_config.get('initial_access', 'user')
         credential_type = attack_config.get('credential_type', 'secret')
         assignment_type = attack_config.get('assignment_type', 'direct')
         
@@ -624,15 +624,15 @@ class AttackPathManager:
         
         # Create initial access credentials based on identity_type
         if identity_type == 'user':
-            initial_access = {
-                "identity_type": "user",
+            credentials = {
+                "initial_access": "user",
                 "user_principal_name": f"{principal_name}@{domain}",
                 "password": users[principal_name]['password'],
                 "entry_point": entry_point
             }
         else:  # service_principal
-            initial_access = {
-                "identity_type": "service_principal",
+            credentials = {
+                "initial_access": "service_principal",
                 "service_principal_name": principal_name,
                 "entry_point": entry_point
             }
@@ -647,7 +647,7 @@ class AttackPathManager:
             'target_name': target_name,
             'app_name': app_name,
             'entry_point': entry_point,
-            'identity_type': identity_type,
+            'initial_access': identity_type,
             'initial_access_principal': principal_name,
             'managed_identity_name': source_name  # For VMs, MI name = VM name
         }
@@ -670,7 +670,7 @@ class AttackPathManager:
             if assignment_type == 'group_member':
                 group_membership_assignments[key] = {
                     'group_name': group_name,
-                    'identity_type': identity_type,
+                    'initial_access': identity_type,
                     'principal_name': principal_name
                 }
 
@@ -678,7 +678,7 @@ class AttackPathManager:
             mi_theft_assignment['assignment_type'] = assignment_type
             mi_theft_assignment['group_name'] = group_name
             mi_theft_assignment['original_principal'] = principal_name
-            mi_theft_assignment['original_identity_type'] = identity_type
+            mi_theft_assignment['original_initial_access'] = identity_type
         else:
             mi_theft_assignment['assignment_type'] = 'direct'
         
@@ -706,7 +706,7 @@ class AttackPathManager:
         )
         
         return {
-            'initial_access': initial_access,
+            'credentials': credentials,
             'mi_theft_assignments': mi_theft_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
@@ -756,10 +756,10 @@ class AttackPathManager:
                 - group_membership_assignments: Group membership assignments
         """
         # Validate identity_type
-        identity_type = attack_config.get('identity_type', 'user')
+        identity_type = attack_config.get('initial_access', 'user')
         if identity_type == 'managed_identity':
             raise ValueError(
-                "KeyVaultSecretTheft does not support identity_type 'managed_identity'. "
+                "KeyVaultSecretTheft does not support initial_access 'managed_identity'. "
                 "Use 'ManagedIdentityTheft' with target_resource_type 'key_vault' instead."
             )
         
@@ -799,15 +799,15 @@ class AttackPathManager:
         # Build initial access credentials
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         if identity_type == 'user':
-            initial_access = {
-                "identity_type": "user",
+            credentials = {
+                "initial_access": "user",
                 "user_principal_name": f"{principal_name}@{domain}",
                 "password": users[principal_name]['password'],
                 "entry_point": entry_point
             }
         else:  # service_principal
-            initial_access = {
-                "identity_type": "service_principal",
+            credentials = {
+                "initial_access": "service_principal",
                 "service_principal_name": principal_name,
                 "entry_point": entry_point
             }
@@ -815,7 +815,7 @@ class AttackPathManager:
         # Create KV abuse assignment
         kv_abuse_assignment = {
             "key_vault": kv_name,
-            "identity_type": identity_type,
+            "initial_access": identity_type,
             "principal_name": principal_name,
             "app_name": app_name
         }
@@ -838,7 +838,7 @@ class AttackPathManager:
             if assignment_type == 'group_member':
                 group_membership_assignments[key] = {
                     'group_name': group_name,
-                    'identity_type': identity_type,
+                    'initial_access': identity_type,
                     'principal_name': principal_name
                 }
 
@@ -846,7 +846,7 @@ class AttackPathManager:
             kv_abuse_assignment['assignment_type'] = assignment_type
             kv_abuse_assignment['group_name'] = group_name
             kv_abuse_assignment['original_principal'] = principal_name
-            kv_abuse_assignment['original_identity_type'] = identity_type
+            kv_abuse_assignment['original_initial_access'] = identity_type
         else:
             kv_abuse_assignment['assignment_type'] = 'direct'
         
@@ -859,7 +859,7 @@ class AttackPathManager:
         )
         
         return {
-            'initial_access': initial_access,
+            'credentials': credentials,
             'kv_abuse_assignments': attack_path_kv_abuse_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
@@ -909,10 +909,10 @@ class AttackPathManager:
                 - group_membership_assignments: Group membership assignments
         """
         # Validate identity_type
-        identity_type = attack_config.get('identity_type', 'user')
+        identity_type = attack_config.get('initial_access', 'user')
         if identity_type == 'managed_identity':
             raise ValueError(
-                "StorageCertificateTheft does not support identity_type 'managed_identity'. "
+                "StorageCertificateTheft does not support initial_access 'managed_identity'. "
                 "Use 'ManagedIdentityTheft' with target_resource_type 'storage_account' instead."
             )
         
@@ -952,15 +952,15 @@ class AttackPathManager:
         # Build initial access credentials
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         if identity_type == 'user':
-            initial_access = {
-                "identity_type": "user",
+            credentials = {
+                "initial_access": "user",
                 "user_principal_name": f"{principal_name}@{domain}",
                 "password": users[principal_name]['password'],
                 "entry_point": entry_point
             }
         else:  # service_principal
-            initial_access = {
-                "identity_type": "service_principal",
+            credentials = {
+                "initial_access": "service_principal",
                 "service_principal_name": principal_name,
                 "entry_point": entry_point
             }
@@ -972,7 +972,7 @@ class AttackPathManager:
         storage_abuse_assignment = {
             "app_name": app_name,
             "storage_account": sa_name,
-            "identity_type": identity_type,
+            "initial_access": identity_type,
             "principal_name": principal_name,
             'certificate_path': cert_path,
             'private_key_path': key_path,
@@ -997,7 +997,7 @@ class AttackPathManager:
             if assignment_type == 'group_member':
                 group_membership_assignments[key] = {
                     'group_name': group_name,
-                    'identity_type': identity_type,
+                    'initial_access': identity_type,
                     'principal_name': principal_name
                 }
 
@@ -1005,7 +1005,7 @@ class AttackPathManager:
             storage_abuse_assignment['assignment_type'] = assignment_type
             storage_abuse_assignment['group_name'] = group_name
             storage_abuse_assignment['original_principal'] = principal_name
-            storage_abuse_assignment['original_identity_type'] = identity_type
+            storage_abuse_assignment['original_initial_access'] = identity_type
         else:
             storage_abuse_assignment['assignment_type'] = 'direct'
         
@@ -1018,7 +1018,7 @@ class AttackPathManager:
         )
         
         return {
-            'initial_access': initial_access,
+            'credentials': credentials,
             'storage_abuse_assignments': attack_path_storage_abuse_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
@@ -1067,10 +1067,10 @@ class AttackPathManager:
                 - group_membership_assignments: Group membership assignments
         """
         # Validate identity_type
-        identity_type = attack_config.get('identity_type', 'user')
+        identity_type = attack_config.get('initial_access', 'user')
         if identity_type == 'managed_identity':
             raise ValueError(
-                "CosmosDBSecretTheft does not support identity_type 'managed_identity'. "
+                "CosmosDBSecretTheft does not support initial_access 'managed_identity'. "
                 "Use 'ManagedIdentityTheft' with target_resource_type 'cosmos_db' instead."
             )
 
@@ -1107,15 +1107,15 @@ class AttackPathManager:
         # Build initial access credentials
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         if identity_type == 'user':
-            initial_access = {
-                "identity_type": "user",
+            credentials = {
+                "initial_access": "user",
                 "user_principal_name": f"{principal_name}@{domain}",
                 "password": users[principal_name]['password'],
                 "entry_point": entry_point
             }
         else:  # service_principal
-            initial_access = {
-                "identity_type": "service_principal",
+            credentials = {
+                "initial_access": "service_principal",
                 "service_principal_name": principal_name,
                 "entry_point": entry_point
             }
@@ -1123,7 +1123,7 @@ class AttackPathManager:
         # Create Cosmos DB abuse assignment
         cosmos_abuse_assignment = {
             "cosmos_db": cosmos_db_name,
-            "identity_type": identity_type,
+            "initial_access": identity_type,
             "principal_name": principal_name,
             "app_name": app_name
         }
@@ -1143,14 +1143,14 @@ class AttackPathManager:
             if assignment_type == 'group_member':
                 group_membership_assignments[key] = {
                     'group_name': group_name,
-                    'identity_type': identity_type,
+                    'initial_access': identity_type,
                     'principal_name': principal_name
                 }
 
             cosmos_abuse_assignment['assignment_type'] = assignment_type
             cosmos_abuse_assignment['group_name'] = group_name
             cosmos_abuse_assignment['original_principal'] = principal_name
-            cosmos_abuse_assignment['original_identity_type'] = identity_type
+            cosmos_abuse_assignment['original_initial_access'] = identity_type
         else:
             cosmos_abuse_assignment['assignment_type'] = 'direct'
 
@@ -1163,7 +1163,7 @@ class AttackPathManager:
         )
 
         return {
-            'initial_access': initial_access,
+            'credentials': credentials,
             'cosmos_abuse_assignments': attack_path_cosmos_abuse_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,

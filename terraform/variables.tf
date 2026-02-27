@@ -95,7 +95,7 @@ variable "app_api_permission_assignments" {
 variable "attack_path_user_role_assignments" {
   description = "A map of principal role assignments in an attack path (supports both users and service principals)"
   type = map(object({
-    identity_type      = optional(string, "user")  # "user" or "service_principal"
+    initial_access      = optional(string, "user")  # "user" or "service_principal"
     principal_name     = string  # user name or service principal name
     role_definition_id = string
     entry_point        = optional(string, "compromised_identity")
@@ -127,7 +127,7 @@ variable "attack_path_application_owner_assignments" {
   default = {}
   type = map(object({
     app_name       = string
-    identity_type  = optional(string, "user")  # "user" or "service_principal"
+    initial_access  = optional(string, "user")  # "user" or "service_principal"
     principal_name = string  # user name or service principal name
     entry_point    = optional(string, "compromised_identity")
   }))
@@ -226,13 +226,13 @@ variable "cosmos_dbs" {
 variable "attack_path_kv_abuse_assignments" {
   type = map(object({
     key_vault              = string
-    identity_type          = string  # Options: "user", "service_principal"
+    initial_access          = string  # Options: "user", "service_principal"
     principal_name         = string  # Name of the principal
     app_name               = string  # The application to which a secret will be added
     assignment_type        = optional(string, "direct")  # "direct", "group_member", or "group_owner"
     group_name             = optional(string, "")  # Group name for indirect assignment
     original_principal     = optional(string, "")  # Original principal for group assignment
-    original_identity_type = optional(string, "")  # Original identity type for group assignment
+    original_initial_access = optional(string, "")  # Original identity type for group assignment
   }))
 }
 
@@ -242,12 +242,12 @@ variable "attack_path_storage_abuse_assignments" {
     certificate_path       = string
     private_key_path       = string
     storage_account        = string
-    identity_type          = string  # Options: "user", "service_principal"
+    initial_access          = string  # Options: "user", "service_principal"
     principal_name         = string  # Name of the principal
     assignment_type        = optional(string, "direct")  # "direct", "group_member", or "group_owner"
     group_name             = optional(string, "")  # Group name for indirect assignment
     original_principal     = optional(string, "")  # Original principal for group assignment
-    original_identity_type = optional(string, "")  # Original identity type for group assignment
+    original_initial_access = optional(string, "")  # Original identity type for group assignment
     pfx_path               = optional(string, "")  # PFX file path for convenient authentication
   }))
 }
@@ -257,13 +257,13 @@ variable "attack_path_cosmos_abuse_assignments" {
   default = {}
   type = map(object({
     cosmos_db               = string  # Key into cosmos_dbs map
-    identity_type           = string  # Options: "user", "service_principal"
+    initial_access           = string  # Options: "user", "service_principal"
     principal_name          = string  # Name of the principal
     app_name                = string  # The application to which a secret will be added
     assignment_type         = optional(string, "direct")  # "direct", "group_member", or "group_owner"
     group_name              = optional(string, "")  # Group name for indirect assignment
     original_principal      = optional(string, "")  # Original principal for group assignment
-    original_identity_type  = optional(string, "")  # Original identity type for group assignment
+    original_initial_access  = optional(string, "")  # Original identity type for group assignment
   }))
 }
 
@@ -277,7 +277,7 @@ variable "attack_path_managed_identity_theft_assignments" {
     target_name              = string  # Name of the target resource
     app_name                 = string  # The application to which credentials will be added
     entry_point              = string  # "compromised_identity" (future: "vulnerability")
-    identity_type            = string  # "user" or "service_principal"
+    initial_access            = string  # "user" or "service_principal"
     initial_access_principal = string  # Name of user or service principal with access to source
     managed_identity_name    = string  # Name of the managed identity
     certificate_path         = optional(string, "")  # Required for storage_account targets or key_vault with certificate
@@ -288,7 +288,7 @@ variable "attack_path_managed_identity_theft_assignments" {
     assignment_type          = optional(string, "direct")  # "direct", "group_member", or "group_owner" for indirect assignment
     group_name               = optional(string, "")  # Group name for indirect assignment
     original_principal       = optional(string, "")  # Original principal for group assignment
-    original_identity_type   = optional(string, "")  # Original identity type for group assignment
+    original_initial_access   = optional(string, "")  # Original identity type for group assignment
   }))
 }
 
@@ -306,7 +306,7 @@ variable "attack_path_group_memberships" {
   default = {}
   type = map(object({
     group_name     = string  # Name of the attack path group
-    identity_type  = string  # "user" or "service_principal"
+    initial_access  = string  # "user" or "service_principal"
     principal_name = string  # Name of the user or service principal to add to the group
   }))
 }
@@ -323,7 +323,7 @@ variable "attack_path_subscription_reader_assignments" {
   description = "Subscription-level Reader role assignments for attack path recon"
   default     = {}
   type = map(object({
-    identity_type  = string
+    initial_access  = string
     principal_name = string
   }))
 }
