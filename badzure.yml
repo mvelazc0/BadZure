@@ -88,17 +88,7 @@ attack_paths:
       - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
       - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 
-  # Example 3: Helpdesk scenario - reset app owner's password first
-  # Attack: Helpdesk admin resets app owner password, then exploits ownership
-  # Note: Helpdesk scenario only works with identity_type: user
-  app_ownership_helpdesk:
-    enabled: false
-    privilege_escalation: ApplicationOwnershipAbuse
-    scenario: helpdesk
-    method: AzureADRole
-    entra_role: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3  # Application Administrator
-
-  # Example 4: Group-based ownership - user inherits ownership via group
+  # Example 3: Group-based ownership - user inherits ownership via group
   # Attack: User is member of group that owns the application
   app_ownership_group:
     enabled: false

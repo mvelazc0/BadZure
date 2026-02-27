@@ -110,9 +110,6 @@ All attack paths support both identity types:
 | StorageCertificateTheft | User with Storage access | SP with Storage access |
 | CosmosDBSecretTheft | User with Cosmos DB access | SP with Cosmos DB access |
 
-!!! note
-    The `helpdesk` scenario for ApplicationOwnershipAbuse is only available when `identity_type: user`.
-
 **`assignment_type`** — How permissions are granted to the initial access identity:
 
 - **`direct`** — Permissions assigned directly to the identity (default). The user or service principal has explicit permissions.
@@ -189,9 +186,6 @@ How the target application receives its high privileges.
 **Optional fields:**
 
 - `identity_type`: `user` (default) or `service_principal`
-- `scenario`: `direct` (default) or `helpdesk`
-    - **`direct`** — The attacker directly compromises the application owner
-    - **`helpdesk`** — The attacker compromises a Helpdesk Administrator and resets the application owner's password first. Only available with `identity_type: user`.
 
 ### ApplicationAdministratorAbuse
 
@@ -211,9 +205,6 @@ How the target application receives its high privileges.
 - **`directory`** — The role applies to **all** applications in the tenant (default, existing behavior)
 - **`application`** — The role is scoped to only the **target application**. This uses Azure Entra ID's `directory_scope_id` to restrict the role assignment. More realistic for least-privilege environments where admins are scoped to specific apps.
 
-!!! note
-    This technique does not support the `scenario` parameter.
-
 ### CloudAppAdministratorAbuse
 
 **Required fields:**
@@ -228,9 +219,6 @@ How the target application receives its high privileges.
 - `scope`: `directory` (default) or `application`
 
 This technique is identical to `ApplicationAdministratorAbuse` in configuration, but uses the **Cloud Application Administrator** role (`158c047a-c907-4556-b7ef-446551a6b5f7`) instead. The Cloud Application Administrator role has a narrower scope — it cannot manage applications with certain sensitive permissions. See [CloudAppAdministratorAbuse](attack-paths/cloud-app-administrator-abuse.md) for details.
-
-!!! note
-    This technique does not support the `scenario` parameter.
 
 ### ManagedIdentityTheft
 

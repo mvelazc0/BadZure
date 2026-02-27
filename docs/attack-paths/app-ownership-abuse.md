@@ -56,31 +56,6 @@ graph LR
         APP -->|"authenticate"| SP2(("Target Service<br/>Principal"))
     ```
 
-### By Scenario
-
-=== "Direct (default)"
-
-    The attacker directly compromises the application owner.
-
-    ``` mermaid
-    graph LR
-        U(("Compromised<br/>Identity")) -->|"owns"| APP(("Privileged<br/>Application"))
-        U -->|"add credential"| APP
-        APP -->|"authenticate"| SP(("Service<br/>Principal"))
-    ```
-
-=== "Helpdesk"
-
-    The attacker first compromises a **Helpdesk Administrator**, resets the application owner's password, then exploits the ownership. Only available with `identity_type: user`.
-
-    ``` mermaid
-    graph LR
-        H(("Compromised<br/>Helpdesk Admin")) -->|"reset password"| U(("Application<br/>Owner"))
-        U -->|"owns"| APP(("Privileged<br/>Application"))
-        U -->|"add credential"| APP
-        APP -->|"authenticate"| SP(("Service<br/>Principal"))
-    ```
-
 ### By Assignment Type
 
 === "Direct (default)"
@@ -124,15 +99,4 @@ attack_paths:
       - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
-Helpdesk scenario:
-
-```yaml
-attack_paths:
-  app_ownership_helpdesk:
-    enabled: true
-    privilege_escalation: ApplicationOwnershipAbuse
-    scenario: helpdesk
-    method: AzureADRole
-    entra_role: 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3  # Application Administrator
-```
 

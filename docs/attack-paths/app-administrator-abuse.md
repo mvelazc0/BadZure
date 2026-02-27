@@ -171,9 +171,6 @@ attack_paths:
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
-!!! note
-    This attack path does not support the `scenario` parameter (no helpdesk variant). It focuses on direct exploitation of the Application Administrator role.
-
 ## See Also
 
 - [CloudAppAdministratorAbuse](cloud-app-administrator-abuse.md) — Same attack pattern using the Cloud Application Administrator role, which has a narrower scope (cannot manage apps with certain sensitive permissions)
