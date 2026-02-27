@@ -1,12 +1,12 @@
 # What Are Attack Paths?
 
-In the context of Azure and Entra ID, a **cloud attack path** is a chain of entitlements that links identities, permissions, and cloud resources in ways that can unintentionally enable abuse. Once the right identity is compromised, an adversary can traverse that chain by abusing legitimate cloud features to reach their goal — whether that's data exfiltration, lateral movement, or full tenant compromise.
+In the context of BadZure, a **cloud attack path** is a chain of entitlements that links identities, permissions, and cloud resources in ways that can unintentionally enable abuse. Once the right identity is compromised, an adversary can traverse that chain by abusing legitimate cloud features to reach their goal, whether that's data exfiltration, lateral movement, or full tenant compromise.
 
 These paths don't rely on software vulnerabilities or zero-days. They emerge from everyday cloud administration: creating identities, granting permissions, provisioning resources, and configuring automation.
 
 ## How Attack Paths Emerge
 
-Attack paths are created through the accumulation of individual configurations — each one reasonable on its own, but dangerous when connected.
+Attack paths are created through the accumulation of individual configurations, each one reasonable on its own, but dangerous when connected.
 
 ### Explicit Configurations
 

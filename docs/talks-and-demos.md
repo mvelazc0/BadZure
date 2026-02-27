@@ -7,7 +7,7 @@ Conference talks, demos, and walkthroughs covering BadZure's capabilities and at
 
 ### BSides NYC 2025 : Inside Cloud Attack Paths: End-to-End Adversary Simulation - Nov 2025
 
-Conference talk covering end-to-end adversary simulation in cloud environments, demonstrating how BadZure deploys realistic Entra ID and Azure attack paths for purple team exercises.
+Conference talk covering end-to-end adversary simulation in cloud environments, demonstrating how BadZure deploys Entra ID and Azure attack paths for purple team exercises.
 
 <div align="center">
     <iframe width="720" height="405" src="https://www.youtube.com/embed/vi7YNZH36ik?si=nKzndDNyAFj3owEI" title="YouTube video player" frameborder="0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share" referrerpolicy="strict-origin-when-cross-origin" allowfullscreen></iframe>

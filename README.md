@@ -8,11 +8,11 @@
 </div>
 <br>
 
-BadZure is a Python tool that automates the creation of vulnerable Azure environments, enabling security teams to simulate adversary techniques, develop and test detection controls, and run purple team exercises across Entra ID and Azure infrastructure. It uses Terraform to populate Entra ID tenants and Azure subscriptions with realistic entities and intentional misconfigurations, producing complete attack paths that span identity and cloud infrastructure layers.
+BadZure is a Python tool that automates the creation of misconfigured Azure environments, enabling security teams to simulate adversary techniques, develop and test detection controls, and run purple team exercises across Entra ID and Azure infrastructure. It uses Terraform to populate Entra ID tenants and Azure subscriptions with entities and intentional misconfigurations, producing complete attack paths that span identity and cloud infrastructure layers.
 
 BadZure automates the creation of users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts, and Resource Groups. To simulate a realistic tenant, it randomly assigns Entra ID roles, Graph permissions, and Azure resource access permissions to selected security principals, mimicking the organic permission sprawl found in real environments. On top of this realistic baseline, BadZure layers intentional misconfigurations through configurable attack paths, producing exploitable privilege escalation chains for adversary simulation.
 
-The key advantage of BadZure is its ability to quickly populate and purge tenants with realistic configurations, pre-configured initial access, and intentional attack paths, facilitating continuous and iterative adversary simulation and detection development. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
+The key advantage of BadZure is its ability to quickly populate and purge tenants with configurations, pre-configured initial access, and intentional attack paths, facilitating continuous and iterative adversary simulation and detection development. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
 
 ## Goals / Use Cases
 
@@ -21,10 +21,10 @@ BadZure was initially written to host the [Azure AD Battle School: Hands-on Atta
 An Azure environment populated with BadZure now enables red and blue teams to:
 
 * Experiment with common Entra ID attack vectors and modern cloud infrastructure attack techniques
-* Quickly stand up realistic Azure tenants with intentional attack paths and vulnerable cloud resources
+* Quickly stand up Azure tenants with intentional attack paths and misconfigured cloud resources
 * Obtain comprehensive attack telemetry across identity and infrastructure layers to build, test and enhance detection controls
 * Execute purple team exercises covering both traditional identity attacks and cloud-native compromise scenarios in a safe setting
-* Facilitate hands-on Entra ID and cloud security training with realistic attack paths
+* Facilitate hands-on Entra ID and cloud security training with attack paths
 * Host dynamic Azure cloud security Capture the Flag (CTF) events with multi-vector attack scenarios
 
 ## Attack Paths
@@ -36,7 +36,7 @@ BadZure creates attack paths that assume the initial access identity has already
 BadZure provides the credentials for these compromised identities, allowing security practitioners to immediately begin exploring privilege escalation paths without needing to simulate the initial compromise. This approach enables teams to focus on understanding and defending against post-compromise attack techniques in Azure and Entra ID environments.
 
 ### Privilege Escalation
-BadZure supports seven distinct privilege escalation attack paths that introduce realistic misconfigurations across both Entra ID identity and Azure cloud infrastructure layers:
+BadZure supports seven distinct privilege escalation attack paths that introduce misconfigurations across both Entra ID identity and Azure cloud infrastructure layers:
 
 ### Identity-Based Privilege Escalation
 - **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to owned applications with high privileges
@@ -109,7 +109,7 @@ You must be logged in as a **Global Administrator** in Entra ID and have the **O
 az login
 ````
 
-### Create and destroy vulnerable tenants
+### Create and destroy misconfigured tenants
 
 ````shell
 # Display the help menu

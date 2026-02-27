@@ -16,7 +16,7 @@ import src.utils as utils
 
 
 class BuildCommand:
-    """Handles the build command to create vulnerable tenants."""
+    """Handles the build command to create misconfigured tenants."""
     
     def __init__(self):
         self.config_mgr = ConfigManager()

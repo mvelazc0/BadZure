@@ -113,7 +113,7 @@ All attack paths support both identity types:
 **`assignment_type`** — How permissions are granted to the initial access identity:
 
 - **`direct`** — Permissions assigned directly to the identity (default). The user or service principal has explicit permissions.
-- **`group_member`** — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates more realistic attack scenarios that mirror enterprise configurations where permissions are managed through groups.
+- **`group_member`** — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates attack scenarios that mirror enterprise configurations where permissions are managed through groups.
 - **`group_owner`** — The identity is added as an owner of a security group that has permissions. This simulates scenarios where group ownership is leveraged to control privileged groups.
 
 ### Privilege Assignment

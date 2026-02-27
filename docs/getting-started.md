@@ -1,6 +1,6 @@
 # Getting Started
 
-This guide walks you through setting up BadZure, populating your first vulnerable tenant, and tearing it down.
+This guide walks you through setting up BadZure, populating your first misconfigured tenant, and tearing it down.
 
 ## Requirements
 
@@ -62,7 +62,7 @@ az login
 
 ## Your First Run
 
-### Build a vulnerable tenant
+### Build a misconfigured tenant
 
 The simplest way to get started is to run `build` with the default configuration file:
 

@@ -1,6 +1,6 @@
 # Attack Paths
 
-BadZure creates complete attack chains that start with a compromised identity and end at a high-privilege target. Each path represents a realistic privilege escalation technique seen in real Azure and Entra ID environments.
+BadZure creates complete attack chains that start with a compromised identity and end at a high-privilege target. Each path represents a privilege escalation technique seen in real Azure and Entra ID environments.
 
 ## Overview
 
