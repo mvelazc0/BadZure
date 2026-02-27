@@ -9,9 +9,9 @@
 
 tenant:
   # REQUIRED: Replace with your Azure tenant information
-  tenant_id: YOUR-TENANT-GUID-HERE
-  domain: yourdomain.onmicrosoft.com
-  subscription_id: YOUR-SUBSCRIPTION-GUID-HERE
+  tenant_id: 
+  domain: 
+  subscription_id: 
 
   # Identity resources (required for all attack paths)
   users: 5
@@ -23,13 +23,13 @@ tenant:
   # - KeyVaultSecretTheft requires key_vaults >= 1
   # - StorageCertificateTheft requires storage_accounts >= 1
   # - ManagedIdentityTheft requires the corresponding source resource >= 1
-  resource_groups: 1
-  key_vaults: 1
-  storage_accounts: 1
-  virtual_machines: 1
-  logic_apps: 1
-  automation_accounts: 1
-  function_apps: 1
+  resource_groups: 0
+  key_vaults: 0
+  storage_accounts: 0
+  virtual_machines: 0
+  logic_apps: 0
+  automation_accounts: 0
+  function_apps: 0
   cosmos_dbs: 0             # Cosmos DB accounts (optional)
 
 # =============================================================================
@@ -79,7 +79,7 @@ attack_paths:
   # Example 2: Service principal owns application with Graph API permissions
   # Attack: Compromised CI/CD service principal adds credentials to owned app
   app_ownership_sp_api:
-    enabled: false
+    enabled: true
     privilege_escalation: ApplicationOwnershipAbuse
     identity_type: service_principal
     method: APIPermission

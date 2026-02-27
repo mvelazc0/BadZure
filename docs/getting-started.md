@@ -54,7 +54,7 @@ Edit `.env` with your tenant ID, domain, and subscription ID. Alternatively, you
 
 ### Log in to Azure
 
-You must be logged in as a **Global Administrator** for BadZure to create and configure all resources:
+You must be logged in as a **Global Administrator** in Entra ID and have the **Owner** RBAC role on the Azure subscription for BadZure to create and configure all resources:
 
 ```bash
 az login

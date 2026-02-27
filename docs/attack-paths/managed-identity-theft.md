@@ -35,7 +35,9 @@ graph LR
 4. Using the stolen token, the attacker accesses a **Key Vault** (to retrieve secrets), **Storage Account** (to retrieve certificates), or **Cosmos DB** (to retrieve secrets stored as documents)
 5. The attacker uses the retrieved credentials to **authenticate as a privileged application**
 
-## Source and Target Combinations
+## Variations
+
+### By Source Type
 
 BadZure supports any combination of source and target resource types:
 
@@ -68,24 +70,56 @@ graph TD
     FA --> CDB
 ```
 
-### Source Types
+=== "Virtual Machine"
 
-| Source | Required Role | How Token Is Stolen |
-|---|---|---|
-| `vm` | VM Contributor | Run commands via IMDS to extract token |
-| `logic_app` | Logic App Contributor | Modify workflow to extract token via HTTP action |
-| `automation_account` | Automation Contributor | Create/modify runbook to extract token |
-| `function_app` | Website Contributor | Modify function code to extract token (Linux/Python) |
+    The attacker runs commands on the VM to query the **Instance Metadata Service (IMDS)** and extract the managed identity token.
 
-### Target Types
+    - **Config value:** `source_type: vm`
+    - **Required role:** VM Contributor
 
-| Target | Managed Identity Access | What's Retrieved |
-|---|---|---|
-| `key_vault` | Key Vault Contributor | Application client secrets or certificates |
-| `storage_account` | Storage Blob Data Reader | Application certificates and private keys |
-| `cosmos_db` | Cosmos DB Built-in Data Contributor | Application client secrets stored as documents |
+=== "Logic App"
 
-## Variations
+    The attacker modifies the Logic App workflow to add an **HTTP action** that extracts the managed identity token.
+
+    - **Config value:** `source_type: logic_app`
+    - **Required role:** Logic App Contributor
+
+=== "Automation Account"
+
+    The attacker creates or modifies a **runbook** to extract the managed identity token.
+
+    - **Config value:** `source_type: automation_account`
+    - **Required role:** Automation Contributor
+
+=== "Function App"
+
+    The attacker modifies the **function code** to extract the managed identity token (Linux/Python).
+
+    - **Config value:** `source_type: function_app`
+    - **Required role:** Website Contributor
+
+### By Target Type
+
+=== "Key Vault"
+
+    The managed identity has **Key Vault Contributor** access. The attacker retrieves application client secrets or certificates stored in the vault.
+
+    - **Config value:** `target_resource_type: key_vault`
+    - **Managed identity access:** Key Vault Contributor
+
+=== "Storage Account"
+
+    The managed identity has **Storage Blob Data Reader** access. The attacker retrieves application certificates and private keys stored as blobs.
+
+    - **Config value:** `target_resource_type: storage_account`
+    - **Managed identity access:** Storage Blob Data Reader
+
+=== "Cosmos DB"
+
+    The managed identity has **Cosmos DB Built-in Data Contributor** access. The attacker retrieves application client secrets stored as documents.
+
+    - **Config value:** `target_resource_type: cosmos_db`
+    - **Managed identity access:** Cosmos DB Built-in Data Contributor
 
 ### By Credential Type
 

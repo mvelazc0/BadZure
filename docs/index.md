@@ -4,17 +4,15 @@
     <img src="img/BadZure-cropped.png" alt="BadZure" style="width: 30%;">
 </div>
 
-**BadZure** is a Python tool that automates the creation of vulnerable Azure environments for security testing and training. It uses Terraform to populate Entra ID tenants and Azure subscriptions with realistic entities and intentional misconfigurations, producing complete attack paths that span identity and cloud infrastructure layers.
+**BadZure** is a Python tool that automates the creation of vulnerable Azure environments, enabling security teams to simulate adversary techniques, develop and test detection controls, and run purple team exercises across Entra ID and Azure infrastructure. It uses Terraform to populate Entra ID tenants and Azure subscriptions with realistic entities and intentional misconfigurations, producing complete attack paths that span identity and cloud infrastructure layers.
+
+BadZure automates the creation of users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts, and Resource Groups. To simulate common security misconfigurations in real environments, it randomly assigns Entra ID roles, Graph permissions, application ownership privileges, and Azure resource access permissions to selected security principals, enabling the creation of unique attack paths.
+
+The key advantage of BadZure is its ability to quickly populate and purge tenants with randomly generated vulnerable configurations, pre-configured initial access, and realistic cloud infrastructure attack paths, facilitating continuous and iterative adversary simulation and detection development. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
 
 [![BlackHat Arsenal 2024](https://raw.githubusercontent.com/toolswatch/badges/master/arsenal/usa/2024.svg)](https://www.blackhat.com/us-24/arsenal/schedule/index.html#badzure-simulating-and-exploring-entra-id-attack-paths-39628)
 
 ---
-
-## Why BadZure?
-
-Setting up a realistic Azure environment with exploitable misconfigurations is tedious and error-prone. BadZure does it in minutes — and tears it down just as fast.
-
-Each run creates a unique tenant populated with users, groups, applications, service principals, administrative units, and Azure resources (Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts). It then wires up privilege escalation paths using common misconfigurations seen in real environments: overprivileged application ownership, excessive administrative roles, exposed managed identity tokens, and leaked credentials in cloud storage.
 
 ## What Can You Do With It?
 

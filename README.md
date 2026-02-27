@@ -8,11 +8,11 @@
 </div>
 <br>
 
-BadZure is a Python tool that utilizes Terraform to automate the setup of Entra ID tenants and Azure subscriptions, populating them with various entities and introducing common security misconfigurations to create vulnerable tenants with multiple attack paths.
+BadZure is a Python tool that automates the creation of vulnerable Azure environments, enabling security teams to simulate adversary techniques, develop and test detection controls, and run purple team exercises across Entra ID and Azure infrastructure. It uses Terraform to populate Entra ID tenants and Azure subscriptions with realistic entities and intentional misconfigurations, producing complete attack paths that span identity and cloud infrastructure layers.
 
-BadZure automates the creation of various entities, including users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts, and Resource Groups. To simulate common security misconfigurations in real environments, it randomly assigns Entra ID roles, Graph permissions, and application ownership privileges, and Azure resource access permissions to selected security principals, enabling the creation of unique attack paths that span both identity and infrastructure layers.
+BadZure automates the creation of users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts, and Resource Groups. To simulate common security misconfigurations in real environments, it randomly assigns Entra ID roles, Graph permissions, application ownership privileges, and Azure resource access permissions to selected security principals, enabling the creation of unique attack paths.
 
-The key advantage of BadZure is its ability to quickly populate and purge both Azure AD tenants and Azure subscriptions with randomly generated vulnerable configurations, pre-configured initial access, and realistic cloud infrastructure attack paths, facilitating continuous and iterative Azure cloud adversary simulation and detection development experimentation. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
+The key advantage of BadZure is its ability to quickly populate and purge tenants with randomly generated vulnerable configurations, pre-configured initial access, and realistic cloud infrastructure attack paths, facilitating continuous and iterative adversary simulation and detection development. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
 
 ## Goals / Use Cases
 
@@ -73,7 +73,7 @@ A BloodHound-generated graph, showcasing the attack paths BadZure can create, is
 
 [Creating an Azure subscription](https://learn.microsoft.com/en-us/training/modules/create-an-azure-account/1-introduction) will also provide you an Azure AD tenant. 
 
-**Note:** Utilizing BadZure within your Azure subscription won't lead to any additional costs as it only requires an [Azure AD Free license](https://azure.microsoft.com/en-us/free/).
+**Note:** BadZure uses only Entra ID Free tier features and won't incur additional licensing costs, though Azure resources like Virtual Machines and Function Apps will incur standard compute charges.
 
 ### Clone Repository
 
@@ -98,7 +98,9 @@ source venv/bin/activate
 # Install dependencies
 pip install -r requirements.txt
 ```
-### Login to Azure as a Global Administrator
+### Login to Azure
+
+You must be logged in as a **Global Administrator** in Entra ID and have the **Owner** RBAC role on the Azure subscription:
 
 ```shell
 az login
