@@ -80,7 +80,8 @@ class TerraformManager:
         attack_path_vm_contributor_assignments: Dict,
         attack_path_cosmos_abuse_assignments: Dict = None,
         attack_path_group_memberships: Dict = None,
-        attack_path_compromised_sp_credentials: Dict = None
+        attack_path_compromised_sp_credentials: Dict = None,
+        attack_path_subscription_reader_assignments: Dict = None
     ) -> Dict:
         """
         Build Terraform variables dictionary.
@@ -96,6 +97,7 @@ class TerraformManager:
         attack_path_cosmos_abuse_assignments = attack_path_cosmos_abuse_assignments or {}
         attack_path_group_memberships = attack_path_group_memberships or {}
         attack_path_compromised_sp_credentials = attack_path_compromised_sp_credentials or {}
+        attack_path_subscription_reader_assignments = attack_path_subscription_reader_assignments or {}
         
         # Convert entity dictionaries to Terraform format
         user_vars = {user['user_principal_name']: user for user in users.values()}
@@ -145,7 +147,8 @@ class TerraformManager:
             'attack_path_cosmos_abuse_assignments': attack_path_cosmos_abuse_assignments,
             'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments,
             'attack_path_group_memberships': attack_path_group_memberships,
-            'attack_path_compromised_sp_credentials': attack_path_compromised_sp_credentials
+            'attack_path_compromised_sp_credentials': attack_path_compromised_sp_credentials,
+            'attack_path_subscription_reader_assignments': attack_path_subscription_reader_assignments
         }
         
         return tf_vars

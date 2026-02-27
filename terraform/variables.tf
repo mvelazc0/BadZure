@@ -318,3 +318,12 @@ variable "attack_path_compromised_sp_credentials" {
     app_name = string
   }))
 }
+
+variable "attack_path_subscription_reader_assignments" {
+  description = "Subscription-level Reader role assignments for attack path recon"
+  default     = {}
+  type = map(object({
+    identity_type  = string
+    principal_name = string
+  }))
+}

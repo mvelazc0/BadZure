@@ -375,6 +375,11 @@ class BuildCommand:
                 if sp_name:
                     compromised_sp_creds[ap_name] = {'app_name': sp_name}
 
+        # Add recon permissions to initial access identities
+        recon_api_perms, attack_path_subscription_reader_assignments = \
+            self.attack_path_mgr.build_recon_permissions(user_creds)
+        attack_path_app_api_permission_assignments.update(recon_api_perms)
+
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
@@ -390,7 +395,8 @@ class BuildCommand:
             attack_path_vm_contributor_assignments,
             attack_path_cosmos_abuse_assignments,
             attack_path_group_membership_assignments,
-            attack_path_compromised_sp_credentials=compromised_sp_creds
+            attack_path_compromised_sp_credentials=compromised_sp_creds,
+            attack_path_subscription_reader_assignments=attack_path_subscription_reader_assignments
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
 
@@ -536,6 +542,11 @@ class BuildCommand:
                 if sp_name:
                     compromised_sp_creds[ap_name] = {'app_name': sp_name}
 
+        # Add recon permissions to initial access identities
+        recon_api_perms, attack_path_subscription_reader_assignments = \
+            self.attack_path_mgr.build_recon_permissions(user_creds)
+        attack_path_assignments['app_api_permissions'].update(recon_api_perms)
+
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
@@ -553,7 +564,8 @@ class BuildCommand:
             attack_path_assignments.get('vm_contributor', {}),
             attack_path_assignments.get('cosmos_abuse', {}),
             attack_path_assignments.get('group_membership_assignments', {}),
-            attack_path_compromised_sp_credentials=compromised_sp_creds
+            attack_path_compromised_sp_credentials=compromised_sp_creds,
+            attack_path_subscription_reader_assignments=attack_path_subscription_reader_assignments
         )
         self.terraform_mgr.write_terraform_vars(tf_vars)
 

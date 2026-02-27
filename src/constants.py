@@ -1,5 +1,8 @@
 # https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/permissions-reference
 
+# Recon permission: Directory.Read.All (Microsoft Graph)
+RECON_DIRECTORY_READ_ALL_ID = "7ab1d382-f21e-4acd-a863-ba3e13f7da61"
+
 # Roles used by BadZure for attack paths
 
 HIGH_PRIVILEGED_ENTRA_ROLES = {

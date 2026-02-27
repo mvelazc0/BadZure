@@ -638,6 +638,25 @@ resource "azurerm_role_assignment" "attack_path_vm_contributor_access" {
   ]
 }
 
+# Recon: Subscription Reader for initial access identities
+resource "azurerm_role_assignment" "attack_path_subscription_reader_access" {
+  for_each = var.attack_path_subscription_reader_assignments
+
+  scope                = "/subscriptions/${var.subscription_id}"
+  role_definition_name = "Reader"
+
+  principal_id = (
+    each.value.identity_type == "user" ?
+    azuread_user.users[each.value.principal_name].id :
+    azuread_service_principal.spns[each.value.principal_name].id
+  )
+
+  depends_on = [
+    azuread_user.users,
+    azuread_service_principal.spns
+  ]
+}
+
 # Logic App with system-assigned managed identity
 resource "azurerm_logic_app_workflow" "logic_apps" {
   for_each = var.logic_apps

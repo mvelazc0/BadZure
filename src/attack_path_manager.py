@@ -12,7 +12,8 @@ from src.constants import (
     ALL_HIGH_PRIVILEGED_PERMISSIONS,
     API_REGISTRY,
     APP_ADMIN_ROLE_ID,
-    CLOUD_APP_ADMIN_ROLE_ID
+    CLOUD_APP_ADMIN_ROLE_ID,
+    RECON_DIRECTORY_READ_ALL_ID
 )
 from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
@@ -30,7 +31,55 @@ class AttackPathManager:
                             If not provided, a new instance will be created.
         """
         self.entity_generator = entity_generator or EntityGenerator()
-    
+
+    def build_recon_permissions(self, user_creds: Dict) -> Tuple[Dict, Dict]:
+        """
+        Build recon permissions for all initial access identities.
+
+        - Service principals get Directory.Read.All (Graph API) for Entra ID enumeration
+        - All identities (users and SPs) get subscription-level Reader role for Azure resource enumeration
+        - Users already have directory read access by default in Entra ID
+        """
+        recon_api_permissions = {}
+        subscription_reader_assignments = {}
+
+        for path_name, initial_access in user_creds.items():
+            identity_type = initial_access.get('identity_type')
+
+            if identity_type == 'service_principal':
+                sp_name = initial_access.get('service_principal_name')
+                if sp_name:
+                    # Directory.Read.All for Entra ID enumeration
+                    api_key = f"recon_{sp_name}"
+                    if api_key not in recon_api_permissions:
+                        recon_api_permissions[api_key] = {
+                            'app_name': sp_name,
+                            'api_permission_ids': [RECON_DIRECTORY_READ_ALL_ID],
+                            'api_type': 'graph'
+                        }
+                    # Subscription Reader for Azure resource enumeration
+                    reader_key = f"recon_{sp_name}"
+                    if reader_key not in subscription_reader_assignments:
+                        subscription_reader_assignments[reader_key] = {
+                            'identity_type': 'service_principal',
+                            'principal_name': sp_name
+                        }
+
+            elif identity_type == 'user':
+                # Extract bare username from UPN (remove @domain)
+                upn = initial_access.get('user_principal_name', '')
+                principal_name = upn.split('@')[0] if '@' in upn else upn
+                if principal_name:
+                    # Subscription Reader only (users already have directory read)
+                    reader_key = f"recon_{principal_name}"
+                    if reader_key not in subscription_reader_assignments:
+                        subscription_reader_assignments[reader_key] = {
+                            'identity_type': 'user',
+                            'principal_name': principal_name
+                        }
+
+        return recon_api_permissions, subscription_reader_assignments
+
     def create_application_ownership_abuse(
         self,
         attack_config: Dict,
