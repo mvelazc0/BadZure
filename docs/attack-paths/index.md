@@ -68,7 +68,7 @@ These paths exploit misconfigurations in Entra ID identity management, applicati
 
     Exploit the Cloud Application Administrator Entra ID role. Similar to ApplicationAdministratorAbuse but with a narrower scope — cannot manage apps with certain sensitive permissions.
 
--   **[ManagedIdentityTheft](managed-identity-theft.md)**
+-   **[ManagedIdentityAbuse](managed-identity-abuse.md)**
 
     ---
 

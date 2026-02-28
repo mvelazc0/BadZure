@@ -267,7 +267,7 @@ variable "attack_path_cosmos_abuse_assignments" {
   }))
 }
 
-variable "attack_path_managed_identity_theft_assignments" {
+variable "attack_path_managed_identity_abuse_assignments" {
   description = "A map of managed identity theft assignments for attack paths"
   default = {}
   type = map(object({

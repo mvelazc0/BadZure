@@ -153,7 +153,7 @@ class BuildCommand:
         attack_path_app_api_permission_assignments = {}
         attack_path_kv_abuse_assignments = {}
         attack_path_storage_abuse_assignments = {}
-        attack_path_managed_identity_theft_assignments = {}
+        attack_path_managed_identity_abuse_assignments = {}
         attack_path_cosmos_abuse_assignments = {}
         attack_path_vm_contributor_assignments = {}
         attack_path_group_assignments = {}
@@ -325,15 +325,15 @@ class BuildCommand:
                 for assignment in result['cosmos_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
 
-            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
+            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_managed_identity_theft(
+                result = self.attack_path_mgr.create_managed_identity_abuse(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
                     domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='random', path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users,
                     cosmos_dbs=cosmos_dbs
                 )
-                attack_path_managed_identity_theft_assignments.update(result['mi_theft_assignments'])
+                attack_path_managed_identity_abuse_assignments.update(result['mi_abuse_assignments'])
                 attack_path_application_role_assignments.update(result['app_role_assignments'])
                 attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
                 attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
@@ -341,7 +341,7 @@ class BuildCommand:
                 attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
                 user_creds[attack_path_name] = result['credentials']
                 # Track used apps and users/service principals
-                for assignment in result['mi_theft_assignments'].values():
+                for assignment in result['mi_abuse_assignments'].values():
                     used_apps.add(assignment['app_name'])
                     # Track initial access principal (user or service principal)
                     if 'initial_access_principal' in assignment:
@@ -391,7 +391,7 @@ class BuildCommand:
             attack_path_application_owner_assignments, attack_path_user_role_assignments,
             attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
-            attack_path_managed_identity_theft_assignments,
+            attack_path_managed_identity_abuse_assignments,
             attack_path_vm_contributor_assignments,
             attack_path_cosmos_abuse_assignments,
             attack_path_group_membership_assignments,
@@ -433,7 +433,7 @@ class BuildCommand:
         self.output_formatter.format_random_mode_attack_paths(
             config, attack_path_application_owner_assignments,
             attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
-            attack_path_managed_identity_theft_assignments,
+            attack_path_managed_identity_abuse_assignments,
             attack_path_cosmos_abuse_assignments,
             attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
             attack_path_user_role_assignments,
@@ -560,7 +560,7 @@ class BuildCommand:
             attack_path_assignments.get('app_api_permissions', {}),
             attack_path_assignments.get('kv_abuse', {}),
             attack_path_assignments.get('storage_abuse', {}),
-            attack_path_assignments.get('managed_identity_theft', {}),
+            attack_path_assignments.get('managed_identity_abuse', {}),
             attack_path_assignments.get('vm_contributor', {}),
             attack_path_assignments.get('cosmos_abuse', {}),
             attack_path_assignments.get('group_membership_assignments', {}),
@@ -626,7 +626,7 @@ class BuildCommand:
             'kv_abuse': {},
             'storage_abuse': {},
             'cosmos_abuse': {},
-            'managed_identity_theft': {},
+            'managed_identity_abuse': {},
             'vm_contributor': {},
             'group_assignments': {},
             'group_membership_assignments': {}
@@ -731,13 +731,13 @@ class BuildCommand:
                 assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
                 user_creds[path_name] = result['credentials']
 
-            elif priv_esc == 'ManagedIdentityTheft':
-                result = self.attack_path_mgr.create_managed_identity_theft(
+            elif priv_esc == 'ManagedIdentityAbuse':
+                result = self.attack_path_mgr.create_managed_identity_abuse(
                     path_config, applications, key_vaults, storage_accounts, users,
                     domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='targeted', entities=entities, path_name=path_name,
                     cosmos_dbs=cosmos_dbs
                 )
-                assignments['managed_identity_theft'].update(result['mi_theft_assignments'])
+                assignments['managed_identity_abuse'].update(result['mi_abuse_assignments'])
                 assignments['app_roles'].update(result['app_role_assignments'])
                 assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
                 assignments['vm_contributor'].update(result['vm_contributor_assignments'])

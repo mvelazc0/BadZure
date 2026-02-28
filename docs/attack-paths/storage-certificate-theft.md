@@ -40,7 +40,7 @@ graph LR
 | **Auth method** | Certificate-based (X.509) | Secret-based (client credentials) |
 | **Detection** | Certificate auth is harder to detect in logs | Secret-based auth produces clearer audit signals |
 
-## How It Differs From ManagedIdentityTheft
+## How It Differs From ManagedIdentityAbuse
 
 This attack path provides **direct access** to the Storage Account. Use this when simulating scenarios where a user or service principal has been directly granted blob storage access, rather than reaching it through a managed identity.
 

@@ -31,11 +31,11 @@ graph LR
 5. The attacker authenticates as the application's **service principal** using the retrieved secrets
 6. The application has high-privileged **Entra ID roles** or **API permissions**
 
-## How It Differs From ManagedIdentityTheft
+## How It Differs From ManagedIdentityAbuse
 
 This attack path provides **direct access** to the Key Vault — there is no intermediate managed identity token theft step. Use this when simulating scenarios where a user or service principal has been directly granted Key Vault access, rather than inheriting it through a managed identity.
 
-| | KeyVaultSecretTheft | ManagedIdentityTheft (with key_vault target) |
+| | KeyVaultSecretTheft | ManagedIdentityAbuse (with key_vault target) |
 |---|---|---|
 | **Access method** | Direct Key Vault role | Via managed identity token from another resource |
 | **Steps** | 3 (access vault → get secret → authenticate) | 5+ (access resource → steal token → access vault → get secret → authenticate) |

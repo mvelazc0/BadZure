@@ -153,3 +153,5 @@ site/
 
 scenarios/
 scenarios2/
+
+.test_configs/

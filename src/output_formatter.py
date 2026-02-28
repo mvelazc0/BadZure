@@ -30,7 +30,7 @@ class OutputFormatter:
         attack_path_application_owner_assignments: Dict,
         attack_path_kv_abuse_assignments: Dict,
         attack_path_storage_abuse_assignments: Dict,
-        attack_path_managed_identity_theft_assignments: Dict,
+        attack_path_managed_identity_abuse_assignments: Dict,
         attack_path_cosmos_abuse_assignments: Dict,
         attack_path_application_role_assignments: Dict,
         attack_path_app_api_permission_assignments: Dict,
@@ -381,9 +381,9 @@ class OutputFormatter:
                         logging.info("")  # Blank line after attack path
                         break
 
-            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
+            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityAbuse':
                 # Filter assignments to only show the one for this attack path
-                for key, assignment in attack_path_managed_identity_theft_assignments.items():
+                for key, assignment in attack_path_managed_identity_abuse_assignments.items():
                     # Check if this assignment belongs to the current attack path
                     if attack_path_name in key:
                         logging.info(f"Attack Path ID: {key}")
@@ -436,7 +436,7 @@ class OutputFormatter:
                             original_principal = assignment.get('original_principal', initial_access_principal)
                             original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
-                            logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityTheft")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityAbuse")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Owner: User - {original_principal}@{domain}")
@@ -792,12 +792,12 @@ class OutputFormatter:
                         logging.info(f"Target Application: {assignment['app_name']}")
                         break
 
-            elif priv_esc == 'ManagedIdentityTheft':
-                for key, assignment in assignments.get('managed_identity_theft', {}).items():
+            elif priv_esc == 'ManagedIdentityAbuse':
+                for key, assignment in assignments.get('managed_identity_abuse', {}).items():
                     # Match the key to the path_name
                     if path_name in key:
                         logging.info(f"Attack Path ID: {key}")
-                        logging.info(f"Privilege Escalation: ManagedIdentityTheft")
+                        logging.info(f"Privilege Escalation: ManagedIdentityAbuse")
                         
                         source_type = assignment['source_type']
                         source_name = assignment['source_name']
@@ -847,7 +847,7 @@ class OutputFormatter:
                             original_principal = assignment.get('original_principal', initial_access_principal)
                             original_identity_type = assignment.get('original_initial_access', 'user')
                             logging.info(f"Assignment Type: Group Owner (indirect)")
-                            logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityTheft")
+                            logging.info(f"Attack Chain: Group Ownership \u2192 ManagedIdentityAbuse")
                             logging.info(f"Group: {group_name}")
                             if original_identity_type == 'user':
                                 logging.info(f"Group Owner: User - {original_principal}@{domain}")

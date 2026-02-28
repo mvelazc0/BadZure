@@ -2543,7 +2543,7 @@ VALID_TECHNIQUES = [
     'ApplicationOwnershipAbuse',
     'ApplicationAdministratorAbuse',
     'CloudAppAdministratorAbuse',
-    'ManagedIdentityTheft',
+    'ManagedIdentityAbuse',
     'KeyVaultSecretTheft',
     'StorageCertificateTheft',
     'CosmosDBSecretTheft'
@@ -2553,7 +2553,7 @@ VALID_TECHNIQUES = [
 APP_ADMIN_ROLE_ID = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
 CLOUD_APP_ADMIN_ROLE_ID = "158c047a-c907-4556-b7ef-446551a6b5f7"
 
-# Managed identity source types for ManagedIdentityTheft
+# Managed identity source types for ManagedIdentityAbuse
 MANAGED_IDENTITY_SOURCE_TYPES = [
     'vm',
     'logic_app',
@@ -2569,7 +2569,7 @@ FUNCTION_APP_OS_TYPES = [
     'windows'
 ]
 
-# Target resource types for ManagedIdentityTheft
+# Target resource types for ManagedIdentityAbuse
 MI_TARGET_RESOURCE_TYPES = [
     'key_vault',
     'storage_account',
@@ -2595,7 +2595,7 @@ TECHNIQUES_SUPPORTING_SERVICE_PRINCIPAL = [
     'KeyVaultSecretTheft',
     'StorageCertificateTheft',
     'CosmosDBSecretTheft',
-    'ManagedIdentityTheft'
+    'ManagedIdentityAbuse'
 ]
 
 # Techniques that only support user identity type

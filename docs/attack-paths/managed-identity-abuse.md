@@ -1,4 +1,4 @@
-# ManagedIdentityTheft
+# ManagedIdentityAbuse
 
 **Category:** Identity-Based Privilege Escalation
 
@@ -212,7 +212,7 @@ VM to Key Vault with Graph API permissions:
 attack_paths:
   mi_vm_keyvault:
     enabled: true
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: key_vault
     method: APIPermission
@@ -228,7 +228,7 @@ Logic App to Storage Account with service principal:
 attack_paths:
   mi_logicapp_storage:
     enabled: true
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: logic_app
     target_resource_type: storage_account
     initial_access: service_principal
@@ -242,7 +242,7 @@ Function App with certificate-based credentials:
 attack_paths:
   mi_functionapp_cert:
     enabled: true
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: function_app
     target_resource_type: key_vault
     credential_type: certificate
@@ -257,7 +257,7 @@ Automation Account with group-based assignment:
 attack_paths:
   mi_automation_group:
     enabled: true
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: automation_account
     target_resource_type: key_vault
     assignment_type: group_member
@@ -272,7 +272,7 @@ VM to Cosmos DB with Graph API permissions:
 attack_paths:
   mi_vm_cosmos:
     enabled: true
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: cosmos_db
     method: APIPermission

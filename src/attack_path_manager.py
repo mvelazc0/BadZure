@@ -536,7 +536,7 @@ class AttackPathManager:
             'group_membership_assignments': group_membership_assignments
         }
     
-    def create_managed_identity_theft(
+    def create_managed_identity_abuse(
         self,
         attack_config: Dict,
         applications: Dict,
@@ -575,14 +575,14 @@ class AttackPathManager:
         
         Returns:
             Dictionary with keys:
-                - mi_theft_assignments: Managed identity theft assignments
+                - mi_abuse_assignments: Managed identity theft assignments
                 - app_role_assignments: Application role assignments
                 - app_api_permission_assignments: API permission assignments
                 - vm_contributor_assignments: VM contributor assignments (empty)
                 - group_assignments: Groups to create for indirect assignment
                 - group_membership_assignments: Group membership assignments
         """
-        mi_theft_assignments = {}
+        mi_abuse_assignments = {}
         app_role_assignments = {}
         app_api_permission_assignments = {}
         vm_contributor_assignments = {}  # Empty - Terraform handles this directly
@@ -608,14 +608,14 @@ class AttackPathManager:
         
         # Select entities based on mode
         if mode == 'random':
-            app_name, target_name, source_name, principal_name = self._select_random_entities_mi_theft(
+            app_name, target_name, source_name, principal_name = self._select_random_entities_mi_abuse(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, source_type, target_resource_type,
                 identity_type, used_apps, used_users,
                 cosmos_dbs=cosmos_dbs or {}
             )
         else:  # targeted mode
-            app_name, target_name, source_name, principal_name = self._select_targeted_entities_mi_theft(
+            app_name, target_name, source_name, principal_name = self._select_targeted_entities_mi_abuse(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, entities, source_type, target_resource_type,
                 identity_type, path_name,
@@ -640,7 +640,7 @@ class AttackPathManager:
         # Create MI theft assignment
         # Note: Source Contributor assignment is handled directly by Terraform
         # from the initial_access_principal field in this assignment
-        mi_theft_assignment = {
+        mi_abuse_assignment = {
             'source_type': source_type,
             'source_name': source_name,
             'target_resource_type': target_resource_type,
@@ -675,29 +675,29 @@ class AttackPathManager:
                 }
 
             # Update MI theft assignment with group info
-            mi_theft_assignment['assignment_type'] = assignment_type
-            mi_theft_assignment['group_name'] = group_name
-            mi_theft_assignment['original_principal'] = principal_name
-            mi_theft_assignment['original_initial_access'] = identity_type
+            mi_abuse_assignment['assignment_type'] = assignment_type
+            mi_abuse_assignment['group_name'] = group_name
+            mi_abuse_assignment['original_principal'] = principal_name
+            mi_abuse_assignment['original_initial_access'] = identity_type
         else:
-            mi_theft_assignment['assignment_type'] = 'direct'
+            mi_abuse_assignment['assignment_type'] = 'direct'
         
         # Generate certificate based on credential_type for both key_vault and storage_account
         if credential_type == 'certificate':
             # Generate certificates when requested (for both key_vault and storage_account)
             cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
-            mi_theft_assignment['certificate_path'] = cert_path
-            mi_theft_assignment['private_key_path'] = key_path
-            mi_theft_assignment['pfx_path'] = pfx_path
-            mi_theft_assignment['credential_type'] = 'certificate'
+            mi_abuse_assignment['certificate_path'] = cert_path
+            mi_abuse_assignment['private_key_path'] = key_path
+            mi_abuse_assignment['pfx_path'] = pfx_path
+            mi_abuse_assignment['credential_type'] = 'certificate'
         else:
             # Use secrets (app ID and secret) - no certificate generation needed
-            mi_theft_assignment['certificate_path'] = ''
-            mi_theft_assignment['private_key_path'] = ''
-            mi_theft_assignment['pfx_path'] = ''
-            mi_theft_assignment['credential_type'] = 'secret'
+            mi_abuse_assignment['certificate_path'] = ''
+            mi_abuse_assignment['private_key_path'] = ''
+            mi_abuse_assignment['pfx_path'] = ''
+            mi_abuse_assignment['credential_type'] = 'secret'
         
-        mi_theft_assignments[key] = mi_theft_assignment
+        mi_abuse_assignments[key] = mi_abuse_assignment
         
         # Assign privileges to the target application
         self._assign_app_privileges(
@@ -707,7 +707,7 @@ class AttackPathManager:
         
         return {
             'credentials': credentials,
-            'mi_theft_assignments': mi_theft_assignments,
+            'mi_abuse_assignments': mi_abuse_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
             'vm_contributor_assignments': vm_contributor_assignments,
@@ -733,7 +733,7 @@ class AttackPathManager:
         Create Key Vault Secret Theft attack path.
         
         This technique only supports identity_type 'user' or 'service_principal'.
-        For managed identity scenarios, use ManagedIdentityTheft instead.
+        For managed identity scenarios, use ManagedIdentityAbuse instead.
         
         Args:
             attack_config: Attack path configuration
@@ -760,7 +760,7 @@ class AttackPathManager:
         if identity_type == 'managed_identity':
             raise ValueError(
                 "KeyVaultSecretTheft does not support initial_access 'managed_identity'. "
-                "Use 'ManagedIdentityTheft' with target_resource_type 'key_vault' instead."
+                "Use 'ManagedIdentityAbuse' with target_resource_type 'key_vault' instead."
             )
         
         attack_path_kv_abuse_assignments = {}
@@ -886,7 +886,7 @@ class AttackPathManager:
         Create Storage Certificate Theft attack path.
         
         This technique only supports identity_type 'user' or 'service_principal'.
-        For managed identity scenarios, use ManagedIdentityTheft instead.
+        For managed identity scenarios, use ManagedIdentityAbuse instead.
         
         Args:
             attack_config: Attack path configuration
@@ -913,7 +913,7 @@ class AttackPathManager:
         if identity_type == 'managed_identity':
             raise ValueError(
                 "StorageCertificateTheft does not support initial_access 'managed_identity'. "
-                "Use 'ManagedIdentityTheft' with target_resource_type 'storage_account' instead."
+                "Use 'ManagedIdentityAbuse' with target_resource_type 'storage_account' instead."
             )
         
         attack_path_storage_abuse_assignments = {}
@@ -1044,7 +1044,7 @@ class AttackPathManager:
         Create Cosmos DB Secret Theft attack path.
 
         This technique only supports identity_type 'user' or 'service_principal'.
-        For managed identity scenarios, use ManagedIdentityTheft with target_resource_type 'cosmos_db'.
+        For managed identity scenarios, use ManagedIdentityAbuse with target_resource_type 'cosmos_db'.
 
         Args:
             attack_config: Attack path configuration
@@ -1071,7 +1071,7 @@ class AttackPathManager:
         if identity_type == 'managed_identity':
             raise ValueError(
                 "CosmosDBSecretTheft does not support initial_access 'managed_identity'. "
-                "Use 'ManagedIdentityTheft' with target_resource_type 'cosmos_db' instead."
+                "Use 'ManagedIdentityAbuse' with target_resource_type 'cosmos_db' instead."
             )
 
         attack_path_cosmos_abuse_assignments = {}
@@ -1343,7 +1343,7 @@ class AttackPathManager:
 
         return app_name, cosmos_db_name, principal_name
 
-    def _select_random_entities_mi_theft(
+    def _select_random_entities_mi_abuse(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
         source_type: str, target_resource_type: str, identity_type: str,
@@ -1664,7 +1664,7 @@ class AttackPathManager:
 
         return app_name, cosmos_db_name, principal_name
 
-    def _select_targeted_entities_mi_theft(
+    def _select_targeted_entities_mi_abuse(
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
         entities: Dict, source_type: str, target_resource_type: str, identity_type: str, path_name: str,

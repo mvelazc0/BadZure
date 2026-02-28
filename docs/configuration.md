@@ -52,16 +52,16 @@ The `tenant` section defines your Azure environment and resource counts.
 | Setting | Description | Required By |
 |---|---|---|
 | `resource_groups` | Number of resource groups | All Azure resources |
-| `key_vaults` | Number of Key Vaults | KeyVaultSecretTheft, ManagedIdentityTheft (key_vault target) |
-| `storage_accounts` | Number of Storage Accounts | StorageCertificateTheft, ManagedIdentityTheft (storage_account target) |
-| `virtual_machines` | Number of Linux VMs (with networking) | ManagedIdentityTheft (vm source) |
-| `logic_apps` | Number of Logic Apps (with system-assigned managed identities) | ManagedIdentityTheft (logic_app source) |
-| `automation_accounts` | Number of Automation Accounts (with system-assigned managed identities) | ManagedIdentityTheft (automation_account source) |
-| `function_apps` | Number of Function Apps (with system-assigned managed identities) | ManagedIdentityTheft (function_app source) |
-| `cosmos_dbs` | Number of Cosmos DB accounts (serverless, SQL API) | CosmosDBSecretTheft, ManagedIdentityTheft (cosmos_db target) |
+| `key_vaults` | Number of Key Vaults | KeyVaultSecretTheft, ManagedIdentityAbuse (key_vault target) |
+| `storage_accounts` | Number of Storage Accounts | StorageCertificateTheft, ManagedIdentityAbuse (storage_account target) |
+| `virtual_machines` | Number of Linux VMs (with networking) | ManagedIdentityAbuse (vm source) |
+| `logic_apps` | Number of Logic Apps (with system-assigned managed identities) | ManagedIdentityAbuse (logic_app source) |
+| `automation_accounts` | Number of Automation Accounts (with system-assigned managed identities) | ManagedIdentityAbuse (automation_account source) |
+| `function_apps` | Number of Function Apps (with system-assigned managed identities) | ManagedIdentityAbuse (function_app source) |
+| `cosmos_dbs` | Number of Cosmos DB accounts (serverless, SQL API) | CosmosDBSecretTheft, ManagedIdentityAbuse (cosmos_db target) |
 
 !!! warning
-    Make sure resource counts match your attack path requirements. For example, if you enable a ManagedIdentityTheft path with `source_type: vm`, you need at least `virtual_machines: 1`.
+    Make sure resource counts match your attack path requirements. For example, if you enable a ManagedIdentityAbuse path with `source_type: vm`, you need at least `virtual_machines: 1`.
 
 ## Attack Path Options
 
@@ -86,7 +86,7 @@ These options are available for **all** attack path types:
 - **`ApplicationOwnershipAbuse`** — Exploits application ownership to add credentials to privileged applications
 - **`ApplicationAdministratorAbuse`** — Exploits the Application Administrator role to manage any application and add credentials
 - **`CloudAppAdministratorAbuse`** — Exploits the Cloud Application Administrator role (narrower scope than Application Administrator)
-- **`ManagedIdentityTheft`** — Exploits access to Azure resources with managed identities to steal tokens and pivot to other resources
+- **`ManagedIdentityAbuse`** — Exploits access to Azure resources with managed identities to steal tokens and pivot to other resources
 - **`KeyVaultSecretTheft`** — Retrieves application secrets stored in Azure Key Vault through direct access
 - **`StorageCertificateTheft`** — Retrieves application certificates and private keys from Azure Storage through direct access
 - **`CosmosDBSecretTheft`** — Retrieves application secrets stored in Azure Cosmos DB through direct data plane access
@@ -105,7 +105,7 @@ All attack paths support both identity types:
 | ApplicationOwnershipAbuse | User as application owner | SP as application owner |
 | ApplicationAdministratorAbuse | User with App Admin role | SP with App Admin role |
 | CloudAppAdministratorAbuse | User with Cloud App Admin role | SP with Cloud App Admin role |
-| ManagedIdentityTheft | User with Contributor access | SP with Contributor access |
+| ManagedIdentityAbuse | User with Contributor access | SP with Contributor access |
 | KeyVaultSecretTheft | User with Key Vault access | SP with Key Vault access |
 | StorageCertificateTheft | User with Storage access | SP with Storage access |
 | CosmosDBSecretTheft | User with Cosmos DB access | SP with Cosmos DB access |
@@ -220,11 +220,11 @@ How the target application receives its high privileges.
 
 This technique is identical to `ApplicationAdministratorAbuse` in configuration, but uses the **Cloud Application Administrator** role (`158c047a-c907-4556-b7ef-446551a6b5f7`) instead. The Cloud Application Administrator role has a narrower scope — it cannot manage applications with certain sensitive permissions. See [CloudAppAdministratorAbuse](attack-paths/cloud-app-administrator-abuse.md) for details.
 
-### ManagedIdentityTheft
+### ManagedIdentityAbuse
 
 **Required fields:**
 
-- `privilege_escalation: ManagedIdentityTheft`
+- `privilege_escalation: ManagedIdentityAbuse`
 - `source_type`: The Azure resource with the managed identity
 - `target_resource_type`: The resource storing the application credentials
 - `method`: `AzureADRole` or `APIPermission`
@@ -270,7 +270,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 - `initial_access`: `user` (default) or `service_principal`
 
 !!! note
-    For scenarios involving managed identity token theft to access Key Vault, use `ManagedIdentityTheft` with `target_resource_type: key_vault` instead.
+    For scenarios involving managed identity token theft to access Key Vault, use `ManagedIdentityAbuse` with `target_resource_type: key_vault` instead.
 
 ### StorageCertificateTheft
 
@@ -285,7 +285,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 - `initial_access`: `user` (default) or `service_principal`
 
 !!! note
-    For scenarios involving managed identity token theft to access Storage Account, use `ManagedIdentityTheft` with `target_resource_type: storage_account` instead.
+    For scenarios involving managed identity token theft to access Storage Account, use `ManagedIdentityAbuse` with `target_resource_type: storage_account` instead.
 
 ### CosmosDBSecretTheft
 
@@ -300,7 +300,7 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 - `initial_access`: `user` (default) or `service_principal`
 
 !!! note
-    For scenarios involving managed identity token theft to access Cosmos DB, use `ManagedIdentityTheft` with `target_resource_type: cosmos_db` instead.
+    For scenarios involving managed identity token theft to access Cosmos DB, use `ManagedIdentityAbuse` with `target_resource_type: cosmos_db` instead.
 
 ## Group-Based Assignment
 
@@ -353,7 +353,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
       app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
     ```
 
-=== "ManagedIdentityTheft"
+=== "ManagedIdentityAbuse"
 
     User inherits VM Contributor through group membership:
 
@@ -361,7 +361,7 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     attack_path_mi_group:
       enabled: true
 
-      privilege_escalation: ManagedIdentityTheft
+      privilege_escalation: ManagedIdentityAbuse
       source_type: vm
       target_resource_type: key_vault
 
@@ -472,7 +472,7 @@ attack_paths:
   # Resource: VM → Key Vault → privileged app
   vm_to_keyvault:
     enabled: true
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: key_vault
     method: APIPermission

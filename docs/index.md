@@ -47,7 +47,7 @@ BadZure supports seven privilege escalation techniques across two categories. To
 | [**ApplicationOwnershipAbuse**](attack-paths/app-ownership-abuse.md) | Exploit application ownership to add credentials to a privileged app |
 | [**ApplicationAdministratorAbuse**](attack-paths/app-administrator-abuse.md) | Exploit the Application Administrator role to manage any app in the tenant |
 | [**CloudAppAdministratorAbuse**](attack-paths/cloud-app-administrator-abuse.md) | Exploit the Cloud Application Administrator role — narrower scope than Application Administrator |
-| [**ManagedIdentityTheft**](attack-paths/managed-identity-theft.md) | Steal managed identity tokens from Azure resources to pivot to Key Vaults, Storage Accounts, or Cosmos DB |
+| [**ManagedIdentityAbuse**](attack-paths/managed-identity-abuse.md) | Steal managed identity tokens from Azure resources to pivot to Key Vaults, Storage Accounts, or Cosmos DB |
 
 ### Resource-Based
 
