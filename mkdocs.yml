@@ -9,6 +9,7 @@ repo_url: https://github.com/mvelazc0/BadZure
 
 theme:
   name: material
+  custom_dir: docs/overrides
   logo: img/BadZure-cropped.png
   favicon: img/BadZure-cropped.png
   palette:
@@ -48,9 +49,6 @@ nav:
     - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
     - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
     - CosmosDBSecretTheft: attack-paths/cosmosdb-secret-theft.md
-
-plugins:
-  - social
 
 markdown_extensions:
   - admonition
