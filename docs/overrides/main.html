@@ -1,7 +1,11 @@
 {% extends "base.html" %}
 
 {% block extrahead %}
+  <meta property="og:title" content="{{ page.title }} - {{ config.site_name }}" />
+  <meta property="og:description" content="{{ config.site_description }}" />
   <meta property="og:image" content="{{ config.site_url }}/img/BadZure-cropped.png" />
   <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="{{ page.title }} - {{ config.site_name }}" />
+  <meta name="twitter:description" content="{{ config.site_description }}" />
   <meta name="twitter:image" content="{{ config.site_url }}/img/BadZure-cropped.png" />
 {% endblock %}
