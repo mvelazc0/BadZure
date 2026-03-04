@@ -282,7 +282,7 @@ attack_paths:
       - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 ```
 
-## References
+## Further Reading
 
 - [Azure Privilege Escalation Using Managed Identities - NetSPI](https://www.netspi.com/blog/technical-blog/cloud-pentesting/azure-privilege-escalation-using-managed-identities/)
 - [Abusing Managed Identities - Hacking The Cloud](https://hackingthe.cloud/azure/abusing-managed-identities/)

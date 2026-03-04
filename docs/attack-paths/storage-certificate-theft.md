@@ -155,7 +155,7 @@ attack_paths:
 !!! tip
     Make sure your tenant configuration includes at least one Storage Account (`storage_accounts: 1`) when using this attack path.
 
-## References
+## Further Reading
 
 - [From listKeys to Glory: Privilege Escalation and RCE by Abusing Azure Storage Account Keys - Orca Security](https://orca.security/resources/blog/azure-shared-key-authorization-exploitation/)
 - [Privilege Escalation via Storage Accounts - Rogier Dijkman](https://rogierdijkman.medium.com/privilege-escalation-via-storage-accounts-bca24373cc2e)

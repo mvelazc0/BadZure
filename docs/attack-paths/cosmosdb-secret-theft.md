@@ -143,9 +143,7 @@ attack_paths:
 !!! tip
     Make sure your tenant configuration includes at least one Cosmos DB account (`cosmos_dbs: 1`) when using this attack path.
 
-## References
+## Further Reading
 
-- [ChaosDB: How We Hacked Thousands of Azure Customers' Databases - Wiz](https://www.wiz.io/blog/chaosdb-how-we-hacked-thousands-of-azure-customers-databases)
-- [ChaosDB Explained: Azure's Cosmos DB Vulnerability Walkthrough - Wiz](https://www.wiz.io/blog/chaosdb-explained-azures-cosmos-db-vulnerability-walkthrough)
 - [Azure Cosmos DB Security Overview - Microsoft Learn](https://learn.microsoft.com/en-us/azure/cosmos-db/database-security)
 - [Configure Role-Based Access Control for Azure Cosmos DB - Microsoft Learn](https://learn.microsoft.com/en-us/azure/cosmos-db/how-to-setup-rbac)

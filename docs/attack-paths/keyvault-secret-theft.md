@@ -143,7 +143,7 @@ attack_paths:
 !!! tip
     Make sure your tenant configuration includes at least one Key Vault (`key_vaults: 1`) when using this attack path.
 
-## References
+## Further Reading
 
 - [Escalating Privileges to Read Secrets with Azure Key Vault Access Policies - Datadog Security Labs](https://securitylabs.datadoghq.com/articles/escalating-privileges-to-read-secrets-with-azure-key-vault-access-policies/)
 - [Protecting Your Azure Key Vault: Why Azure RBAC Is Critical for Security - Microsoft Community Hub](https://techcommunity.microsoft.com/blog/microsoftdefendercloudblog/protecting-your-azure-key-vault-why-azure-rbac-is-critical-for-security/4407848)

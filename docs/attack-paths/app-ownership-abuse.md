@@ -109,7 +109,7 @@ attack_paths:
       - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
-## References
+## Further Reading
 
 - [Azure Privilege Escalation via Service Principal Abuse - SpecterOps](https://specterops.io/blog/2021/10/12/azure-privilege-escalation-via-service-principal-abuse/)
 - [Azure Privilege Escalation via Azure API Permissions Abuse - Andy Robbins / SpecterOps](https://posts.specterops.io/azure-privilege-escalation-via-azure-api-permissions-abuse-74aee1006f48)
