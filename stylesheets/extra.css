@@ -1,0 +1,20 @@
+/* BadZure theme colors - aligned with logo palette */
+:root,
+[data-md-color-scheme="default"] {
+  --md-primary-fg-color: #1565C0;
+  --md-primary-fg-color--light: #1E88E5;
+  --md-primary-fg-color--dark: #0D47A1;
+  --md-accent-fg-color: #E65100;
+  --md-accent-fg-color--transparent: rgba(230, 81, 0, 0.1);
+}
+
+/* Dark mode - deeper navy to match logo background */
+[data-md-color-scheme="slate"] {
+  --md-primary-fg-color: #1565C0;
+  --md-primary-fg-color--light: #1E88E5;
+  --md-primary-fg-color--dark: #0D47A1;
+  --md-accent-fg-color: #FF6D00;
+  --md-accent-fg-color--transparent: rgba(255, 109, 0, 0.1);
+  --md-default-bg-color: #1a1f2e;
+  --md-default-bg-color--light: #212738;
+}

@@ -1,0 +1,1815 @@
+
+<!doctype html>
+<html lang="en" class="no-js">
+  <head>
+    
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      
+        <meta name="description" content="Automate the deployment of intentionally misconfigured Entra ID tenants and Azure subscriptions, populating them with diverse entities and exploitable attack paths.">
+      
+      
+        <meta name="author" content="Mauricio Velazco">
+      
+      
+        <link rel="canonical" href="https://www.badzure.com/configuration/">
+      
+      
+        <link rel="prev" href="../getting-started/">
+      
+      
+        <link rel="next" href="../talks-and-demos/">
+      
+      
+        
+      
+      
+      <link rel="icon" href="../img/BadZure-cropped.png">
+      <meta name="generator" content="mkdocs-1.6.1, mkdocs-material-9.7.4">
+    
+    
+      
+        <title>Configuration Guide - BadZure Documentation</title>
+      
+    
+    
+      <link rel="stylesheet" href="../assets/stylesheets/main.484c7ddc.min.css">
+      
+        
+        <link rel="stylesheet" href="../assets/stylesheets/palette.ab4e12ef.min.css">
+      
+      
+
+
+    
+    
+      
+    
+    
+      
+        
+        
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family=Roboto:300,300i,400,400i,700,700i%7CRoboto+Mono:400,400i,700,700i&display=fallback">
+        <style>:root{--md-text-font:"Roboto";--md-code-font:"Roboto Mono"}</style>
+      
+    
+    
+      <link rel="stylesheet" href="../stylesheets/extra.css">
+    
+    <script>__md_scope=new URL("..",location),__md_hash=e=>[...e].reduce(((e,_)=>(e<<5)-e+_.charCodeAt(0)),0),__md_get=(e,_=localStorage,t=__md_scope)=>JSON.parse(_.getItem(t.pathname+"."+e)),__md_set=(e,_,t=localStorage,a=__md_scope)=>{try{t.setItem(a.pathname+"."+e,JSON.stringify(_))}catch(e){}}</script>
+    
+      
+  
+
+
+  
+  
+
+<script id="__analytics">function __md_analytics(){function e(){dataLayer.push(arguments)}window.dataLayer=window.dataLayer||[],e("js",new Date),e("config","G-1B8G0DW1EN"),document.addEventListener("DOMContentLoaded",(function(){document.forms.search&&document.forms.search.query.addEventListener("blur",(function(){this.value&&e("event","search",{search_term:this.value})}));document$.subscribe((function(){var t=document.forms.feedback;if(void 0!==t)for(var a of t.querySelectorAll("[type=submit]"))a.addEventListener("click",(function(a){a.preventDefault();var n=document.location.pathname,d=this.getAttribute("data-md-value");e("event","feedback",{page:n,data:d}),t.firstElementChild.disabled=!0;var r=t.querySelector(".md-feedback__note [data-md-value='"+d+"']");r&&(r.hidden=!1)})),t.hidden=!1})),location$.subscribe((function(t){e("config","G-1B8G0DW1EN",{page_path:t.pathname})}))}));var t=document.createElement("script");t.async=!0,t.src="https://www.googletagmanager.com/gtag/js?id=G-1B8G0DW1EN",document.getElementById("__analytics").insertAdjacentElement("afterEnd",t)}</script>
+  
+    <script>"undefined"!=typeof __md_analytics&&__md_analytics()</script>
+  
+
+    
+    
+  <meta property="og:title" content="Configuration Guide - BadZure Documentation" />
+  <meta property="og:description" content="Automate the deployment of intentionally misconfigured Entra ID tenants and Azure subscriptions, populating them with diverse entities and exploitable attack paths." />
+  <meta property="og:image" content="https://www.badzure.com//img/BadZure-cropped.png" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="Configuration Guide - BadZure Documentation" />
+  <meta name="twitter:description" content="Automate the deployment of intentionally misconfigured Entra ID tenants and Azure subscriptions, populating them with diverse entities and exploitable attack paths." />
+  <meta name="twitter:image" content="https://www.badzure.com//img/BadZure-cropped.png" />
+
+  </head>
+  
+  
+    
+    
+      
+    
+    
+    
+    
+    <body dir="ltr" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="deep-orange">
+  
+    
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="__drawer" autocomplete="off">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="__search" autocomplete="off">
+    <label class="md-overlay" for="__drawer"></label>
+    <div data-md-component="skip">
+      
+        
+        <a href="#configuration-guide" class="md-skip">
+          Skip to content
+        </a>
+      
+    </div>
+    <div data-md-component="announce">
+      
+    </div>
+    
+    
+      
+
+  
+
+<header class="md-header md-header--shadow" data-md-component="header">
+  <nav class="md-header__inner md-grid" aria-label="Header">
+    <a href=".." title="BadZure Documentation" class="md-header__button md-logo" aria-label="BadZure Documentation" data-md-component="logo">
+      
+  <img src="../img/BadZure-cropped.png" alt="logo">
+
+    </a>
+    <label class="md-header__button md-icon" for="__drawer">
+      
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M3 6h18v2H3zm0 5h18v2H3zm0 5h18v2H3z"/></svg>
+    </label>
+    <div class="md-header__title" data-md-component="header-title">
+      <div class="md-header__ellipsis">
+        <div class="md-header__topic">
+          <span class="md-ellipsis">
+            BadZure Documentation
+          </span>
+        </div>
+        <div class="md-header__topic" data-md-component="header-topic">
+          <span class="md-ellipsis">
+            
+              Configuration Guide
+            
+          </span>
+        </div>
+      </div>
+    </div>
+    
+      
+        <form class="md-header__option" data-md-component="palette">
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="slate" data-md-color-primary="blue" data-md-color-accent="deep-orange"  aria-label="Switch to light mode"  type="radio" name="__palette" id="__palette_0">
+    
+      <label class="md-header__button md-icon" title="Switch to light mode" for="__palette_1" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 18c-.89 0-1.74-.2-2.5-.55C11.56 16.5 13 14.42 13 12s-1.44-4.5-3.5-5.45C10.26 6.2 11.11 6 12 6a6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+    
+    
+    
+    <input class="md-option" data-md-color-media="" data-md-color-scheme="default" data-md-color-primary="blue" data-md-color-accent="deep-orange"  aria-label="Switch to dark mode"  type="radio" name="__palette" id="__palette_1">
+    
+      <label class="md-header__button md-icon" title="Switch to dark mode" for="__palette_0" hidden>
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 8a4 4 0 0 0-4 4 4 4 0 0 0 4 4 4 4 0 0 0 4-4 4 4 0 0 0-4-4m0 10a6 6 0 0 1-6-6 6 6 0 0 1 6-6 6 6 0 0 1 6 6 6 6 0 0 1-6 6m8-9.31V4h-4.69L12 .69 8.69 4H4v4.69L.69 12 4 15.31V20h4.69L12 23.31 15.31 20H20v-4.69L23.31 12z"/></svg>
+      </label>
+    
+  
+</form>
+      
+    
+    
+      <script>var palette=__md_get("__palette");if(palette&&palette.color){if("(prefers-color-scheme)"===palette.color.media){var media=matchMedia("(prefers-color-scheme: light)"),input=document.querySelector(media.matches?"[data-md-color-media='(prefers-color-scheme: light)']":"[data-md-color-media='(prefers-color-scheme: dark)']");palette.color.media=input.getAttribute("data-md-color-media"),palette.color.scheme=input.getAttribute("data-md-color-scheme"),palette.color.primary=input.getAttribute("data-md-color-primary"),palette.color.accent=input.getAttribute("data-md-color-accent")}for(var[key,value]of Object.entries(palette.color))document.body.setAttribute("data-md-color-"+key,value)}</script>
+    
+    
+    
+      
+      
+        <label class="md-header__button md-icon" for="__search">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        </label>
+        <div class="md-search" data-md-component="search" role="dialog">
+  <label class="md-search__overlay" for="__search"></label>
+  <div class="md-search__inner" role="search">
+    <form class="md-search__form" name="search">
+      <input type="text" class="md-search__input" name="query" aria-label="Search" placeholder="Search" autocapitalize="off" autocorrect="off" autocomplete="off" spellcheck="false" data-md-component="search-query" required>
+      <label class="md-search__icon md-icon" for="__search">
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M9.5 3A6.5 6.5 0 0 1 16 9.5c0 1.61-.59 3.09-1.56 4.23l.27.27h.79l5 5-1.5 1.5-5-5v-.79l-.27-.27A6.52 6.52 0 0 1 9.5 16 6.5 6.5 0 0 1 3 9.5 6.5 6.5 0 0 1 9.5 3m0 2C7 5 5 7 5 9.5S7 14 9.5 14 14 12 14 9.5 12 5 9.5 5"/></svg>
+        
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M20 11v2H8l5.5 5.5-1.42 1.42L4.16 12l7.92-7.92L13.5 5.5 8 11z"/></svg>
+      </label>
+      <nav class="md-search__options" aria-label="Search">
+        
+        <button type="reset" class="md-search__icon md-icon" title="Clear" aria-label="Clear" tabindex="-1">
+          
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z"/></svg>
+        </button>
+      </nav>
+      
+    </form>
+    <div class="md-search__output">
+      <div class="md-search__scrollwrap" tabindex="0" data-md-scrollfix>
+        <div class="md-search-result" data-md-component="search-result">
+          <div class="md-search-result__meta">
+            Initializing search
+          </div>
+          <ol class="md-search-result__list" role="presentation"></ol>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+      
+    
+    
+      <div class="md-header__source">
+        <a href="https://github.com/mvelazc0/BadZure" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mvelazc0/BadZure
+  </div>
+</a>
+      </div>
+    
+  </nav>
+  
+</header>
+    
+    <div class="md-container" data-md-component="container">
+      
+      
+        
+          
+        
+      
+      <main class="md-main" data-md-component="main">
+        <div class="md-main__inner md-grid">
+          
+            
+              
+              <div class="md-sidebar md-sidebar--primary" data-md-component="sidebar" data-md-type="navigation" >
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    
+
+
+
+  
+
+<nav class="md-nav md-nav--primary md-nav--integrated" aria-label="Navigation" data-md-level="0">
+  <label class="md-nav__title" for="__drawer">
+    <a href=".." title="BadZure Documentation" class="md-nav__button md-logo" aria-label="BadZure Documentation" data-md-component="logo">
+      
+  <img src="../img/BadZure-cropped.png" alt="logo">
+
+    </a>
+    BadZure Documentation
+  </label>
+  
+    <div class="md-nav__source">
+      <a href="https://github.com/mvelazc0/BadZure" title="Go to repository" class="md-source" data-md-component="source">
+  <div class="md-source__icon md-icon">
+    
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M439.6 236.1 244 40.5c-5.4-5.5-12.8-8.5-20.4-8.5s-15 3-20.4 8.4L162.5 81l51.5 51.5c27.1-9.1 52.7 16.8 43.4 43.7l49.7 49.7c34.2-11.8 61.2 31 35.5 56.7-26.5 26.5-70.2-2.9-56-37.3L240.3 199v121.9c25.3 12.5 22.3 41.8 9.1 55-6.4 6.4-15.2 10.1-24.3 10.1s-17.8-3.6-24.3-10.1c-17.6-17.6-11.1-46.9 11.2-56v-123c-20.8-8.5-24.6-30.7-18.6-45L142.6 101 8.5 235.1C3 240.6 0 247.9 0 255.5s3 15 8.5 20.4l195.6 195.7c5.4 5.4 12.7 8.4 20.4 8.4s15-3 20.4-8.4l194.7-194.7c5.4-5.4 8.4-12.8 8.4-20.4s-3-15-8.4-20.4"/></svg>
+  </div>
+  <div class="md-source__repository">
+    mvelazc0/BadZure
+  </div>
+</a>
+    </div>
+  
+  <ul class="md-nav__list" data-md-scrollfix>
+    
+      
+      
+  
+  
+    
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--active md-nav__item--section md-nav__item--nested">
+      
+        
+        
+        <input class="md-nav__toggle md-toggle " type="checkbox" id="__nav_1" checked>
+        
+          
+          <label class="md-nav__link" for="__nav_1" id="__nav_1_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    BadZure
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_1_label" aria-expanded="true">
+          <label class="md-nav__title" for="__nav_1">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    BadZure
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href=".." class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Home
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../what-are-cloud-attack-paths/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    What Are Cloud Attack Paths?
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../getting-started/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Getting Started
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+    
+  
+  
+  
+    <li class="md-nav__item md-nav__item--active">
+      
+      <input class="md-nav__toggle md-toggle" type="checkbox" id="__toc">
+      
+      
+        
+      
+      
+        <label class="md-nav__link md-nav__link--active" for="__toc">
+          
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Guide
+  
+
+    
+  </span>
+  
+  
+
+          <span class="md-nav__icon md-icon"></span>
+        </label>
+      
+      <a href="./" class="md-nav__link md-nav__link--active">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Configuration Guide
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+      
+        
+
+<nav class="md-nav md-nav--secondary" aria-label="Table of contents">
+  
+  
+  
+    
+  
+  
+    <label class="md-nav__title" for="__toc">
+      <span class="md-nav__icon md-icon"></span>
+      Table of contents
+    </label>
+    <ul class="md-nav__list" data-md-component="toc" data-md-scrollfix>
+      
+        <li class="md-nav__item">
+  <a href="#how-it-works" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        How It Works
+      
+    </span>
+  </a>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#tenant-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Tenant Settings
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Tenant Settings">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#required-settings" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Required Settings
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#entra-id-entities" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Entra ID Entities
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#azure-resources" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Azure Resources
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#attack-path-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Attack Path Options
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Attack Path Options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#common-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Common Options
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#option-details" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Option Details
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#privilege-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Privilege Assignment
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#per-technique-options" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Per-Technique Options
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Per-Technique Options">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#applicationownershipabuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ApplicationOwnershipAbuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#applicationadministratorabuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ApplicationAdministratorAbuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cloudappadministratorabuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CloudAppAdministratorAbuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#managedidentityabuse" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        ManagedIdentityAbuse
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#keyvaultsecrettheft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        KeyVaultSecretTheft
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#storagecertificatetheft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        StorageCertificateTheft
+      
+    </span>
+  </a>
+  
+</li>
+        
+          <li class="md-nav__item">
+  <a href="#cosmosdbsecrettheft" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        CosmosDBSecretTheft
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#group-based-assignment" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group-Based Assignment
+      
+    </span>
+  </a>
+  
+    <nav class="md-nav" aria-label="Group-Based Assignment">
+      <ul class="md-nav__list">
+        
+          <li class="md-nav__item">
+  <a href="#group-assignment-examples" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Group Assignment Examples
+      
+    </span>
+  </a>
+  
+</li>
+        
+      </ul>
+    </nav>
+  
+</li>
+      
+        <li class="md-nav__item">
+  <a href="#full-example" class="md-nav__link">
+    <span class="md-ellipsis">
+      
+        Full Example
+      
+    </span>
+  </a>
+  
+</li>
+      
+    </ul>
+  
+</nav>
+      
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../talks-and-demos/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Talks & Demos
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+      
+      
+  
+  
+  
+  
+    
+    
+    
+    
+      
+        
+        
+      
+    
+    
+    <li class="md-nav__item md-nav__item--section md-nav__item--nested">
+      
+        
+        
+          
+        
+        <input class="md-nav__toggle md-toggle md-toggle--indeterminate" type="checkbox" id="__nav_2" >
+        
+          
+          <label class="md-nav__link" for="__nav_2" id="__nav_2_label" tabindex="">
+            
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Attack Paths
+  
+
+    
+  </span>
+  
+  
+
+            <span class="md-nav__icon md-icon"></span>
+          </label>
+        
+        <nav class="md-nav" data-md-level="1" aria-labelledby="__nav_2_label" aria-expanded="false">
+          <label class="md-nav__title" for="__nav_2">
+            <span class="md-nav__icon md-icon"></span>
+            
+  
+    Attack Paths
+  
+
+          </label>
+          <ul class="md-nav__list" data-md-scrollfix>
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    Overview
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/app-ownership-abuse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ApplicationOwnershipAbuse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/app-administrator-abuse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ApplicationAdministratorAbuse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/cloud-app-administrator-abuse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CloudAppAdministratorAbuse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/managed-identity-abuse/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    ManagedIdentityAbuse
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/keyvault-secret-theft/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    KeyVaultSecretTheft
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/storage-certificate-theft/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    StorageCertificateTheft
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+              
+                
+  
+  
+  
+  
+    <li class="md-nav__item">
+      <a href="../attack-paths/cosmosdb-secret-theft/" class="md-nav__link">
+        
+  
+  
+  <span class="md-ellipsis">
+    
+  
+    CosmosDBSecretTheft
+  
+
+    
+  </span>
+  
+  
+
+      </a>
+    </li>
+  
+
+              
+            
+          </ul>
+        </nav>
+      
+    </li>
+  
+
+    
+  </ul>
+</nav>
+                  </div>
+                </div>
+              </div>
+            
+            
+          
+          
+            <div class="md-content" data-md-component="content">
+              
+              <article class="md-content__inner md-typeset">
+                
+                  
+
+
+  
+  
+
+
+<h1 id="configuration-guide">Configuration Guide<a class="headerlink" href="#configuration-guide" title="Permanent link">&para;</a></h1>
+<p>BadZure is configured through a YAML file that defines your tenant settings, the entities to create, and the attack paths to configure. By default, BadZure looks for <code>badzure.yml</code> in the project root.</p>
+<h2 id="how-it-works">How It Works<a class="headerlink" href="#how-it-works" title="Permanent link">&para;</a></h2>
+<p>You define the number of entities to create and the attack paths to configure. BadZure creates the specified entities with realistic names and <strong>randomly assigns</strong> them to attack paths. You define counts and attack path types, and BadZure handles the rest.</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-0-1" name="__codelineno-0-1" href="#__codelineno-0-1"></a><span class="nt">tenant</span><span class="p">:</span>
+<a id="__codelineno-0-2" name="__codelineno-0-2" href="#__codelineno-0-2"></a><span class="w">  </span><span class="nt">tenant_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">YOUR-TENANT-GUID</span>
+<a id="__codelineno-0-3" name="__codelineno-0-3" href="#__codelineno-0-3"></a><span class="w">  </span><span class="nt">domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">yourdomain.onmicrosoft.com</span>
+<a id="__codelineno-0-4" name="__codelineno-0-4" href="#__codelineno-0-4"></a><span class="w">  </span><span class="nt">subscription_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">YOUR-SUBSCRIPTION-GUID</span>
+<a id="__codelineno-0-5" name="__codelineno-0-5" href="#__codelineno-0-5"></a><span class="w">  </span><span class="nt">users</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">30</span>
+<a id="__codelineno-0-6" name="__codelineno-0-6" href="#__codelineno-0-6"></a><span class="w">  </span><span class="nt">applications</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-0-7" name="__codelineno-0-7" href="#__codelineno-0-7"></a><span class="w">  </span><span class="nt">groups</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-0-8" name="__codelineno-0-8" href="#__codelineno-0-8"></a>
+<a id="__codelineno-0-9" name="__codelineno-0-9" href="#__codelineno-0-9"></a><span class="nt">attack_paths</span><span class="p">:</span>
+<a id="__codelineno-0-10" name="__codelineno-0-10" href="#__codelineno-0-10"></a><span class="w">  </span><span class="nt">path_1</span><span class="p">:</span>
+<a id="__codelineno-0-11" name="__codelineno-0-11" href="#__codelineno-0-11"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-0-12" name="__codelineno-0-12" href="#__codelineno-0-12"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ApplicationOwnershipAbuse</span>
+<a id="__codelineno-0-13" name="__codelineno-0-13" href="#__codelineno-0-13"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AzureADRole</span>
+<a id="__codelineno-0-14" name="__codelineno-0-14" href="#__codelineno-0-14"></a><span class="w">    </span><span class="nt">entra_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random</span>
+</code></pre></div>
+<h2 id="tenant-settings">Tenant Settings<a class="headerlink" href="#tenant-settings" title="Permanent link">&para;</a></h2>
+<p>The <code>tenant</code> section defines your Azure environment and resource counts.</p>
+<h3 id="required-settings">Required Settings<a class="headerlink" href="#required-settings" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>tenant_id</code></td>
+<td>Your Entra ID tenant GUID</td>
+</tr>
+<tr>
+<td><code>domain</code></td>
+<td>Your tenant domain (e.g., <code>contoso.onmicrosoft.com</code>)</td>
+</tr>
+<tr>
+<td><code>subscription_id</code></td>
+<td>Azure subscription GUID for provisioning resources</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition tip">
+<p class="admonition-title">Tip</p>
+<p>These values can also be set via environment variables in a <code>.env</code> file. See <code>.env.example</code> for the template.</p>
+</div>
+<h3 id="entra-id-entities">Entra ID Entities<a class="headerlink" href="#entra-id-entities" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>users</code></td>
+<td>Number of user accounts to create</td>
+</tr>
+<tr>
+<td><code>applications</code></td>
+<td>Number of application registrations to create</td>
+</tr>
+<tr>
+<td><code>groups</code></td>
+<td>Number of security groups to create</td>
+</tr>
+<tr>
+<td><code>administrative_units</code></td>
+<td>Number of administrative units to create</td>
+</tr>
+</tbody>
+</table>
+<h3 id="azure-resources">Azure Resources<a class="headerlink" href="#azure-resources" title="Permanent link">&para;</a></h3>
+<table>
+<thead>
+<tr>
+<th>Setting</th>
+<th>Description</th>
+<th>Required By</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>resource_groups</code></td>
+<td>Number of resource groups</td>
+<td>All Azure resources</td>
+</tr>
+<tr>
+<td><code>key_vaults</code></td>
+<td>Number of Key Vaults</td>
+<td>KeyVaultSecretTheft, ManagedIdentityAbuse (key_vault target)</td>
+</tr>
+<tr>
+<td><code>storage_accounts</code></td>
+<td>Number of Storage Accounts</td>
+<td>StorageCertificateTheft, ManagedIdentityAbuse (storage_account target)</td>
+</tr>
+<tr>
+<td><code>virtual_machines</code></td>
+<td>Number of Linux VMs (with networking)</td>
+<td>ManagedIdentityAbuse (vm source)</td>
+</tr>
+<tr>
+<td><code>logic_apps</code></td>
+<td>Number of Logic Apps (with system-assigned managed identities)</td>
+<td>ManagedIdentityAbuse (logic_app source)</td>
+</tr>
+<tr>
+<td><code>automation_accounts</code></td>
+<td>Number of Automation Accounts (with system-assigned managed identities)</td>
+<td>ManagedIdentityAbuse (automation_account source)</td>
+</tr>
+<tr>
+<td><code>function_apps</code></td>
+<td>Number of Function Apps (with system-assigned managed identities)</td>
+<td>ManagedIdentityAbuse (function_app source)</td>
+</tr>
+<tr>
+<td><code>cosmos_dbs</code></td>
+<td>Number of Cosmos DB accounts (serverless, SQL API)</td>
+<td>CosmosDBSecretTheft, ManagedIdentityAbuse (cosmos_db target)</td>
+</tr>
+</tbody>
+</table>
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p>Make sure resource counts match your attack path requirements. For example, if you enable a ManagedIdentityAbuse path with <code>source_type: vm</code>, you need at least <code>virtual_machines: 1</code>.</p>
+</div>
+<h2 id="attack-path-options">Attack Path Options<a class="headerlink" href="#attack-path-options" title="Permanent link">&para;</a></h2>
+<p>Each attack path is a named entry under <code>attack_paths</code>. The name is arbitrary — use something descriptive.</p>
+<h3 id="common-options">Common Options<a class="headerlink" href="#common-options" title="Permanent link">&para;</a></h3>
+<p>These options are available for <strong>all</strong> attack path types:</p>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Values</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>enabled</code></td>
+<td><code>true</code>, <code>false</code></td>
+<td>—</td>
+<td>Whether this attack path is active</td>
+</tr>
+<tr>
+<td><code>privilege_escalation</code></td>
+<td>See below</td>
+<td>—</td>
+<td>The escalation technique</td>
+</tr>
+<tr>
+<td><code>method</code></td>
+<td><code>AzureADRole</code>, <code>APIPermission</code></td>
+<td>—</td>
+<td>How the target app gets its privileges</td>
+</tr>
+<tr>
+<td><code>initial_access</code></td>
+<td><code>user</code>, <code>service_principal</code></td>
+<td><code>user</code></td>
+<td>Type of initial access identity</td>
+</tr>
+<tr>
+<td><code>assignment_type</code></td>
+<td><code>direct</code>, <code>group_member</code>, <code>group_owner</code></td>
+<td><code>direct</code></td>
+<td>Direct assignment, via group membership, or via group ownership</td>
+</tr>
+</tbody>
+</table>
+<h3 id="option-details">Option Details<a class="headerlink" href="#option-details" title="Permanent link">&para;</a></h3>
+<p><strong><code>privilege_escalation</code></strong> — The privilege escalation technique to simulate:</p>
+<ul>
+<li><strong><code>ApplicationOwnershipAbuse</code></strong> — Exploits application ownership to add credentials to privileged applications</li>
+<li><strong><code>ApplicationAdministratorAbuse</code></strong> — Exploits the Application Administrator role to manage any application and add credentials</li>
+<li><strong><code>CloudAppAdministratorAbuse</code></strong> — Exploits the Cloud Application Administrator role (narrower scope than Application Administrator)</li>
+<li><strong><code>ManagedIdentityAbuse</code></strong> — Exploits access to Azure resources with managed identities to steal tokens and pivot to other resources</li>
+<li><strong><code>KeyVaultSecretTheft</code></strong> — Retrieves application secrets stored in Azure Key Vault through direct access</li>
+<li><strong><code>StorageCertificateTheft</code></strong> — Retrieves application certificates and private keys from Azure Storage through direct access</li>
+<li><strong><code>CosmosDBSecretTheft</code></strong> — Retrieves application secrets stored in Azure Cosmos DB through direct data plane access</li>
+</ul>
+<p>For detailed descriptions of each technique, see the <a href="../attack-paths/">Attack Paths</a> section.</p>
+<p><strong><code>initial_access</code></strong> — The type of identity used for initial access:</p>
+<ul>
+<li><strong><code>user</code></strong> — A regular user account (default). Simulates compromised employee, developer, or administrator accounts</li>
+<li><strong><code>service_principal</code></strong> — An application's service principal. Simulates compromised CI/CD pipelines, automation accounts, or third-party integrations</li>
+</ul>
+<p>All attack paths support both identity types:</p>
+<table>
+<thead>
+<tr>
+<th>Attack Path</th>
+<th>User</th>
+<th>Service Principal</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>ApplicationOwnershipAbuse</td>
+<td>User as application owner</td>
+<td>SP as application owner</td>
+</tr>
+<tr>
+<td>ApplicationAdministratorAbuse</td>
+<td>User with App Admin role</td>
+<td>SP with App Admin role</td>
+</tr>
+<tr>
+<td>CloudAppAdministratorAbuse</td>
+<td>User with Cloud App Admin role</td>
+<td>SP with Cloud App Admin role</td>
+</tr>
+<tr>
+<td>ManagedIdentityAbuse</td>
+<td>User with Contributor access</td>
+<td>SP with Contributor access</td>
+</tr>
+<tr>
+<td>KeyVaultSecretTheft</td>
+<td>User with Key Vault access</td>
+<td>SP with Key Vault access</td>
+</tr>
+<tr>
+<td>StorageCertificateTheft</td>
+<td>User with Storage access</td>
+<td>SP with Storage access</td>
+</tr>
+<tr>
+<td>CosmosDBSecretTheft</td>
+<td>User with Cosmos DB access</td>
+<td>SP with Cosmos DB access</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>assignment_type</code></strong> — How permissions are granted to the initial access identity:</p>
+<ul>
+<li><strong><code>direct</code></strong> — Permissions assigned directly to the identity (default). The user or service principal has explicit permissions.</li>
+<li><strong><code>group_member</code></strong> — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates attack scenarios that mirror enterprise configurations where permissions are managed through groups.</li>
+<li><strong><code>group_owner</code></strong> — The identity is added as an owner of a security group that has permissions. This simulates scenarios where group ownership is leveraged to control privileged groups.</li>
+</ul>
+<h3 id="privilege-assignment">Privilege Assignment<a class="headerlink" href="#privilege-assignment" title="Permanent link">&para;</a></h3>
+<p>How the target application receives its high privileges.</p>
+<p><strong><code>method</code></strong> — The method used to assign privileges to the target application:</p>
+<ul>
+<li><strong><code>AzureADRole</code></strong> — Assigns Entra ID directory roles to the application, enabling tenant-wide administrative privileges</li>
+<li><strong><code>APIPermission</code></strong> — Assigns API application permissions to the application (supports Microsoft Graph and Exchange Online)</li>
+</ul>
+<div class="tabbed-set tabbed-alternate" data-tabs="1:2"><input checked="checked" id="__tabbed_1_1" name="__tabbed_1" type="radio" /><input id="__tabbed_1_2" name="__tabbed_1" type="radio" /><div class="tabbed-labels"><label for="__tabbed_1_1">Entra ID Role</label><label for="__tabbed_1_2">API Permission</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<p>Assign one or more directory roles using <code>method: AzureADRole</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-1-1" name="__codelineno-1-1" href="#__codelineno-1-1"></a><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AzureADRole</span>
+<a id="__codelineno-1-2" name="__codelineno-1-2" href="#__codelineno-1-2"></a>
+<a id="__codelineno-1-3" name="__codelineno-1-3" href="#__codelineno-1-3"></a><span class="c1"># Single role</span>
+<a id="__codelineno-1-4" name="__codelineno-1-4" href="#__codelineno-1-4"></a><span class="nt">entra_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">62e90394-69f5-4237-9190-012177145e10</span><span class="w">  </span><span class="c1"># Global Administrator</span>
+<a id="__codelineno-1-5" name="__codelineno-1-5" href="#__codelineno-1-5"></a>
+<a id="__codelineno-1-6" name="__codelineno-1-6" href="#__codelineno-1-6"></a><span class="c1"># Multiple roles</span>
+<a id="__codelineno-1-7" name="__codelineno-1-7" href="#__codelineno-1-7"></a><span class="nt">entra_role</span><span class="p">:</span>
+<a id="__codelineno-1-8" name="__codelineno-1-8" href="#__codelineno-1-8"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">e8611ab8-c189-46e8-94e1-60213ab1f814</span><span class="w">  </span><span class="c1"># Privileged Role Administrator</span>
+<a id="__codelineno-1-9" name="__codelineno-1-9" href="#__codelineno-1-9"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">7be44c8a-adaf-4e2a-84d6-ab2649e08a13</span><span class="w">  </span><span class="c1"># Privileged Authentication Administrator</span>
+<a id="__codelineno-1-10" name="__codelineno-1-10" href="#__codelineno-1-10"></a>
+<a id="__codelineno-1-11" name="__codelineno-1-11" href="#__codelineno-1-11"></a><span class="c1"># Random high-privileged role</span>
+<a id="__codelineno-1-12" name="__codelineno-1-12" href="#__codelineno-1-12"></a><span class="nt">entra_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>Assign API application permissions using <code>method: APIPermission</code>:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-2-1" name="__codelineno-2-1" href="#__codelineno-2-1"></a><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-2-2" name="__codelineno-2-2" href="#__codelineno-2-2"></a>
+<a id="__codelineno-2-3" name="__codelineno-2-3" href="#__codelineno-2-3"></a><span class="c1"># Microsoft Graph (default)</span>
+<a id="__codelineno-2-4" name="__codelineno-2-4" href="#__codelineno-2-4"></a><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-2-5" name="__codelineno-2-5" href="#__codelineno-2-5"></a><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8</span><span class="w">  </span><span class="c1"># RoleManagement.ReadWrite.Directory</span>
+<a id="__codelineno-2-6" name="__codelineno-2-6" href="#__codelineno-2-6"></a>
+<a id="__codelineno-2-7" name="__codelineno-2-7" href="#__codelineno-2-7"></a><span class="c1"># Exchange Online</span>
+<a id="__codelineno-2-8" name="__codelineno-2-8" href="#__codelineno-2-8"></a><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">exchange</span>
+<a id="__codelineno-2-9" name="__codelineno-2-9" href="#__codelineno-2-9"></a><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dc890d15-9560-4a4c-9b7f-a736ec74ec40</span><span class="w">  </span><span class="c1"># full_access_as_app</span>
+<a id="__codelineno-2-10" name="__codelineno-2-10" href="#__codelineno-2-10"></a>
+<a id="__codelineno-2-11" name="__codelineno-2-11" href="#__codelineno-2-11"></a><span class="c1"># Multiple permissions</span>
+<a id="__codelineno-2-12" name="__codelineno-2-12" href="#__codelineno-2-12"></a><span class="nt">app_role</span><span class="p">:</span>
+<a id="__codelineno-2-13" name="__codelineno-2-13" href="#__codelineno-2-13"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">06b708a9-e830-4db3-a914-8e69da51d44f</span><span class="w">  </span><span class="c1"># AppRoleAssignment.ReadWrite.All</span>
+<a id="__codelineno-2-14" name="__codelineno-2-14" href="#__codelineno-2-14"></a><span class="w">  </span><span class="p p-Indicator">-</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8</span><span class="w">  </span><span class="c1"># RoleManagement.ReadWrite.Directory</span>
+<a id="__codelineno-2-15" name="__codelineno-2-15" href="#__codelineno-2-15"></a>
+<a id="__codelineno-2-16" name="__codelineno-2-16" href="#__codelineno-2-16"></a><span class="c1"># Random high-privileged permission</span>
+<a id="__codelineno-2-17" name="__codelineno-2-17" href="#__codelineno-2-17"></a><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+<p><strong><code>api_type</code></strong> — When using <code>method: APIPermission</code>, specifies which API to assign permissions for:</p>
+<ul>
+<li><strong><code>graph</code></strong> — Microsoft Graph API (default). Provides access to Entra ID, Microsoft 365, and other Microsoft cloud services. Supports a wide range of high-privileged permissions.</li>
+<li><strong><code>exchange</code></strong> — Exchange Online API. Provides direct access to Exchange Online mailboxes and configuration. Useful for testing email-based attack scenarios, including permissions like <code>full_access_as_app</code>.</li>
+</ul>
+<h2 id="per-technique-options">Per-Technique Options<a class="headerlink" href="#per-technique-options" title="Permanent link">&para;</a></h2>
+<h3 id="applicationownershipabuse">ApplicationOwnershipAbuse<a class="headerlink" href="#applicationownershipabuse" title="Permanent link">&para;</a></h3>
+<p><strong>Required fields:</strong></p>
+<ul>
+<li><code>privilege_escalation: ApplicationOwnershipAbuse</code></li>
+<li><code>method</code>: <code>AzureADRole</code> or <code>APIPermission</code></li>
+<li><code>entra_role</code> or <code>app_role</code>: The privileges assigned to the application</li>
+</ul>
+<p><strong>Optional fields:</strong></p>
+<ul>
+<li><code>initial_access</code>: <code>user</code> (default) or <code>service_principal</code></li>
+</ul>
+<h3 id="applicationadministratorabuse">ApplicationAdministratorAbuse<a class="headerlink" href="#applicationadministratorabuse" title="Permanent link">&para;</a></h3>
+<p><strong>Required fields:</strong></p>
+<ul>
+<li><code>privilege_escalation: ApplicationAdministratorAbuse</code></li>
+<li><code>method</code>: <code>AzureADRole</code> or <code>APIPermission</code></li>
+<li><code>entra_role</code> or <code>app_role</code>: The privileges assigned to the target application</li>
+</ul>
+<p><strong>Optional fields:</strong></p>
+<ul>
+<li><code>initial_access</code>: <code>user</code> (default) or <code>service_principal</code></li>
+<li><code>scope</code>: <code>directory</code> (default) or <code>application</code></li>
+</ul>
+<p><strong><code>scope</code></strong> — Controls whether the Application Administrator role is assigned tenant-wide or scoped to a specific application:</p>
+<ul>
+<li><strong><code>directory</code></strong> — The role applies to <strong>all</strong> applications in the tenant (default, existing behavior)</li>
+<li><strong><code>application</code></strong> — The role is scoped to only the <strong>target application</strong>. This uses Azure Entra ID's <code>directory_scope_id</code> to restrict the role assignment. More realistic for least-privilege environments where admins are scoped to specific apps.</li>
+</ul>
+<h3 id="cloudappadministratorabuse">CloudAppAdministratorAbuse<a class="headerlink" href="#cloudappadministratorabuse" title="Permanent link">&para;</a></h3>
+<p><strong>Required fields:</strong></p>
+<ul>
+<li><code>privilege_escalation: CloudAppAdministratorAbuse</code></li>
+<li><code>method</code>: <code>AzureADRole</code> or <code>APIPermission</code></li>
+<li><code>entra_role</code> or <code>app_role</code>: The privileges assigned to the target application</li>
+</ul>
+<p><strong>Optional fields:</strong></p>
+<ul>
+<li><code>initial_access</code>: <code>user</code> (default) or <code>service_principal</code></li>
+<li><code>scope</code>: <code>directory</code> (default) or <code>application</code></li>
+</ul>
+<p>This technique is identical to <code>ApplicationAdministratorAbuse</code> in configuration, but uses the <strong>Cloud Application Administrator</strong> role (<code>158c047a-c907-4556-b7ef-446551a6b5f7</code>) instead. The Cloud Application Administrator role has a narrower scope — it cannot manage applications with certain sensitive permissions. See <a href="../attack-paths/cloud-app-administrator-abuse/">CloudAppAdministratorAbuse</a> for details.</p>
+<h3 id="managedidentityabuse">ManagedIdentityAbuse<a class="headerlink" href="#managedidentityabuse" title="Permanent link">&para;</a></h3>
+<p><strong>Required fields:</strong></p>
+<ul>
+<li><code>privilege_escalation: ManagedIdentityAbuse</code></li>
+<li><code>source_type</code>: The Azure resource with the managed identity</li>
+<li><code>target_resource_type</code>: The resource storing the application credentials</li>
+<li><code>method</code>: <code>AzureADRole</code> or <code>APIPermission</code></li>
+<li><code>entra_role</code> or <code>app_role</code>: The privileges assigned to the application</li>
+</ul>
+<p><strong>Optional fields:</strong></p>
+<ul>
+<li><code>initial_access</code>: <code>user</code> (default) or <code>service_principal</code></li>
+<li><code>credential_type</code>: <code>secret</code> (default) or <code>certificate</code></li>
+</ul>
+<p><strong><code>source_type</code></strong> — The Azure resource with the managed identity:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Resource</th>
+<th>Required Role</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>vm</code></td>
+<td>Virtual Machine with system-assigned managed identity</td>
+<td>VM Contributor</td>
+</tr>
+<tr>
+<td><code>logic_app</code></td>
+<td>Logic App with system-assigned managed identity</td>
+<td>Logic App Contributor</td>
+</tr>
+<tr>
+<td><code>automation_account</code></td>
+<td>Automation Account with system-assigned managed identity</td>
+<td>Automation Contributor</td>
+</tr>
+<tr>
+<td><code>function_app</code></td>
+<td>Function App with system-assigned managed identity (Linux/Python)</td>
+<td>Website Contributor</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>target_resource_type</code></strong> — The resource storing the application credentials:</p>
+<table>
+<thead>
+<tr>
+<th>Value</th>
+<th>Resource</th>
+<th>Managed Identity Access</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>key_vault</code></td>
+<td>Azure Key Vault</td>
+<td>Key Vault Contributor — retrieves secrets or certificates</td>
+</tr>
+<tr>
+<td><code>storage_account</code></td>
+<td>Azure Storage Account</td>
+<td>Storage Blob Data Reader — retrieves certificates</td>
+</tr>
+<tr>
+<td><code>cosmos_db</code></td>
+<td>Azure Cosmos DB</td>
+<td>Cosmos DB Built-in Data Contributor — retrieves secrets</td>
+</tr>
+</tbody>
+</table>
+<p><strong><code>credential_type</code></strong> — The type of credential stored in the target resource:</p>
+<ul>
+<li><strong><code>secret</code></strong> — Application uses client ID and secret for authentication (default). Easier to implement but secrets can be logged or cached.</li>
+<li><strong><code>certificate</code></strong> — Application uses X.509 certificate-based authentication. More secure and harder to detect in logs, but requires certificate management. Applies to both <code>key_vault</code> and <code>storage_account</code> targets.</li>
+</ul>
+<h3 id="keyvaultsecrettheft">KeyVaultSecretTheft<a class="headerlink" href="#keyvaultsecrettheft" title="Permanent link">&para;</a></h3>
+<p><strong>Required fields:</strong></p>
+<ul>
+<li><code>privilege_escalation: KeyVaultSecretTheft</code></li>
+<li><code>method</code>: <code>AzureADRole</code> or <code>APIPermission</code></li>
+<li><code>entra_role</code> or <code>app_role</code>: The privileges assigned to the application</li>
+</ul>
+<p><strong>Optional fields:</strong></p>
+<ul>
+<li><code>initial_access</code>: <code>user</code> (default) or <code>service_principal</code></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For scenarios involving managed identity token theft to access Key Vault, use <code>ManagedIdentityAbuse</code> with <code>target_resource_type: key_vault</code> instead.</p>
+</div>
+<h3 id="storagecertificatetheft">StorageCertificateTheft<a class="headerlink" href="#storagecertificatetheft" title="Permanent link">&para;</a></h3>
+<p><strong>Required fields:</strong></p>
+<ul>
+<li><code>privilege_escalation: StorageCertificateTheft</code></li>
+<li><code>method</code>: <code>AzureADRole</code> or <code>APIPermission</code></li>
+<li><code>entra_role</code> or <code>app_role</code>: The privileges assigned to the application</li>
+</ul>
+<p><strong>Optional fields:</strong></p>
+<ul>
+<li><code>initial_access</code>: <code>user</code> (default) or <code>service_principal</code></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For scenarios involving managed identity token theft to access Storage Account, use <code>ManagedIdentityAbuse</code> with <code>target_resource_type: storage_account</code> instead.</p>
+</div>
+<h3 id="cosmosdbsecrettheft">CosmosDBSecretTheft<a class="headerlink" href="#cosmosdbsecrettheft" title="Permanent link">&para;</a></h3>
+<p><strong>Required fields:</strong></p>
+<ul>
+<li><code>privilege_escalation: CosmosDBSecretTheft</code></li>
+<li><code>method</code>: <code>AzureADRole</code> or <code>APIPermission</code></li>
+<li><code>entra_role</code> or <code>app_role</code>: The privileges assigned to the application</li>
+</ul>
+<p><strong>Optional fields:</strong></p>
+<ul>
+<li><code>initial_access</code>: <code>user</code> (default) or <code>service_principal</code></li>
+</ul>
+<div class="admonition note">
+<p class="admonition-title">Note</p>
+<p>For scenarios involving managed identity token theft to access Cosmos DB, use <code>ManagedIdentityAbuse</code> with <code>target_resource_type: cosmos_db</code> instead.</p>
+</div>
+<h2 id="group-based-assignment">Group-Based Assignment<a class="headerlink" href="#group-based-assignment" title="Permanent link">&para;</a></h2>
+<p>All privilege escalation techniques support group-based assignment using <code>assignment_type: group_member</code> or <code>assignment_type: group_owner</code>. When using <code>group_member</code>, permissions are assigned to a security group and the initial access identity is added as a member of that group, inheriting permissions through group membership. When using <code>group_owner</code>, the identity is added as an owner of the group instead.</p>
+<p>This creates more realistic attack scenarios that mirror enterprise configurations where:</p>
+<ul>
+<li>Permissions are managed through groups rather than individual assignments</li>
+<li>Attack paths require discovering group memberships to understand privilege chains</li>
+<li>Detection requires correlating group membership with resource access</li>
+</ul>
+<p>Groups created for attack paths use realistic names from the <code>entity_data/group-names.txt</code> file (e.g., "IT Security", "Cloud Infrastructure", "DevOps") with a random suffix for uniqueness.</p>
+<h3 id="group-assignment-examples">Group Assignment Examples<a class="headerlink" href="#group-assignment-examples" title="Permanent link">&para;</a></h3>
+<div class="tabbed-set tabbed-alternate" data-tabs="2:7"><input checked="checked" id="__tabbed_2_1" name="__tabbed_2" type="radio" /><input id="__tabbed_2_2" name="__tabbed_2" type="radio" /><input id="__tabbed_2_3" name="__tabbed_2" type="radio" /><input id="__tabbed_2_4" name="__tabbed_2" type="radio" /><input id="__tabbed_2_5" name="__tabbed_2" type="radio" /><input id="__tabbed_2_6" name="__tabbed_2" type="radio" /><input id="__tabbed_2_7" name="__tabbed_2" type="radio" /><div class="tabbed-labels"><label for="__tabbed_2_1">ApplicationOwnershipAbuse</label><label for="__tabbed_2_2">ApplicationAdministratorAbuse</label><label for="__tabbed_2_3">CloudAppAdministratorAbuse</label><label for="__tabbed_2_4">ManagedIdentityAbuse</label><label for="__tabbed_2_5">KeyVaultSecretTheft</label><label for="__tabbed_2_6">StorageCertificateTheft</label><label for="__tabbed_2_7">CosmosDBSecretTheft</label></div>
+<div class="tabbed-content">
+<div class="tabbed-block">
+<div class="admonition warning">
+<p class="admonition-title">Warning</p>
+<p><code>ApplicationOwnershipAbuse</code> only supports <code>direct</code> assignment. Azure AD does not allow security groups to be application owners, so <code>group_member</code> and <code>group_owner</code> are <strong>not supported</strong> for this technique and will automatically fall back to <code>direct</code>. See <a href="../attack-paths/app-ownership-abuse/">ApplicationOwnershipAbuse</a> for details.</p>
+</div>
+</div>
+<div class="tabbed-block">
+<p>User inherits Application Administrator role through group membership:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-3-1" name="__codelineno-3-1" href="#__codelineno-3-1"></a><span class="nt">attack_path_admin_group</span><span class="p">:</span>
+<a id="__codelineno-3-2" name="__codelineno-3-2" href="#__codelineno-3-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-3-3" name="__codelineno-3-3" href="#__codelineno-3-3"></a>
+<a id="__codelineno-3-4" name="__codelineno-3-4" href="#__codelineno-3-4"></a><span class="w">  </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ApplicationAdministratorAbuse</span>
+<a id="__codelineno-3-5" name="__codelineno-3-5" href="#__codelineno-3-5"></a><span class="w">  </span><span class="nt">initial_access</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span>
+<a id="__codelineno-3-6" name="__codelineno-3-6" href="#__codelineno-3-6"></a><span class="w">  </span><span class="nt">assignment_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_member</span>
+<a id="__codelineno-3-7" name="__codelineno-3-7" href="#__codelineno-3-7"></a><span class="w">  </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-3-8" name="__codelineno-3-8" href="#__codelineno-3-8"></a><span class="w">  </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-3-9" name="__codelineno-3-9" href="#__codelineno-3-9"></a><span class="w">  </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8</span><span class="w">  </span><span class="c1"># RoleManagement.ReadWrite.Directory</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>User inherits Cloud Application Administrator role through group membership:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-4-1" name="__codelineno-4-1" href="#__codelineno-4-1"></a><span class="nt">attack_path_cloud_admin_group</span><span class="p">:</span>
+<a id="__codelineno-4-2" name="__codelineno-4-2" href="#__codelineno-4-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-4-3" name="__codelineno-4-3" href="#__codelineno-4-3"></a>
+<a id="__codelineno-4-4" name="__codelineno-4-4" href="#__codelineno-4-4"></a><span class="w">  </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CloudAppAdministratorAbuse</span>
+<a id="__codelineno-4-5" name="__codelineno-4-5" href="#__codelineno-4-5"></a><span class="w">  </span><span class="nt">initial_access</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span>
+<a id="__codelineno-4-6" name="__codelineno-4-6" href="#__codelineno-4-6"></a><span class="w">  </span><span class="nt">assignment_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_member</span>
+<a id="__codelineno-4-7" name="__codelineno-4-7" href="#__codelineno-4-7"></a><span class="w">  </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-4-8" name="__codelineno-4-8" href="#__codelineno-4-8"></a><span class="w">  </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-4-9" name="__codelineno-4-9" href="#__codelineno-4-9"></a><span class="w">  </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8</span><span class="w">  </span><span class="c1"># RoleManagement.ReadWrite.Directory</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>User inherits VM Contributor through group membership:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-5-1" name="__codelineno-5-1" href="#__codelineno-5-1"></a><span class="nt">attack_path_mi_group</span><span class="p">:</span>
+<a id="__codelineno-5-2" name="__codelineno-5-2" href="#__codelineno-5-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-5-3" name="__codelineno-5-3" href="#__codelineno-5-3"></a>
+<a id="__codelineno-5-4" name="__codelineno-5-4" href="#__codelineno-5-4"></a><span class="w">  </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ManagedIdentityAbuse</span>
+<a id="__codelineno-5-5" name="__codelineno-5-5" href="#__codelineno-5-5"></a><span class="w">  </span><span class="nt">source_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vm</span>
+<a id="__codelineno-5-6" name="__codelineno-5-6" href="#__codelineno-5-6"></a><span class="w">  </span><span class="nt">target_resource_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key_vault</span>
+<a id="__codelineno-5-7" name="__codelineno-5-7" href="#__codelineno-5-7"></a>
+<a id="__codelineno-5-8" name="__codelineno-5-8" href="#__codelineno-5-8"></a><span class="w">  </span><span class="nt">initial_access</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span>
+<a id="__codelineno-5-9" name="__codelineno-5-9" href="#__codelineno-5-9"></a><span class="w">  </span><span class="nt">assignment_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_member</span>
+<a id="__codelineno-5-10" name="__codelineno-5-10" href="#__codelineno-5-10"></a><span class="w">  </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-5-11" name="__codelineno-5-11" href="#__codelineno-5-11"></a><span class="w">  </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-5-12" name="__codelineno-5-12" href="#__codelineno-5-12"></a><span class="w">  </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">06b708a9-e830-4db3-a914-8e69da51d44f</span><span class="w">  </span><span class="c1"># AppRoleAssignment.ReadWrite.All</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>User inherits Key Vault Contributor through group membership:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-6-1" name="__codelineno-6-1" href="#__codelineno-6-1"></a><span class="nt">attack_path_kv_group</span><span class="p">:</span>
+<a id="__codelineno-6-2" name="__codelineno-6-2" href="#__codelineno-6-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-6-3" name="__codelineno-6-3" href="#__codelineno-6-3"></a>
+<a id="__codelineno-6-4" name="__codelineno-6-4" href="#__codelineno-6-4"></a><span class="w">  </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KeyVaultSecretTheft</span>
+<a id="__codelineno-6-5" name="__codelineno-6-5" href="#__codelineno-6-5"></a><span class="w">  </span><span class="nt">initial_access</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span>
+<a id="__codelineno-6-6" name="__codelineno-6-6" href="#__codelineno-6-6"></a><span class="w">  </span><span class="nt">assignment_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_member</span>
+<a id="__codelineno-6-7" name="__codelineno-6-7" href="#__codelineno-6-7"></a><span class="w">  </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-6-8" name="__codelineno-6-8" href="#__codelineno-6-8"></a><span class="w">  </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-6-9" name="__codelineno-6-9" href="#__codelineno-6-9"></a><span class="w">  </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>User inherits Storage Blob Data Reader through group membership:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-7-1" name="__codelineno-7-1" href="#__codelineno-7-1"></a><span class="nt">attack_path_storage_group</span><span class="p">:</span>
+<a id="__codelineno-7-2" name="__codelineno-7-2" href="#__codelineno-7-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-7-3" name="__codelineno-7-3" href="#__codelineno-7-3"></a>
+<a id="__codelineno-7-4" name="__codelineno-7-4" href="#__codelineno-7-4"></a><span class="w">  </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">StorageCertificateTheft</span>
+<a id="__codelineno-7-5" name="__codelineno-7-5" href="#__codelineno-7-5"></a><span class="w">  </span><span class="nt">initial_access</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span>
+<a id="__codelineno-7-6" name="__codelineno-7-6" href="#__codelineno-7-6"></a><span class="w">  </span><span class="nt">assignment_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_member</span>
+<a id="__codelineno-7-7" name="__codelineno-7-7" href="#__codelineno-7-7"></a><span class="w">  </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-7-8" name="__codelineno-7-8" href="#__codelineno-7-8"></a><span class="w">  </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-7-9" name="__codelineno-7-9" href="#__codelineno-7-9"></a><span class="w">  </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">06b708a9-e830-4db3-a914-8e69da51d44f</span><span class="w">  </span><span class="c1"># AppRoleAssignment.ReadWrite.All</span>
+</code></pre></div>
+</div>
+<div class="tabbed-block">
+<p>User inherits Cosmos DB Data Contributor through group membership:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-8-1" name="__codelineno-8-1" href="#__codelineno-8-1"></a><span class="nt">attack_path_cosmos_group</span><span class="p">:</span>
+<a id="__codelineno-8-2" name="__codelineno-8-2" href="#__codelineno-8-2"></a><span class="w">  </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-8-3" name="__codelineno-8-3" href="#__codelineno-8-3"></a>
+<a id="__codelineno-8-4" name="__codelineno-8-4" href="#__codelineno-8-4"></a><span class="w">  </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CosmosDBSecretTheft</span>
+<a id="__codelineno-8-5" name="__codelineno-8-5" href="#__codelineno-8-5"></a><span class="w">  </span><span class="nt">initial_access</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">user</span>
+<a id="__codelineno-8-6" name="__codelineno-8-6" href="#__codelineno-8-6"></a><span class="w">  </span><span class="nt">assignment_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_member</span>
+<a id="__codelineno-8-7" name="__codelineno-8-7" href="#__codelineno-8-7"></a><span class="w">  </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-8-8" name="__codelineno-8-8" href="#__codelineno-8-8"></a><span class="w">  </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-8-9" name="__codelineno-8-9" href="#__codelineno-8-9"></a><span class="w">  </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">06b708a9-e830-4db3-a914-8e69da51d44f</span><span class="w">  </span><span class="c1"># AppRoleAssignment.ReadWrite.All</span>
+</code></pre></div>
+</div>
+</div>
+</div>
+<h2 id="full-example">Full Example<a class="headerlink" href="#full-example" title="Permanent link">&para;</a></h2>
+<p>A complete configuration demonstrating multiple attack path types:</p>
+<div class="highlight"><pre><span></span><code><a id="__codelineno-9-1" name="__codelineno-9-1" href="#__codelineno-9-1"></a><span class="nt">tenant</span><span class="p">:</span>
+<a id="__codelineno-9-2" name="__codelineno-9-2" href="#__codelineno-9-2"></a><span class="w">  </span><span class="nt">tenant_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your-tenant-guid</span>
+<a id="__codelineno-9-3" name="__codelineno-9-3" href="#__codelineno-9-3"></a><span class="w">  </span><span class="nt">domain</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">contoso.onmicrosoft.com</span>
+<a id="__codelineno-9-4" name="__codelineno-9-4" href="#__codelineno-9-4"></a><span class="w">  </span><span class="nt">subscription_id</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">your-subscription-guid</span>
+<a id="__codelineno-9-5" name="__codelineno-9-5" href="#__codelineno-9-5"></a>
+<a id="__codelineno-9-6" name="__codelineno-9-6" href="#__codelineno-9-6"></a><span class="w">  </span><span class="nt">users</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">20</span>
+<a id="__codelineno-9-7" name="__codelineno-9-7" href="#__codelineno-9-7"></a><span class="w">  </span><span class="nt">applications</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">10</span>
+<a id="__codelineno-9-8" name="__codelineno-9-8" href="#__codelineno-9-8"></a><span class="w">  </span><span class="nt">groups</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">5</span>
+<a id="__codelineno-9-9" name="__codelineno-9-9" href="#__codelineno-9-9"></a><span class="w">  </span><span class="nt">administrative_units</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">3</span>
+<a id="__codelineno-9-10" name="__codelineno-9-10" href="#__codelineno-9-10"></a>
+<a id="__codelineno-9-11" name="__codelineno-9-11" href="#__codelineno-9-11"></a><span class="w">  </span><span class="nt">resource_groups</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-9-12" name="__codelineno-9-12" href="#__codelineno-9-12"></a><span class="w">  </span><span class="nt">key_vaults</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">2</span>
+<a id="__codelineno-9-13" name="__codelineno-9-13" href="#__codelineno-9-13"></a><span class="w">  </span><span class="nt">storage_accounts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-9-14" name="__codelineno-9-14" href="#__codelineno-9-14"></a><span class="w">  </span><span class="nt">virtual_machines</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-9-15" name="__codelineno-9-15" href="#__codelineno-9-15"></a><span class="w">  </span><span class="nt">logic_apps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-9-16" name="__codelineno-9-16" href="#__codelineno-9-16"></a><span class="w">  </span><span class="nt">automation_accounts</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-9-17" name="__codelineno-9-17" href="#__codelineno-9-17"></a><span class="w">  </span><span class="nt">function_apps</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-9-18" name="__codelineno-9-18" href="#__codelineno-9-18"></a><span class="w">  </span><span class="nt">cosmos_dbs</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">1</span>
+<a id="__codelineno-9-19" name="__codelineno-9-19" href="#__codelineno-9-19"></a>
+<a id="__codelineno-9-20" name="__codelineno-9-20" href="#__codelineno-9-20"></a><span class="nt">attack_paths</span><span class="p">:</span>
+<a id="__codelineno-9-21" name="__codelineno-9-21" href="#__codelineno-9-21"></a>
+<a id="__codelineno-9-22" name="__codelineno-9-22" href="#__codelineno-9-22"></a><span class="w">  </span><span class="c1"># Identity: User owns app with Global Admin</span>
+<a id="__codelineno-9-23" name="__codelineno-9-23" href="#__codelineno-9-23"></a><span class="w">  </span><span class="nt">ownership_abuse</span><span class="p">:</span>
+<a id="__codelineno-9-24" name="__codelineno-9-24" href="#__codelineno-9-24"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-25" name="__codelineno-9-25" href="#__codelineno-9-25"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ApplicationOwnershipAbuse</span>
+<a id="__codelineno-9-26" name="__codelineno-9-26" href="#__codelineno-9-26"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AzureADRole</span>
+<a id="__codelineno-9-27" name="__codelineno-9-27" href="#__codelineno-9-27"></a><span class="w">    </span><span class="nt">entra_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">62e90394-69f5-4237-9190-012177145e10</span>
+<a id="__codelineno-9-28" name="__codelineno-9-28" href="#__codelineno-9-28"></a>
+<a id="__codelineno-9-29" name="__codelineno-9-29" href="#__codelineno-9-29"></a><span class="w">  </span><span class="c1"># Identity: SP with App Admin targets Exchange</span>
+<a id="__codelineno-9-30" name="__codelineno-9-30" href="#__codelineno-9-30"></a><span class="w">  </span><span class="nt">admin_abuse</span><span class="p">:</span>
+<a id="__codelineno-9-31" name="__codelineno-9-31" href="#__codelineno-9-31"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-32" name="__codelineno-9-32" href="#__codelineno-9-32"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ApplicationAdministratorAbuse</span>
+<a id="__codelineno-9-33" name="__codelineno-9-33" href="#__codelineno-9-33"></a><span class="w">    </span><span class="nt">initial_access</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">service_principal</span>
+<a id="__codelineno-9-34" name="__codelineno-9-34" href="#__codelineno-9-34"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-9-35" name="__codelineno-9-35" href="#__codelineno-9-35"></a><span class="w">    </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">exchange</span>
+<a id="__codelineno-9-36" name="__codelineno-9-36" href="#__codelineno-9-36"></a><span class="w">    </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">dc890d15-9560-4a4c-9b7f-a736ec74ec40</span>
+<a id="__codelineno-9-37" name="__codelineno-9-37" href="#__codelineno-9-37"></a>
+<a id="__codelineno-9-38" name="__codelineno-9-38" href="#__codelineno-9-38"></a><span class="w">  </span><span class="c1"># Identity: User with Cloud App Admin targets Global Admin</span>
+<a id="__codelineno-9-39" name="__codelineno-9-39" href="#__codelineno-9-39"></a><span class="w">  </span><span class="nt">cloud_admin_abuse</span><span class="p">:</span>
+<a id="__codelineno-9-40" name="__codelineno-9-40" href="#__codelineno-9-40"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-41" name="__codelineno-9-41" href="#__codelineno-9-41"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CloudAppAdministratorAbuse</span>
+<a id="__codelineno-9-42" name="__codelineno-9-42" href="#__codelineno-9-42"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AzureADRole</span>
+<a id="__codelineno-9-43" name="__codelineno-9-43" href="#__codelineno-9-43"></a><span class="w">    </span><span class="nt">entra_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">62e90394-69f5-4237-9190-012177145e10</span>
+<a id="__codelineno-9-44" name="__codelineno-9-44" href="#__codelineno-9-44"></a>
+<a id="__codelineno-9-45" name="__codelineno-9-45" href="#__codelineno-9-45"></a><span class="w">  </span><span class="c1"># Resource: VM → Key Vault → privileged app</span>
+<a id="__codelineno-9-46" name="__codelineno-9-46" href="#__codelineno-9-46"></a><span class="w">  </span><span class="nt">vm_to_keyvault</span><span class="p">:</span>
+<a id="__codelineno-9-47" name="__codelineno-9-47" href="#__codelineno-9-47"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-48" name="__codelineno-9-48" href="#__codelineno-9-48"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">ManagedIdentityAbuse</span>
+<a id="__codelineno-9-49" name="__codelineno-9-49" href="#__codelineno-9-49"></a><span class="w">    </span><span class="nt">source_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">vm</span>
+<a id="__codelineno-9-50" name="__codelineno-9-50" href="#__codelineno-9-50"></a><span class="w">    </span><span class="nt">target_resource_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">key_vault</span>
+<a id="__codelineno-9-51" name="__codelineno-9-51" href="#__codelineno-9-51"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-9-52" name="__codelineno-9-52" href="#__codelineno-9-52"></a><span class="w">    </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-9-53" name="__codelineno-9-53" href="#__codelineno-9-53"></a><span class="w">    </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">06b708a9-e830-4db3-a914-8e69da51d44f</span>
+<a id="__codelineno-9-54" name="__codelineno-9-54" href="#__codelineno-9-54"></a>
+<a id="__codelineno-9-55" name="__codelineno-9-55" href="#__codelineno-9-55"></a><span class="w">  </span><span class="c1"># Resource: Direct Key Vault access via group</span>
+<a id="__codelineno-9-56" name="__codelineno-9-56" href="#__codelineno-9-56"></a><span class="w">  </span><span class="nt">keyvault_group</span><span class="p">:</span>
+<a id="__codelineno-9-57" name="__codelineno-9-57" href="#__codelineno-9-57"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-58" name="__codelineno-9-58" href="#__codelineno-9-58"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">KeyVaultSecretTheft</span>
+<a id="__codelineno-9-59" name="__codelineno-9-59" href="#__codelineno-9-59"></a><span class="w">    </span><span class="nt">assignment_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">group_member</span>
+<a id="__codelineno-9-60" name="__codelineno-9-60" href="#__codelineno-9-60"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AzureADRole</span>
+<a id="__codelineno-9-61" name="__codelineno-9-61" href="#__codelineno-9-61"></a><span class="w">    </span><span class="nt">entra_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">random</span>
+<a id="__codelineno-9-62" name="__codelineno-9-62" href="#__codelineno-9-62"></a>
+<a id="__codelineno-9-63" name="__codelineno-9-63" href="#__codelineno-9-63"></a><span class="w">  </span><span class="c1"># Resource: Direct storage access with certs</span>
+<a id="__codelineno-9-64" name="__codelineno-9-64" href="#__codelineno-9-64"></a><span class="w">  </span><span class="nt">storage_certs</span><span class="p">:</span>
+<a id="__codelineno-9-65" name="__codelineno-9-65" href="#__codelineno-9-65"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-66" name="__codelineno-9-66" href="#__codelineno-9-66"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">StorageCertificateTheft</span>
+<a id="__codelineno-9-67" name="__codelineno-9-67" href="#__codelineno-9-67"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">APIPermission</span>
+<a id="__codelineno-9-68" name="__codelineno-9-68" href="#__codelineno-9-68"></a><span class="w">    </span><span class="nt">api_type</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">graph</span>
+<a id="__codelineno-9-69" name="__codelineno-9-69" href="#__codelineno-9-69"></a><span class="w">    </span><span class="nt">app_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8</span>
+<a id="__codelineno-9-70" name="__codelineno-9-70" href="#__codelineno-9-70"></a>
+<a id="__codelineno-9-71" name="__codelineno-9-71" href="#__codelineno-9-71"></a><span class="w">  </span><span class="c1"># Resource: Direct Cosmos DB access</span>
+<a id="__codelineno-9-72" name="__codelineno-9-72" href="#__codelineno-9-72"></a><span class="w">  </span><span class="nt">cosmos_secrets</span><span class="p">:</span>
+<a id="__codelineno-9-73" name="__codelineno-9-73" href="#__codelineno-9-73"></a><span class="w">    </span><span class="nt">enabled</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">true</span>
+<a id="__codelineno-9-74" name="__codelineno-9-74" href="#__codelineno-9-74"></a><span class="w">    </span><span class="nt">privilege_escalation</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">CosmosDBSecretTheft</span>
+<a id="__codelineno-9-75" name="__codelineno-9-75" href="#__codelineno-9-75"></a><span class="w">    </span><span class="nt">method</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">AzureADRole</span>
+<a id="__codelineno-9-76" name="__codelineno-9-76" href="#__codelineno-9-76"></a><span class="w">    </span><span class="nt">entra_role</span><span class="p">:</span><span class="w"> </span><span class="l l-Scalar l-Scalar-Plain">62e90394-69f5-4237-9190-012177145e10</span>
+</code></pre></div>
+
+
+
+
+
+
+
+
+
+  
+
+
+
+
+                
+              </article>
+            </div>
+          
+          
+<script>var target=document.getElementById(location.hash.slice(1));target&&target.name&&(target.checked=target.name.startsWith("__tabbed_"))</script>
+        </div>
+        
+          <button type="button" class="md-top md-icon" data-md-component="top" hidden>
+  
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M13 20h-2V8l-5.5 5.5-1.42-1.42L12 4.16l7.92 7.92-1.42 1.42L13 8z"/></svg>
+  Back to top
+</button>
+        
+      </main>
+      
+        <footer class="md-footer">
+  
+  <div class="md-footer-meta md-typeset">
+    <div class="md-footer-meta__inner md-grid">
+      <div class="md-copyright">
+  
+    <div class="md-copyright__highlight">
+      Maintained by Mauricio Velazco and contributors
+    </div>
+  
+  
+    Made with
+    <a href="https://squidfunk.github.io/mkdocs-material/" target="_blank" rel="noopener">
+      Material for MkDocs
+    </a>
+  
+</div>
+      
+        
+<div class="md-social">
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://github.com/mvelazc0/BadZure" target="_blank" rel="noopener" title="github.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M173.9 397.4c0 2-2.3 3.6-5.2 3.6-3.3.3-5.6-1.3-5.6-3.6 0-2 2.3-3.6 5.2-3.6 3-.3 5.6 1.3 5.6 3.6m-31.1-4.5c-.7 2 1.3 4.3 4.3 4.9 2.6 1 5.6 0 6.2-2s-1.3-4.3-4.3-5.2c-2.6-.7-5.5.3-6.2 2.3m44.2-1.7c-2.9.7-4.9 2.6-4.6 4.9.3 2 2.9 3.3 5.9 2.6 2.9-.7 4.9-2.6 4.6-4.6-.3-1.9-3-3.2-5.9-2.9M252.8 8C114.1 8 8 113.3 8 252c0 110.9 69.8 205.8 169.5 239.2 12.8 2.3 17.3-5.6 17.3-12.1 0-6.2-.3-40.4-.3-61.4 0 0-70 15-84.7-29.8 0 0-11.4-29.1-27.8-36.6 0 0-22.9-15.7 1.6-15.4 0 0 24.9 2 38.6 25.8 21.9 38.6 58.6 27.5 72.9 20.9 2.3-16 8.8-27.1 16-33.7-55.9-6.2-112.3-14.3-112.3-110.5 0-27.5 7.6-41.3 23.6-58.9-2.6-6.5-11.1-33.3 2.6-67.9 20.9-6.5 69 27 69 27 20-5.6 41.5-8.5 62.8-8.5s42.8 2.9 62.8 8.5c0 0 48.1-33.6 69-27 13.7 34.7 5.2 61.4 2.6 67.9 16 17.7 25.8 31.5 25.8 58.9 0 96.5-58.9 104.2-114.8 110.5 9.2 7.9 17 22.9 17 46.4 0 33.7-.3 75.4-.3 83.6 0 6.5 4.6 14.4 17.3 12.1C436.2 457.8 504 362.9 504 252 504 113.3 391.5 8 252.8 8M105.2 352.9c-1.3 1-1 3.3.7 5.2 1.6 1.6 3.9 2.3 5.2 1 1.3-1 1-3.3-.7-5.2-1.6-1.6-3.9-2.3-5.2-1m-10.8-8.1c-.7 1.3.3 2.9 2.3 3.9 1.6 1 3.6.7 4.3-.7.7-1.3-.3-2.9-2.3-3.9-2-.6-3.6-.3-4.3.7m32.4 35.6c-1.6 1.3-1 4.3 1.3 6.2 2.3 2.3 5.2 2.6 6.5 1 1.3-1.3.7-4.3-1.3-6.2-2.2-2.3-5.2-2.6-6.5-1m-11.4-14.7c-1.6 1-1.6 3.6 0 5.9s4.3 3.3 5.6 2.3c1.6-1.3 1.6-3.9 0-6.2-1.4-2.3-4-3.3-5.6-2"/></svg>
+    </a>
+  
+    
+    
+    
+    
+      
+      
+    
+    <a href="https://twitter.com/mvelazco" target="_blank" rel="noopener" title="twitter.com" class="md-social__link">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512"><!--! Font Awesome Free 7.1.0 by @fontawesome - https://fontawesome.com License - https://fontawesome.com/license/free (Icons: CC BY 4.0, Fonts: SIL OFL 1.1, Code: MIT License) Copyright 2025 Fonticons, Inc.--><path d="M459.4 151.7c.3 4.5.3 9.1.3 13.6 0 138.7-105.6 298.6-298.6 298.6-59.5 0-114.7-17.2-161.1-47.1 8.4 1 16.6 1.3 25.3 1.3 49.1 0 94.2-16.6 130.3-44.8-46.1-1-84.8-31.2-98.1-72.8 6.5 1 13 1.6 19.8 1.6 9.4 0 18.8-1.3 27.6-3.6-48.1-9.7-84.1-52-84.1-103v-1.3c14 7.8 30.2 12.7 47.4 13.3-28.3-18.8-46.8-51-46.8-87.4 0-19.5 5.2-37.4 14.3-53C87.4 130.8 165 172.4 252.1 176.9c-1.6-7.8-2.6-15.9-2.6-24C249.5 95.1 296.3 48 354.4 48c30.2 0 57.5 12.7 76.7 33.1 23.7-4.5 46.5-13.3 66.6-25.3-7.8 24.4-24.4 44.8-46.1 57.8 21.1-2.3 41.6-8.1 60.4-16.2-14.3 20.8-32.2 39.3-52.6 54.3"/></svg>
+    </a>
+  
+</div>
+      
+    </div>
+  </div>
+</footer>
+      
+    </div>
+    <div class="md-dialog" data-md-component="dialog">
+      <div class="md-dialog__inner md-typeset"></div>
+    </div>
+    
+    
+    
+      
+      
+      <script id="__config" type="application/json">{"annotate": null, "base": "..", "features": ["navigation.sections", "navigation.expand", "navigation.top", "content.code.copy", "toc.follow", "toc.integrate"], "search": "../assets/javascripts/workers/search.2c215733.min.js", "tags": null, "translations": {"clipboard.copied": "Copied to clipboard", "clipboard.copy": "Copy to clipboard", "search.result.more.one": "1 more on this page", "search.result.more.other": "# more on this page", "search.result.none": "No matching documents", "search.result.one": "1 matching document", "search.result.other": "# matching documents", "search.result.placeholder": "Type to start searching", "search.result.term.missing": "Missing", "select.version": "Select version"}, "version": null}</script>
+    
+    
+      <script src="../assets/javascripts/bundle.79ae519e.min.js"></script>
+      
+    
+  </body>
+</html>
