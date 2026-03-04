@@ -1,4 +1,4 @@
-# What Are Attack Paths?
+# What Are Cloud Attack Paths?
 
 In the context of BadZure, a **cloud attack path** is a chain of entitlements that links identities, permissions, and cloud resources in ways that can unintentionally enable abuse. Once the right identity is compromised, an adversary can traverse that chain by abusing legitimate cloud features to reach their goal, whether that's data exfiltration, lateral movement, or full tenant compromise.
 

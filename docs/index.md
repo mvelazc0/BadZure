@@ -38,7 +38,7 @@ graph LR
 
 ## Supported Attack Paths
 
-BadZure supports seven privilege escalation techniques across two categories. To learn more about what attack paths are and how they emerge in cloud environments, see [What Are Attack Paths?](what-are-attack-paths.md).
+BadZure supports seven privilege escalation techniques across two categories. To learn more about what attack paths are and how they emerge in cloud environments, see [What Are Attack Cloud Paths?](what-are-cloud-attack-paths.md).
 
 ### Identity-Based
 
