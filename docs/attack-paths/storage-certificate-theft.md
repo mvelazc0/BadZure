@@ -154,3 +154,10 @@ attack_paths:
 
 !!! tip
     Make sure your tenant configuration includes at least one Storage Account (`storage_accounts: 1`) when using this attack path.
+
+## References
+
+- [From listKeys to Glory: Privilege Escalation and RCE by Abusing Azure Storage Account Keys - Orca Security](https://orca.security/resources/blog/azure-shared-key-authorization-exploitation/)
+- [Privilege Escalation via Storage Accounts - Rogier Dijkman](https://rogierdijkman.medium.com/privilege-escalation-via-storage-accounts-bca24373cc2e)
+- [Not the Access You Asked For: How Azure Storage Account Permissions Can Be Abused - Yehuda Tamir](https://medium.com/@tamirye94/not-the-access-you-asked-for-how-azure-storage-account-read-write-permissions-can-be-abused-75311103430f)
+- [Inside the Attack Chain: Threat Activity Targeting Azure Blob Storage - Microsoft Security Blog](https://www.microsoft.com/en-us/security/blog/2025/10/20/inside-the-attack-chain-threat-activity-targeting-azure-blob-storage/)

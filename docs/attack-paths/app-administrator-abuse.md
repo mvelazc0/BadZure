@@ -174,3 +174,11 @@ attack_paths:
 ## See Also
 
 - [CloudAppAdministratorAbuse](cloud-app-administrator-abuse.md) — Same attack pattern using the Cloud Application Administrator role, which has a narrower scope (cannot manage apps with certain sensitive permissions)
+
+## References
+
+- [Azure AD Privilege Escalation - Taking Over Default Application Permissions as Application Admin - Dirk-jan Mollema](https://dirkjanm.io/azure-ad-privilege-escalation-application-admin/)
+- [Azure Privilege Escalation via Azure API Permissions Abuse - Andy Robbins / SpecterOps](https://posts.specterops.io/azure-privilege-escalation-via-azure-api-permissions-abuse-74aee1006f48)
+- [Azure Privilege Escalation via Service Principal Abuse - SpecterOps](https://specterops.io/blog/2021/10/12/azure-privilege-escalation-via-service-principal-abuse/)
+- [Microsoft Entra Built-in Roles - Application Administrator - Microsoft Learn](https://learn.microsoft.com/en-us/entra/identity/role-based-access-control/permissions-reference#application-administrator)
+- [Privilege Escalation - Azure Threat Research Matrix](https://microsoft.github.io/Azure-Threat-Research-Matrix/PrivilegeEscalation/PrivEsc/)

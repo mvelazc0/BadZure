@@ -281,3 +281,11 @@ attack_paths:
       - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
       - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 ```
+
+## References
+
+- [Azure Privilege Escalation Using Managed Identities - NetSPI](https://www.netspi.com/blog/technical-blog/cloud-pentesting/azure-privilege-escalation-using-managed-identities/)
+- [Abusing Managed Identities - Hacking The Cloud](https://hackingthe.cloud/azure/abusing-managed-identities/)
+- [Azure AD & IAM Part II - Leveraging Managed Identities for Privilege Escalation - Orca Security](https://orca.security/resources/blog/azure-ad-iam-part-ii-leveraging-managed-identities-for-privilege-escalation/)
+- [An Attempt at Detecting Managed Identity Abuse - TrustOnCloud](https://trustoncloud.com/blog/an-attempt-at-detecting-managed-identity-abuse/)
+- [Privilege Escalation - Azure Threat Research Matrix](https://microsoft.github.io/Azure-Threat-Research-Matrix/PrivilegeEscalation/PrivEsc/)
