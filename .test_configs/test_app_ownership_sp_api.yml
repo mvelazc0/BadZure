@@ -1,0 +1,26 @@
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+  users: 1
+  applications: 3
+  groups: 1
+  administrative_units: 0
+  resource_groups: 0
+  key_vaults: 0
+  storage_accounts: 0
+  virtual_machines: 0
+  logic_apps: 0
+  automation_accounts: 0
+  function_apps: 0
+  cosmos_dbs: 0
+attack_paths:
+  app_ownership_sp_api:
+    enabled: true
+    privilege_escalation: ApplicationOwnershipAbuse
+    initial_access: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role:
+    - 06b708a9-e830-4db3-a914-8e69da51d44f
+    - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
