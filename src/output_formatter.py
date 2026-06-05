@@ -10,6 +10,52 @@ from src.constants import API_REGISTRY
 class OutputFormatter:
     """Formats and writes output for BadZure."""
     
+    def format_generic_kv_paths(self, summaries, user_creds: Dict, domain: str) -> None:
+        """Minimal printout for KeyVaultSecretTheft paths built via the generic
+        layer (Phase 2). The legacy kv_abuse dict is empty for these paths, so we
+        report the essentials from each macro summary. The rich, graph-derived
+        narrative is rebuilt in Phase 5.
+        """
+        if not summaries:
+            return
+        for summary in summaries:
+            path_name = summary.get('path_name')
+            logging.info(f"Attack Path: {path_name} (KeyVaultSecretTheft)")
+            logging.info(f"Attack Path ID: {summary.get('key')}")
+
+            identity_type = summary.get('identity_type')
+            principal_name = summary.get('principal_name')
+            creds = user_creds.get(path_name, {})
+            if identity_type == 'user':
+                logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
+                if 'password' in creds:
+                    logging.info(f"Password: {creds['password']}")
+            else:
+                logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
+                if 'client_id' in creds:
+                    logging.info(f"Client ID: {creds['client_id']}")
+                if 'client_secret' in creds:
+                    logging.info(f"Client Secret: {creds['client_secret']}")
+
+            assignment_type = summary.get('assignment_type', 'direct')
+            key_vault = summary.get('key_vault')
+            if assignment_type in ('group_member', 'group_owner'):
+                label = 'Group Member (indirect)' if assignment_type == 'group_member' else 'Group Owner (indirect)'
+                logging.info(f"Assignment Type: {label}")
+                logging.info(f"Group: {summary.get('group_name')}")
+                logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
+            else:
+                logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+
+            logging.info(f"Target Application: {summary.get('app_name')}")
+            if summary.get('entra_role_ids'):
+                logging.info(f"Application Privileges: Entra Role(s) - {', '.join(summary['entra_role_ids'])}")
+            elif summary.get('api_perm_ids'):
+                api_type = summary.get('api_type', 'graph')
+                api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
+                logging.info(f"Application Privileges: {api_display} - {', '.join(summary['api_perm_ids'])}")
+            logging.info("")
+
     def write_users_file(self, users: Dict, domain: str, file_path: str = 'users.txt') -> None:
         """
         Write users to a file.

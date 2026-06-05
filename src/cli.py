@@ -12,6 +12,9 @@ from src.assignment_manager import AssignmentManager
 from src.attack_path_manager import AttackPathManager
 from src.terraform_manager import TerraformManager
 from src.output_formatter import OutputFormatter
+from src.primitives import DeploymentModel
+from src.primitive_handlers import GENERIC_FAMILIES
+from src.terraform_builder import build_tfvars
 import src.utils as utils
 
 
@@ -46,7 +49,53 @@ class BuildCommand:
             self._build_targeted_mode(config, verbose)
         else:
             self._build_random_mode(config, verbose)
-    
+
+    # ------------------------------------------------------------------
+    # Phase 2: generic-primitive layer (currently KeyVaultSecretTheft).
+    # Techniques expressed as macros emit building blocks; these helpers
+    # compile them into the generic.tf variable families and read back any
+    # credentials minted via the generic layer. Other techniques stay on the
+    # legacy path until Phase 4.
+    # ------------------------------------------------------------------
+    def _compile_generic_families(self, generic_primitives, tenant_id, domain,
+                                  subscription_id, public_ip, azure_config_dir,
+                                  entity_dicts) -> Dict:
+        """Compile generic building blocks into the 18 generic tfvars families.
+
+        entity_dicts are the symbolic-keyed entity maps (users by UPN, groups/apps
+        by display_name) — the SAME keys build_terraform_vars writes, so the refs
+        in the emitted families resolve against var.users/var.groups/... unchanged.
+        Returns only the non-empty generic family keys (entity/legacy vars untouched).
+        """
+        if not generic_primitives:
+            return {}
+        model = DeploymentModel(
+            tenant_id=tenant_id, domain=domain, subscription_id=subscription_id,
+            public_ip=public_ip, azure_config_dir=azure_config_dir,
+            primitives=generic_primitives, **entity_dicts,
+        )
+        full = build_tfvars(model)
+        return {family: full[family] for family in GENERIC_FAMILIES if family in full}
+
+    def _apply_generic_sp_credentials(self, user_creds: Dict) -> None:
+        """Read SP secrets minted via the generic layer back into user_creds.
+
+        Initial-access service principals get their secret from the
+        generic_app_credentials TF output (keyed by the origin-prefixed
+        credential key the macro recorded as 'generic_credential_key').
+        """
+        needed = {ap: c['generic_credential_key']
+                  for ap, c in user_creds.items() if c.get('generic_credential_key')}
+        if not needed:
+            return
+        outputs = self.terraform_mgr.get_outputs()
+        generic_creds = outputs.get('generic_app_credentials', {})
+        for ap_name, cred_key in needed.items():
+            entry = generic_creds.get(cred_key)
+            if entry:
+                user_creds[ap_name]['client_id'] = entry.get('client_id')
+                user_creds[ap_name]['client_secret'] = entry.get('client_secret')
+
     def _build_random_mode(self, config: Dict, verbose: bool) -> None:
         """Build in random mode."""
         start_time = time.time()
@@ -159,7 +208,11 @@ class BuildCommand:
         attack_path_group_assignments = {}
         attack_path_group_membership_assignments = {}
         user_creds = {}
-        
+
+        # Phase 2: building blocks emitted by macro-based techniques (KeyVaultSecretTheft)
+        generic_primitives = []
+        generic_kv_summaries = []
+
         # Track used resources to prevent conflicts
         used_apps = set()
         used_users = set()
@@ -274,21 +327,18 @@ class BuildCommand:
 
             elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_keyvault_secret_theft(
+                # Phase 2 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_keyvault_secret_theft(
                     attack_path_data, applications, key_vaults, users, applications,
-                    virtual_machines, domain, mode='random', path_name=attack_path_name,
+                    domain, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
                 )
-                attack_path_kv_abuse_assignments.update(result['kv_abuse_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_kv_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used apps
-                for assignment in result['kv_abuse_assignments'].values():
-                    used_apps.add(assignment['app_name'])
+                # Track the looted app so other paths don't reuse it
+                used_apps.add(result['summary']['app_name'])
             
             elif attack_path_data['privilege_escalation'] == 'StorageCertificateTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
@@ -398,6 +448,17 @@ class BuildCommand:
             attack_path_compromised_sp_credentials=compromised_sp_creds,
             attack_path_subscription_reader_assignments=attack_path_subscription_reader_assignments
         )
+        # Phase 2: splice the generic-primitive families (KeyVaultSecretTheft) in.
+        tf_vars.update(self._compile_generic_families(
+            generic_primitives, tenant_id, domain, subscription_id, public_ip,
+            azure_config_dir,
+            {'users': users, 'groups': groups, 'applications': applications,
+             'administrative_units': administrative_units,
+             'resource_groups': resource_groups, 'key_vaults': key_vaults,
+             'storage_accounts': storage_accounts, 'virtual_machines': virtual_machines,
+             'logic_apps': logic_apps, 'automation_accounts': automation_accounts,
+             'function_apps': function_apps, 'cosmos_dbs': cosmos_dbs},
+        ))
         self.terraform_mgr.write_terraform_vars(tf_vars)
 
         # Execute Terraform
@@ -427,6 +488,8 @@ class BuildCommand:
                 if ap_name in user_creds:
                     user_creds[ap_name]['client_id'] = sp_cred.get('client_id')
                     user_creds[ap_name]['client_secret'] = sp_cred.get('client_secret')
+        # Phase 2: SP secrets for macro-based paths come from the generic output.
+        self._apply_generic_sp_credentials(user_creds)
 
         logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
         self.output_formatter.write_users_file(users, domain)
@@ -439,6 +502,9 @@ class BuildCommand:
             attack_path_user_role_assignments,
             user_creds, domain
         )
+        # Phase 2: minimal printout for macro-based KeyVaultSecretTheft paths
+        # (rich narrative is rebuilt from the graph in Phase 5).
+        self.output_formatter.format_generic_kv_paths(generic_kv_summaries, user_creds, domain)
 
         # Display deployment statistics
         elapsed_time = time.time() - start_time
@@ -567,6 +633,17 @@ class BuildCommand:
             attack_path_compromised_sp_credentials=compromised_sp_creds,
             attack_path_subscription_reader_assignments=attack_path_subscription_reader_assignments
         )
+        # Phase 2: splice the generic-primitive families (KeyVaultSecretTheft) in.
+        tf_vars.update(self._compile_generic_families(
+            attack_path_assignments.get('generic_primitives', []),
+            tenant_id, domain, subscription_id, public_ip, azure_config_dir,
+            {'users': users, 'groups': groups, 'applications': applications,
+             'administrative_units': administrative_units,
+             'resource_groups': resource_groups, 'key_vaults': key_vaults,
+             'storage_accounts': storage_accounts, 'virtual_machines': virtual_machines,
+             'logic_apps': logic_apps, 'automation_accounts': automation_accounts,
+             'function_apps': function_apps, 'cosmos_dbs': cosmos_dbs},
+        ))
         self.terraform_mgr.write_terraform_vars(tf_vars)
 
         # Execute Terraform
@@ -596,10 +673,15 @@ class BuildCommand:
                 if ap_name in user_creds:
                     user_creds[ap_name]['client_id'] = sp_cred.get('client_id')
                     user_creds[ap_name]['client_secret'] = sp_cred.get('client_secret')
+        # Phase 2: SP secrets for macro-based paths come from the generic output.
+        self._apply_generic_sp_credentials(user_creds)
 
         logging.info("Azure AD tenant setup completed!")
         self.output_formatter.write_users_file(users, domain)
         self.output_formatter.format_targeted_mode_attack_paths(config, attack_path_assignments, users, domain)
+        # Phase 2: minimal printout for macro-based KeyVaultSecretTheft paths.
+        self.output_formatter.format_generic_kv_paths(
+            attack_path_assignments.get('generic_kv_summaries', []), user_creds, domain)
 
         # Display deployment statistics
         elapsed_time = time.time() - start_time
@@ -629,9 +711,12 @@ class BuildCommand:
             'managed_identity_theft': {},
             'vm_contributor': {},
             'group_assignments': {},
-            'group_membership_assignments': {}
+            'group_membership_assignments': {},
+            # Phase 2: generic building blocks emitted by macro-based techniques
+            'generic_primitives': [],
+            'generic_kv_summaries': []
         }
-        
+
         user_creds = {}
         
         for path_name, path_config in config['attack_paths'].items():
@@ -694,16 +779,14 @@ class BuildCommand:
                 user_creds[path_name] = result['credentials']
 
             elif priv_esc == 'KeyVaultSecretTheft':
-                result = self.attack_path_mgr.create_keyvault_secret_theft(
+                # Phase 2 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_keyvault_secret_theft(
                     path_config, applications, key_vaults, users, applications,
-                    virtual_machines, domain, mode='targeted', entities=entities, path_name=path_name
+                    domain, mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['kv_abuse'].update(result['kv_abuse_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['vm_contributor'].update(result['vm_contributor_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_kv_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'StorageCertificateTheft':

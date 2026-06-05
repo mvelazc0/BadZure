@@ -17,6 +17,16 @@ from src.constants import (
 )
 from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
+from src.primitives import (
+    ATTACK_PATH,
+    AppCredential,
+    DataInject,
+    AzureRbacAssignment,
+    EntraRoleAssignment,
+    ApiPermission,
+    GroupMembership,
+    GroupOwnership,
+)
 
 
 class AttackPathManager:
@@ -867,7 +877,195 @@ class AttackPathManager:
             'group_assignments': group_assignments,
             'group_membership_assignments': group_membership_assignments
         }
-    
+
+    def macro_keyvault_secret_theft(
+        self,
+        attack_config: Dict,
+        applications: Dict,
+        keyvaults: Dict,
+        users: Dict,
+        service_principals: Dict,
+        domain: str,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None
+    ) -> Dict:
+        """KeyVaultSecretTheft expressed as generic building blocks (Phase 2 macro).
+
+        Same attack chain as create_keyvault_secret_theft, but instead of the
+        four legacy technique-shaped buckets it returns a flat list of generic
+        primitives that the Terraform builder turns into the generic.tf
+        resources. Entity selection and the method/entra_role/app_role/random
+        resolution are REUSED verbatim from the legacy helpers, so random picks
+        and high-priv-role logic stay identical.
+
+        The chain, as building blocks:
+          1. AppCredential   — mint a client secret on the target (high-priv) app.
+          2. DataInject      — plant that secret in the Key Vault as
+                               'client-secret-<app>' (material=app_secret).
+          3. AzureRbacAssignment — grant the compromised principal (or its group)
+                               'Key Vault Contributor' on the vault.
+          4. EntraRoleAssignment / ApiPermission — the privileges the looted app
+                               carries (what makes reading its secret an escalation).
+          5. GroupMembership / GroupOwnership — for indirect (group-based) access.
+          6. AppCredential (no inject) — for service_principal initial access, mint
+                               the SP's own secret so the operator can authenticate;
+                               surfaced via the generic_app_credentials TF output.
+
+        Returns: {primitives, credentials, groups, summary}.
+        """
+        identity_type = attack_config.get('initial_access', 'user')
+        if identity_type == 'managed_identity':
+            raise ValueError(
+                "KeyVaultSecretTheft does not support initial_access 'managed_identity'. "
+                "Use 'ManagedIdentityTheft' with target_resource_type 'key_vault' instead."
+            )
+
+        assignment_type = attack_config.get('assignment_type', 'direct')
+
+        # Attack-path key (same scheme as the legacy method, for output filtering).
+        attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
+        if mode == 'targeted' and path_name:
+            key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            key = f"{path_name}-{attack_path_id}"
+        else:
+            key = f"attack-path-{attack_path_id}"
+
+        # Entity selection — reuse the legacy selectors unchanged.
+        if mode == 'random':
+            app_name, kv_name, principal_name = self._select_random_entities_kv_secret_theft(
+                applications, keyvaults, users, service_principals,
+                identity_type, used_apps
+            )
+        else:
+            app_name, kv_name, principal_name = self._select_targeted_entities_kv_secret_theft(
+                applications, keyvaults, users,
+                entities, identity_type, path_name
+            )
+
+        primitives = []
+        groups = {}
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+
+        # 1. Mint the looted app's client secret + 2. plant it in the vault.
+        cred_key = f"{key}_app_secret"
+        primitives.append(AppCredential(
+            cred_key, ATTACK_PATH, app_ref=app_name, type="password",
+            display_name="BadZureClientSecret",
+        ))
+        primitives.append(DataInject(
+            f"{key}_kv_secret", ATTACK_PATH,
+            material="app_secret", location_type="key_vault_secret",
+            location_ref=kv_name, name=f"client-secret-{app_name}",
+            credential_ref=cred_key,
+        ))
+
+        # 3. Key Vault Contributor — to the principal directly, or to the group
+        #    for indirect (group_member / group_owner) access.
+        if assignment_type in ('group_member', 'group_owner'):
+            if assignment_type == 'group_owner':
+                group_spec = self.entity_generator.generate_attack_path_group(
+                    owner_name=principal_name, owner_type=identity_type
+                )
+            else:
+                group_spec = self.entity_generator.generate_attack_path_group()
+            group_name = group_spec['display_name']
+            groups[group_name] = group_spec
+
+            primitives.append(AzureRbacAssignment(
+                f"{key}_kv_access", ATTACK_PATH,
+                principal_ref=group_name, principal_type="group",
+                role="Key Vault Contributor", scope_type="resource",
+                scope_resource_type="key_vault", scope_ref=kv_name,
+            ))
+            if assignment_type == 'group_member':
+                primitives.append(GroupMembership(
+                    f"{key}_grp_member", ATTACK_PATH,
+                    principal_ref=principal_name, principal_type=identity_type,
+                    group_ref=group_name,
+                ))
+            else:  # group_owner
+                primitives.append(GroupOwnership(
+                    f"{key}_grp_owner", ATTACK_PATH,
+                    principal_ref=principal_name, principal_type=identity_type,
+                    group_ref=group_name,
+                ))
+        else:
+            group_name = None
+            primitives.append(AzureRbacAssignment(
+                f"{key}_kv_access", ATTACK_PATH,
+                principal_ref=principal_name, principal_type=identity_type,
+                role="Key Vault Contributor", scope_type="resource",
+                scope_resource_type="key_vault", scope_ref=kv_name,
+            ))
+
+        # 4. The looted app's privileges. Reuse the legacy resolver, then
+        #    translate its output into entra_role / api_permission blocks.
+        legacy_roles, legacy_perms = {}, {}
+        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
+        entra_role_ids, api_perm_ids, api_type = [], [], None
+        if key in legacy_roles:
+            entra_role_ids = legacy_roles[key]['role_ids']
+            for idx, role_id in enumerate(entra_role_ids):
+                primitives.append(EntraRoleAssignment(
+                    f"{key}_app_role_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, principal_type="service_principal",
+                    role=role_id,
+                ))
+        if key in legacy_perms:
+            api_perm_ids = legacy_perms[key]['api_permission_ids']
+            api_type = legacy_perms[key].get('api_type', 'graph')
+            for idx, perm_id in enumerate(api_perm_ids):
+                primitives.append(ApiPermission(
+                    f"{key}_app_perm_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
+                ))
+
+        # 5. Initial-access credentials for the operator.
+        if identity_type == 'user':
+            credentials = {
+                "initial_access": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point,
+            }
+        else:  # service_principal — mint its own secret, surfaced via TF output.
+            sp_cred_key = f"{key}_initial_sp"
+            primitives.append(AppCredential(
+                sp_cred_key, ATTACK_PATH, app_ref=principal_name, type="password",
+                display_name="BadZureInitialAccess",
+            ))
+            credentials = {
+                "initial_access": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point,
+                # Origin-prefixed key the generic_app_credentials output is keyed by.
+                "generic_credential_key": f"ap:{sp_cred_key}",
+            }
+
+        summary = {
+            "path_name": path_name,
+            "key": key,
+            "identity_type": identity_type,
+            "principal_name": principal_name,
+            "assignment_type": assignment_type,
+            "group_name": group_name,
+            "key_vault": kv_name,
+            "app_name": app_name,
+            "entra_role_ids": entra_role_ids,
+            "api_perm_ids": api_perm_ids,
+            "api_type": api_type,
+        }
+
+        return {
+            "primitives": primitives,
+            "credentials": credentials,
+            "groups": groups,
+            "summary": summary,
+        }
+
     def create_storage_certificate_theft(
         self,
         attack_config: Dict,
