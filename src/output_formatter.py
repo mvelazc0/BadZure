@@ -56,6 +56,44 @@ class OutputFormatter:
                 logging.info(f"Application Privileges: {api_display} - {', '.join(summary['api_perm_ids'])}")
             logging.info("")
 
+    def format_declarative_paths(self, overlays, user_creds: Dict, domain: str) -> None:
+        """Minimal printout for Phase-3 declarative attack paths. Reports the
+        objective and the initial-access credentials per path; the rich,
+        graph-derived narrative (ordered steps + MITRE/detection) is rebuilt from
+        the overlay in a later slice."""
+        if not overlays:
+            return
+        logging.info("=" * 70)
+        logging.info("ATTACK PATH DETAILS")
+        logging.info("=" * 70)
+        for overlay in overlays:
+            logging.info(f"*** {overlay.name} ***")
+            objective = overlay.objective or {}
+            if objective.get('name'):
+                impact = objective.get('impact')
+                impact_str = f" (impact: {impact})" if impact else ""
+                logging.info(f"Objective: {objective['name']}{impact_str}")
+            if objective.get('description'):
+                logging.info(f"Description: {objective['description']}")
+
+            creds = user_creds.get(overlay.name, {})
+            identity_type = creds.get('initial_access')
+            if identity_type == 'user':
+                logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
+                if 'password' in creds:
+                    logging.info(f"Password: {creds['password']}")
+            elif identity_type == 'service_principal':
+                logging.info(f"Initial Access Identity: Service Principal - {creds.get('service_principal_name', 'N/A')}")
+                if 'client_id' in creds:
+                    logging.info(f"Client ID: {creds['client_id']}")
+                if 'client_secret' in creds:
+                    logging.info(f"Client Secret: {creds['client_secret']}")
+
+            metadata = overlay.metadata or {}
+            if metadata.get('mitre'):
+                logging.info(f"MITRE: {', '.join(metadata['mitre'])}")
+            logging.info("")
+
     def write_users_file(self, users: Dict, domain: str, file_path: str = 'users.txt') -> None:
         """
         Write users to a file.

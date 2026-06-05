@@ -53,6 +53,7 @@ variable "administrative_units" {
 
 variable "user_group_assignments" {
   description = "A map of user-to-group assignments"
+  default = {}
   type = map(object({
     user_name = string
     group_name = string
@@ -61,6 +62,7 @@ variable "user_group_assignments" {
 
 variable "user_au_assignments" {
   description = "A map of user-to-administrative unit assignments"
+  default = {}
   type = map(object({
     user_name = string
     administrative_unit_name = string
@@ -69,6 +71,7 @@ variable "user_au_assignments" {
 
 variable "user_role_assignments" {
   description = "A map of user-to-role assignments"
+  default = {}
   type = map(object({
     user_name         = string
     role_definition_id = string
@@ -77,6 +80,7 @@ variable "user_role_assignments" {
 
 variable "app_role_assignments" {
   description = "A map of app-to-role assignments"
+  default = {}
   type = map(object({
     app_name = string
     role_id  = string
@@ -94,6 +98,7 @@ variable "app_api_permission_assignments" {
 
 variable "attack_path_user_role_assignments" {
   description = "A map of principal role assignments in an attack path (supports both users and service principals)"
+  default = {}
   type = map(object({
     initial_access      = optional(string, "user")  # "user" or "service_principal"
     principal_name     = string  # user name or service principal name
@@ -224,6 +229,7 @@ variable "cosmos_dbs" {
 }
 
 variable "attack_path_kv_abuse_assignments" {
+  default = {}
   type = map(object({
     key_vault              = string
     initial_access          = string  # Options: "user", "service_principal"
@@ -237,6 +243,7 @@ variable "attack_path_kv_abuse_assignments" {
 }
 
 variable "attack_path_storage_abuse_assignments" {
+  default = {}
   type = map(object({
     app_name               = string
     certificate_path       = string

@@ -15,6 +15,7 @@ from src.output_formatter import OutputFormatter
 from src.primitives import DeploymentModel
 from src.primitive_handlers import GENERIC_FAMILIES
 from src.terraform_builder import build_tfvars
+from src.scenario_loader import ScenarioLoader
 import src.utils as utils
 
 
@@ -40,15 +41,129 @@ class BuildCommand:
         # Load configuration
         logging.info(f"Loading BadZure configuration from {config_file}")
         config = self.config_mgr.load_config(config_file)
-        
+
+        # Phase 3: the declarative graph config is a distinct shape. Detect it and
+        # route to the generic builder; legacy random/targeted configs are untouched.
+        if self._is_declarative_config(config):
+            logging.info("Running in 'declarative' mode (graph config)")
+            self._build_declarative_mode(config, verbose)
+            return
+
         # Detect mode
         mode = config.get('mode', 'random')
         logging.info(f"Running in '{mode}' mode")
-        
+
         if mode == 'targeted':
             self._build_targeted_mode(config, verbose)
         else:
             self._build_random_mode(config, verbose)
+
+    @staticmethod
+    def _is_declarative_config(config: Dict) -> bool:
+        """Distinguish the Phase-3 declarative graph config from legacy
+        random/targeted configs.
+
+        An explicit top-level `schema: graph` forces the new path. Otherwise we
+        detect structurally: a legacy attack path always carries
+        `privilege_escalation`, while a declarative one carries an `assignments`
+        list. The presence of any `privilege_escalation` key means legacy.
+        """
+        if not isinstance(config, dict):
+            return False
+        if config.get('schema') == 'graph':
+            return True
+        paths = config.get('attack_paths') or {}
+        if not isinstance(paths, dict):
+            return False
+        path_dicts = [p for p in paths.values() if isinstance(p, dict)]
+        if any('privilege_escalation' in p for p in path_dicts):
+            return False
+        return any('assignments' in p for p in path_dicts)
+
+    # ------------------------------------------------------------------
+    # Phase 3: declarative graph config -> generic primitives -> deploy.
+    # Unlike the legacy paths, EVERYTHING here is generic, so we build the
+    # DeploymentModel via the scenario loader and call build_tfvars directly
+    # (no legacy-splice needed — legacy assignment variables default to {}).
+    # ------------------------------------------------------------------
+    def _build_declarative_mode(self, config: Dict, verbose: bool) -> None:
+        """Build from a declarative graph config (Phase 3, Slice 1)."""
+        start_time = time.time()
+
+        azure_config_dir = os.path.expanduser('~/.azure')
+        os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
+
+        # Resolve tenant config with environment variable fallback
+        try:
+            tenant_id, domain, subscription_id = self.config_mgr.resolve_tenant_config(config)
+        except ValueError as e:
+            logging.error(str(e))
+            return
+
+        public_ip = utils.get_public_ip()
+
+        # Parse the declarative config into a deployable DeploymentModel.
+        logging.info("Compiling declarative attack paths into generic primitives")
+        loader = ScenarioLoader(self.generator)
+        try:
+            scenario = loader.load(
+                config, tenant_id, domain, subscription_id,
+                public_ip, azure_config_dir,
+            )
+        except ValueError as e:
+            logging.error(f"Declarative config error: {e}")
+            return
+
+        model = scenario.model
+        for overlay in scenario.attack_paths:
+            logging.info(f"Compiled attack path '{overlay.name}'")
+
+        # Everything is generic — produce the full tfvars directly.
+        try:
+            tf_vars = build_tfvars(model)
+        except ValueError as e:
+            logging.error(f"Failed to build Terraform variables: {e}")
+            return
+        self.terraform_mgr.write_terraform_vars(tf_vars)
+
+        # Execute Terraform
+        logging.info("Calling terraform init")
+        return_code, stdout, stderr = self.terraform_mgr.init()
+        if return_code != 0:
+            logging.error(f"Terraform init failed: {stderr}")
+            if verbose:
+                logging.error(stdout)
+                logging.error(stderr)
+            return
+
+        logging.info("Calling terraform apply to create resources, this may take several minutes ...")
+        return_code, stdout, stderr = self.terraform_mgr.apply(verbose)
+        if return_code != 0:
+            logging.error(f"Terraform apply failed: {stderr}")
+            if verbose:
+                logging.error(stdout)
+                logging.error(stderr)
+            return
+
+        # Surface SP secrets minted via the generic layer (same read-back the
+        # Phase-2 macro path uses).
+        user_creds = {ov.name: ov.credentials for ov in scenario.attack_paths}
+        self._apply_generic_sp_credentials(user_creds)
+
+        logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
+        self.output_formatter.write_users_file(model.users, domain)
+        self.output_formatter.format_declarative_paths(scenario.attack_paths, user_creds, domain)
+
+        # Display deployment statistics
+        elapsed_time = time.time() - start_time
+        self._display_deployment_stats(
+            elapsed_time, model.users, model.groups, model.applications,
+            model.administrative_units, model.resource_groups, model.key_vaults,
+            model.storage_accounts, model.virtual_machines, model.logic_apps,
+            model.automation_accounts, model.function_apps, model.cosmos_dbs
+        )
+
+        logging.info("Good bye.")
 
     # ------------------------------------------------------------------
     # Phase 2: generic-primitive layer (currently KeyVaultSecretTheft).
