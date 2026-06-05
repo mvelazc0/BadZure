@@ -109,19 +109,19 @@ resource "azuread_administrative_unit" "aunits" {
 resource "azuread_group_member" "group_memberships" {
   for_each = var.user_group_assignments
 
-  group_object_id  = azuread_group.groups[each.value.group_name].id
-  member_object_id = azuread_user.users[each.value.user_name].id
+  group_object_id  = azuread_group.groups[each.value.group_name].object_id
+  member_object_id = azuread_user.users[each.value.user_name].object_id
 }
 
 # Attack path group memberships - supports both users and service principals
 resource "azuread_group_member" "attack_path_group_memberships" {
   for_each = var.attack_path_group_memberships
 
-  group_object_id = azuread_group.groups[each.value.group_name].id
+  group_object_id = azuread_group.groups[each.value.group_name].object_id
   member_object_id = (
     each.value.initial_access == "user" ?
-      azuread_user.users[each.value.principal_name].id :
-      azuread_service_principal.spns[each.value.principal_name].id
+      azuread_user.users[each.value.principal_name].object_id :
+      azuread_service_principal.spns[each.value.principal_name].object_id
   )
 
   depends_on = [
@@ -134,14 +134,14 @@ resource "azuread_group_member" "attack_path_group_memberships" {
 resource "azuread_administrative_unit_member" "au_memberships" {
   for_each = var.user_au_assignments
 
-  administrative_unit_object_id = azuread_administrative_unit.aunits[each.value.administrative_unit_name].id
-  member_object_id              = azuread_user.users[each.value.user_name].id
+  administrative_unit_object_id = azuread_administrative_unit.aunits[each.value.administrative_unit_name].object_id
+  member_object_id              = azuread_user.users[each.value.user_name].object_id
 }
 
 resource "azuread_directory_role_assignment" "user_role_assignments" {
   for_each = var.user_role_assignments
 
-  principal_object_id = azuread_user.users[each.value.user_name].id
+  principal_object_id = azuread_user.users[each.value.user_name].object_id
   role_id             = each.value.role_definition_id
 }
 
@@ -156,8 +156,8 @@ resource "azuread_app_role_assignment" "app_api_permission_assignments" {
   for_each = var.app_api_permission_assignments
 
   app_role_id         = each.value.api_permission_id
-  principal_object_id = azuread_service_principal.spns[each.value.app_name].id
-  resource_object_id  = data.azuread_service_principal.microsoft_graph.id
+  principal_object_id = azuread_service_principal.spns[each.value.app_name].object_id
+  resource_object_id  = data.azuread_service_principal.microsoft_graph.object_id
 }
 
 resource "azuread_directory_role_assignment" "attack_path_user_role_assignments" {
@@ -167,10 +167,10 @@ resource "azuread_directory_role_assignment" "attack_path_user_role_assignments"
   # Groups are used for indirect assignment (assignment_type: group_member or group_owner)
   principal_object_id = (
     lookup(each.value, "initial_access", "user") == "user" ?
-      azuread_user.users[each.value.principal_name].id :
+      azuread_user.users[each.value.principal_name].object_id :
     lookup(each.value, "initial_access", "user") == "group" ?
-      azuread_group.groups[each.value.principal_name].id :
-      azuread_service_principal.spns[each.value.principal_name].id
+      azuread_group.groups[each.value.principal_name].object_id :
+      azuread_service_principal.spns[each.value.principal_name].object_id
   )
   role_id = each.value.role_definition_id
 
@@ -200,7 +200,7 @@ resource "azuread_directory_role_assignment" "attack_path_application_role_assig
     }
   ]...)
 
-  principal_object_id = azuread_service_principal.spns[each.value.app_name].id
+  principal_object_id = azuread_service_principal.spns[each.value.app_name].object_id
   role_id             = each.value.role_id
 }
 
@@ -217,8 +217,8 @@ resource "azuread_app_role_assignment" "attack_path_application_api_permission_a
   ]...)
 
   app_role_id         = each.value.api_permission_id
-  principal_object_id = azuread_service_principal.spns[each.value.app_name].id
-  resource_object_id  = each.value.api_type == "exchange" ? data.azuread_service_principal.exchange_online.id : data.azuread_service_principal.microsoft_graph.id
+  principal_object_id = azuread_service_principal.spns[each.value.app_name].object_id
+  resource_object_id  = each.value.api_type == "exchange" ? data.azuread_service_principal.exchange_online.object_id : data.azuread_service_principal.microsoft_graph.object_id
 }
 
 
@@ -589,10 +589,10 @@ resource "azurerm_role_assignment" "attack_path_kv_access" {
   # When assignment_type is "group_member" or "group_owner", assign the role to the group instead of the user/SP
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
-      azuread_group.groups[each.value.group_name].id :
+      azuread_group.groups[each.value.group_name].object_id :
     each.value.initial_access == "user" ?
-    azuread_user.users[each.value.principal_name].id :
-    azuread_service_principal.spns[each.value.principal_name].id
+    azuread_user.users[each.value.principal_name].object_id :
+    azuread_service_principal.spns[each.value.principal_name].object_id
   )
 
   depends_on = [
@@ -613,10 +613,10 @@ resource "azurerm_role_assignment" "attack_path_storage_access" {
   # When assignment_type is "group_member" or "group_owner", assign the role to the group instead of the user/SP
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
-      azuread_group.groups[each.value.group_name].id :
+      azuread_group.groups[each.value.group_name].object_id :
     each.value.initial_access == "user" ?
-    azuread_user.users[each.value.principal_name].id :
-    azuread_service_principal.spns[each.value.principal_name].id
+    azuread_user.users[each.value.principal_name].object_id :
+    azuread_service_principal.spns[each.value.principal_name].object_id
   )
 
   depends_on = [
@@ -636,7 +636,7 @@ resource "azurerm_role_assignment" "attack_path_vm_contributor_access" {
     azurerm_windows_virtual_machine.windows_vms[each.value.virtual_machine].id
   )
   role_definition_name = "Virtual Machine Contributor"
-  principal_id         = azuread_user.users[each.value.user_name].id
+  principal_id         = azuread_user.users[each.value.user_name].object_id
 
   depends_on = [
     azurerm_linux_virtual_machine.linux_vms,
@@ -654,8 +654,8 @@ resource "azurerm_role_assignment" "attack_path_subscription_reader_access" {
 
   principal_id = (
     each.value.initial_access == "user" ?
-    azuread_user.users[each.value.principal_name].id :
-    azuread_service_principal.spns[each.value.principal_name].id
+    azuread_user.users[each.value.principal_name].object_id :
+    azuread_service_principal.spns[each.value.principal_name].object_id
   )
 
   depends_on = [
@@ -878,10 +878,10 @@ resource "azurerm_cosmosdb_sql_role_assignment" "attack_path_cosmos_data_contrib
   # Support group-based assignment (assignment_type: group_member or group_owner)
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
-      azuread_group.groups[each.value.group_name].id :
+      azuread_group.groups[each.value.group_name].object_id :
     each.value.initial_access == "user" ?
-    azuread_user.users[each.value.principal_name].id :
-    azuread_service_principal.spns[each.value.principal_name].id
+    azuread_user.users[each.value.principal_name].object_id :
+    azuread_service_principal.spns[each.value.principal_name].object_id
   )
 
   depends_on = [
@@ -1477,10 +1477,10 @@ resource "azurerm_role_assignment" "attack_path_mi_theft_source_contributor_acce
   # When assignment_type is "group_member" or "group_owner", assign the role to the group instead of the user/SP
   principal_id = (
     contains(["group_member", "group_owner"], lookup(each.value, "assignment_type", "direct")) ?
-      azuread_group.groups[each.value.group_name].id :
+      azuread_group.groups[each.value.group_name].object_id :
     each.value.initial_access == "user" ?
-    azuread_user.users[each.value.initial_access_principal].id :
-    azuread_service_principal.spns[each.value.initial_access_principal].id
+    azuread_user.users[each.value.initial_access_principal].object_id :
+    azuread_service_principal.spns[each.value.initial_access_principal].object_id
   )
 
   depends_on = [
