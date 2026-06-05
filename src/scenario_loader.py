@@ -31,6 +31,7 @@ from typing import Dict, List, Optional
 
 import random
 
+from src import reachability
 from src.entity_generator import EntityGenerator
 from src.name_resolver import NameResolver
 from src.baseline_generator import BaselineGenerator
@@ -162,6 +163,15 @@ class ScenarioLoader:
             public_ip=public_ip, azure_config_dir=azure_config_dir,
             primitives=primitives, **entities,
         )
+
+        # 6. Reachability gate: confirm each attack path's objective is actually
+        #    reachable from its initial_access through the deployed graph, and fill
+        #    in derived steps for paths that didn't author any. Runs on the FULL
+        #    mixed-origin primitive set (an attack can leverage baseline edges too).
+        report = reachability.analyze(model, overlays, self.resolver)
+        reachability.attach_derived_steps(overlays, report)
+        reachability.enforce(report)  # <- comment out this line to bypass the gate
+
         return ScenarioModel(model=model, attack_paths=overlays)
 
     # -- entity construction --------------------------------------------------
@@ -347,6 +357,15 @@ class ScenarioLoader:
         ia = path.get("initial_access")
         if isinstance(ia, dict) and "principal_ref" in ia:
             out["initial_access"] = {**ia, "principal_ref": sub(ia["principal_ref"])}
+        # The objective's target_ref/principal_ref may also name a `from: baseline`
+        # alias (e.g. `read_secrets` on a borrowed baseline vault) — rewrite so the
+        # reachability gate checks against the real baseline key.
+        obj = path.get("objective")
+        if isinstance(obj, dict):
+            out["objective"] = {
+                **obj,
+                **{f: sub(obj[f]) for f in ("target_ref", "principal_ref") if f in obj},
+            }
         return out
 
     @staticmethod

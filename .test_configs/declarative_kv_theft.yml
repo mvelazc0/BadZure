@@ -16,8 +16,12 @@ tenant:
 attack_paths:
   kv_theft:
     objective:
-      name: "Key Vault secrets"
-      impact: high
+      name: "Global Administrator via Key Vault"
+      # Machine-checkable objective for the reachability gate (Slice 4): the
+      # escalation is attaining GA by looting app_highpriv's secret from the vault.
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
       description: "Read a high-privilege app's client secret stored in a Key Vault."
     metadata:
       complexity: low

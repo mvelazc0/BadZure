@@ -22,7 +22,8 @@ attack_paths:
 
   # 1) Fully-declared KeyVaultSecretTheft-equivalent chain.
   declared_kv_theft:
-    objective: { name: "Key Vault secrets", impact: high }
+    objective: { name: "Global Administrator via Key Vault", impact: critical,
+                 capability: entra_role, role: "Global Administrator" }
     initial_access: { method: compromised_identity, principal_ref: alice }
     identities:
       users:        [{ ref: alice }]
@@ -43,7 +44,8 @@ attack_paths:
 
   # 2) Opportunistic path: borrow a believable victim + a target vault from the baseline.
   opportunistic_kv:
-    objective: { name: "Key Vault secrets", impact: high }
+    objective: { name: "Key Vault secrets", impact: high,
+                 capability: read_secrets, target_ref: kv }   # kv is a from:baseline alias
     initial_access: { method: compromised_identity, principal_ref: victim }
     identities:
       users: [{ ref: victim, from: baseline }]
