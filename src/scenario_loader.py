@@ -13,8 +13,9 @@ Slice 1 scope (intentionally narrow — see dev-docs/redesign/phase-3-yaml-ir.md
     assignments / credentials / data_injects.
   - Emit primitives with origin=attack_path and hand back a DeploymentModel that
     `terraform_builder.build_tfvars` can deploy directly.
-  - Role / permission values are taken VERBATIM (GUID passthrough). Name -> GUID
-    resolution arrives in Slice 2 (`name_resolver.py`).
+  - Entra-role / API-permission values are resolved through `name_resolver.py`
+    (Slice 2): a GUID, a friendly name, a list, or `random` all work. Azure RBAC
+    role names pass through verbatim (Terraform takes the role name directly).
   - The random `pool:` layer and `from: pool` ref-picking arrive in Slice 3; a
     pool section or a `from: pool` ref raises a clear "not yet" error here.
 
@@ -25,6 +26,7 @@ from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
 from src.entity_generator import EntityGenerator
+from src.name_resolver import NameResolver
 from src.primitives import (
     DeploymentModel, ATTACK_PATH,
     EntraRoleAssignment, AzureRbacAssignment, ApiPermission, AppCredential,
@@ -99,8 +101,10 @@ class ScenarioModel:
 class ScenarioLoader:
     """Turns a declarative graph config into a ScenarioModel."""
 
-    def __init__(self, entity_generator: Optional[EntityGenerator] = None):
+    def __init__(self, entity_generator: Optional[EntityGenerator] = None,
+                 name_resolver: Optional[NameResolver] = None):
         self.generator = entity_generator or EntityGenerator()
+        self.resolver = name_resolver or NameResolver()
 
     # -- public API -----------------------------------------------------------
     def load(self, config: Dict, tenant_id: str = "", domain: str = "",
@@ -262,10 +266,12 @@ class ScenarioLoader:
                 display_name=cred.get("display_name", "BadZureCredential"),
             ))
 
-        # assignments -> the matching assignment primitive.
+        # assignments -> the matching assignment primitive(s). A role/permission
+        # that resolves to several GUIDs (a list, or a name list) fans out to one
+        # primitive per GUID.
         for idx, a in enumerate(path.get("assignments", [])):
             aid = a.get("id") or f"a{idx}"
-            primitives.append(
+            primitives.extend(
                 self._emit_assignment(self._key(path_name, aid), a, ref_kind, path_name)
             )
 
@@ -303,20 +309,26 @@ class ScenarioLoader:
         """Namespace a path-local id into a globally-unique Terraform variable key."""
         return f"{path_name}__{local}"
 
-    # -- assignment -> primitive ----------------------------------------------
+    # -- assignment -> primitive(s) -------------------------------------------
     def _emit_assignment(self, key: str, a: Dict, ref_kind: Dict[str, str],
-                         path_name: str):
+                         path_name: str) -> List:
         atype = a.get("type")
         if atype == "entra_role":
-            return EntraRoleAssignment(
-                key, ATTACK_PATH,
-                principal_ref=a["principal_ref"],
-                principal_type=self._principal_type(a, ref_kind, path_name),
-                role=a["role"], scope_app_ref=a.get("scope_app_ref"),
-            )
+            # Names/lists/`random` -> GUIDs; one EntraRoleAssignment per GUID.
+            roles = self.resolver.resolve_entra_role(a["role"])
+            ptype = self._principal_type(a, ref_kind, path_name)
+            return [
+                EntraRoleAssignment(
+                    k, ATTACK_PATH,
+                    principal_ref=a["principal_ref"], principal_type=ptype,
+                    role=role, scope_app_ref=a.get("scope_app_ref"),
+                )
+                for k, role in zip(self._fanout_keys(key, len(roles)), roles)
+            ]
         if atype == "azure_rbac":
+            # Azure RBAC takes the role NAME directly — passthrough, no resolution.
             scope_type, scope_resource_type = self._scope(a, ref_kind, path_name)
-            return AzureRbacAssignment(
+            return [AzureRbacAssignment(
                 key, ATTACK_PATH,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
@@ -325,45 +337,57 @@ class ScenarioLoader:
                 scope_ref=a.get("scope_ref"),
                 scope_resource_type=scope_resource_type,
                 data_plane=a.get("data_plane"),
-            )
+            )]
         if atype == "api_permission":
-            return ApiPermission(
-                key, ATTACK_PATH,
-                principal_ref=a["principal_ref"],
-                permission_id=a.get("permission_id") or a.get("app_role"),
-                api_type=a.get("api_type", "graph"),
+            api_type = a.get("api_type", "graph")
+            perms = self.resolver.resolve_api_permission(
+                a.get("permission_id") or a.get("app_role"), api_type
             )
+            return [
+                ApiPermission(
+                    k, ATTACK_PATH,
+                    principal_ref=a["principal_ref"],
+                    permission_id=perm, api_type=api_type,
+                )
+                for k, perm in zip(self._fanout_keys(key, len(perms)), perms)
+            ]
         if atype == "group_membership":
-            return GroupMembership(
+            return [GroupMembership(
                 key, ATTACK_PATH,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 group_ref=a["group_ref"],
-            )
+            )]
         if atype == "group_ownership":
-            return GroupOwnership(
+            return [GroupOwnership(
                 key, ATTACK_PATH,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 group_ref=a["group_ref"],
-            )
+            )]
         if atype == "app_ownership":
-            return AppOwnership(
+            return [AppOwnership(
                 key, ATTACK_PATH,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 app_ref=a["app_ref"],
-            )
+            )]
         if atype == "au_membership":
-            return AuMembership(
+            return [AuMembership(
                 key, ATTACK_PATH,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 au_ref=a["au_ref"],
-            )
+            )]
         raise ScenarioConfigError(
             f"{path_name}: assignment '{key}' has unknown type '{atype}'."
         )
+
+    @staticmethod
+    def _fanout_keys(base: str, n: int) -> List[str]:
+        """Unique Terraform keys when one assignment fans out to N primitives.
+        A single primitive keeps the bare key; multiples get a positional suffix."""
+        return [base] if n == 1 else [f"{base}_{i}" for i in range(n)]
 
     @staticmethod
     def _principal_type(a: Dict, ref_kind: Dict[str, str], path_name: str) -> str:

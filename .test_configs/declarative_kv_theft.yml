@@ -41,8 +41,9 @@ attack_paths:
       - { id: a1, type: azure_rbac, principal_ref: alice,
           role: "Key Vault Contributor", scope_ref: kv-replace-me }
       # the looted app is Global Administrator — reading its secret is the escalation.
+      # role accepts a friendly name (resolved to a GUID), a GUID, a list, or 'random'.
       - { id: a2, type: entra_role, principal_ref: app_highpriv,
-          role: "62e90394-69f5-4237-9190-012177145e10" }
+          role: "Global Administrator" }
 
     credentials:
       - { ref: app_secret, app_ref: app_highpriv, type: password }

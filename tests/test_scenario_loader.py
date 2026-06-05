@@ -208,6 +208,45 @@ def test_sp_initial_access_mints_and_surfaces_credential():
 
 
 # ---------------------------------------------------------------------------
+# Slice 2: name resolution through the loader
+# ---------------------------------------------------------------------------
+def test_loader_resolves_role_name_and_list_fans_out():
+    config = {
+        "attack_paths": {
+            "p": {
+                "initial_access": {"principal_ref": "alice"},
+                "identities": {
+                    "users": [{"ref": "alice"}],
+                    "applications": [{"ref": "app1"}],
+                },
+                "assignments": [
+                    # friendly name -> GUID
+                    {"id": "r1", "type": "entra_role", "principal_ref": "app1",
+                     "role": "Global Administrator"},
+                    # a list fans out to one primitive per resolved GUID
+                    {"id": "r2", "type": "entra_role", "principal_ref": "app1",
+                     "role": ["User Administrator", "Security Administrator"]},
+                    # graph permission by name
+                    {"id": "perm", "type": "api_permission", "principal_ref": "app1",
+                     "app_role": "RoleManagement.ReadWrite.Directory"},
+                ],
+            }
+        }
+    }
+    out = build_tfvars(_load(config).model)
+
+    roles = out["attack_path_entra_role_assignments"]
+    assert roles["p__r1"]["role"] == GA_ROLE
+    # r2 list -> two positional keys
+    assert roles["p__r2_0"]["role"] == "fe930be7-5e62-47db-91af-98c3a49a38b1"  # User Administrator
+    assert roles["p__r2_1"]["role"] == "194ae4cb-b126-40b2-bd5b-6091b380977d"  # Security Administrator
+
+    perms = out["attack_path_api_permission_assignments"]
+    assert perms["p__perm"]["permission_id"] == "9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8"
+    assert perms["p__perm"]["api_type"] == "graph"
+
+
+# ---------------------------------------------------------------------------
 # Error handling
 # ---------------------------------------------------------------------------
 def test_pool_section_not_implemented_yet():
