@@ -19,8 +19,10 @@
 #   azure_rbac_assignment   -> azurerm_role_assignment (+ cosmos data-plane)
 #   api_permission_assignment -> azuread_app_role_assignment
 #   app_credential          -> azuread_application_password / _certificate
-#   data_inject             -> azurerm_key_vault_secret / storage_blob (+container)
+#   data_inject             -> azurerm_key_vault_secret / _certificate / storage_blob
 #   group_membership        -> azuread_group_member
+#   au_membership           -> azuread_administrative_unit_member
+#   group_ownership         -> azuread_group.owners (set on the group; no standalone resource)
 #   app_ownership           -> azuread_application_owner
 #
 # Phase 1 is ADDITIVE: all variables default to {} and the legacy per-technique
@@ -148,7 +150,8 @@ variable "attack_path_app_credentials" {
 # -----------------------------------------------------------------------------
 # Variables — data_inject
 # Plant material an attacker can reach. The join to app_credential is
-# material=app_secret + credential_ref. v1 locations: key_vault_secret, storage_blob.
+# material=app_secret + credential_ref. Locations: key_vault_secret,
+# key_vault_certificate (PFX import via file_path), storage_blob.
 # -----------------------------------------------------------------------------
 variable "random_data_injects" {
   description = "Baseline (org noise) data injects"
@@ -158,10 +161,11 @@ variable "random_data_injects" {
     source_ref     = optional(string, null)    # app_ref for app_client_id / app_certificate materials
     credential_ref = optional(string, null)    # key into *_app_credentials for material=app_secret (origin-prefixed, e.g. "ap:kv_cred")
     literal_value  = optional(string, null)    # for material=literal
-    location_type  = string                    # key_vault_secret | storage_blob
+    location_type  = string                    # key_vault_secret | key_vault_certificate | storage_blob
     location_ref   = string                    # key_vault ref or storage_account ref
-    name           = string                    # secret name or blob name
-    file_path      = optional(string, null)    # for material=app_certificate uploaded to storage_blob
+    name           = string                    # secret name, certificate name, or blob name
+    file_path      = optional(string, null)    # PFX/PEM/key file for app_certificate (storage_blob) or key_vault_certificate import
+    pfx_password   = optional(string, "")      # password protecting the PFX for key_vault_certificate import (default: none)
   }))
 }
 
@@ -177,6 +181,7 @@ variable "attack_path_data_injects" {
     location_ref   = string
     name           = string
     file_path      = optional(string, null)
+    pfx_password   = optional(string, "")
   }))
 }
 
@@ -197,6 +202,61 @@ variable "random_group_membership_assignments" {
 
 variable "attack_path_group_membership_assignments" {
   description = "Attack-path group memberships"
+  default     = {}
+  type = map(object({
+    principal_ref  = string
+    principal_type = string
+    group_ref      = string
+  }))
+}
+
+# -----------------------------------------------------------------------------
+# Variables — au_membership
+# Place a principal into an administrative unit (org-structure scoping).
+# Replaces: user_au_assignments. AU members may be users or groups.
+# -----------------------------------------------------------------------------
+variable "random_au_membership_assignments" {
+  description = "Baseline (org noise) administrative unit memberships"
+  default     = {}
+  type = map(object({
+    principal_ref  = string
+    principal_type = string   # user | group
+    au_ref         = string
+  }))
+}
+
+variable "attack_path_au_membership_assignments" {
+  description = "Attack-path administrative unit memberships"
+  default     = {}
+  type = map(object({
+    principal_ref  = string
+    principal_type = string
+    au_ref         = string
+  }))
+}
+
+# -----------------------------------------------------------------------------
+# Variables — group_ownership
+# Make a principal an OWNER of a group (an attack edge: owning a role-assignable
+# group lets a principal add itself as member and inherit the group's roles).
+# The azuread provider has NO standalone group-owner resource, so these feed
+# azuread_group.owners in main.tf — the one primitive whose wiring reaches into
+# main.tf. Kept separate from the `groups` entity var so attack-path ownership is
+# distinguishable from org-baseline ownership (provenance preserved upstream;
+# the owners set merges them only at the final API call).
+# -----------------------------------------------------------------------------
+variable "random_group_ownership_assignments" {
+  description = "Baseline (org noise) group ownership"
+  default     = {}
+  type = map(object({
+    principal_ref  = string
+    principal_type = string   # user | service_principal
+    group_ref      = string
+  }))
+}
+
+variable "attack_path_group_ownership_assignments" {
+  description = "Attack-path group ownership"
   default     = {}
   type = map(object({
     principal_ref  = string
@@ -269,6 +329,29 @@ locals {
     { for k, v in var.random_app_ownership_assignments : "random:${k}" => merge(v, { origin = "random" }) },
     { for k, v in var.attack_path_app_ownership_assignments : "ap:${k}" => merge(v, { origin = "attack_path" }) },
   )
+
+  g_au_membership = merge(
+    { for k, v in var.random_au_membership_assignments : "random:${k}" => merge(v, { origin = "random" }) },
+    { for k, v in var.attack_path_au_membership_assignments : "ap:${k}" => merge(v, { origin = "attack_path" }) },
+  )
+
+  g_group_ownership = merge(
+    { for k, v in var.random_group_ownership_assignments : "random:${k}" => merge(v, { origin = "random" }) },
+    { for k, v in var.attack_path_group_ownership_assignments : "ap:${k}" => merge(v, { origin = "attack_path" }) },
+  )
+
+  # Owner object_ids grouped by the group they own. Consumed by azuread_group.owners
+  # in main.tf (no standalone group-owner resource exists). Every group key gets an
+  # entry (possibly empty), so indexing by group key is always safe.
+  g_group_owner_ids_by_group = {
+    for grp in keys(var.groups) : grp => [
+      for k, v in local.g_group_ownership :
+      (v.principal_type == "user" ?
+        azuread_user.users[v.principal_ref].object_id :
+        azuread_service_principal.spns[v.principal_ref].object_id)
+      if v.group_ref == grp
+    ]
+  }
 
   # ---- Shared principal selector for Azure RBAC (incl. managed identity) ----
   g_azure_rbac_principal_id = {
@@ -450,6 +533,41 @@ resource "azurerm_key_vault_secret" "generic_inject_kv_secret" {
   ]
 }
 
+# ---- data_inject (Key Vault certificate) ----
+# Grant the Terraform-deploying identity certificate-import rights on every vault
+# targeted by a key_vault_certificate inject (main.tf only grants Secrets Officer).
+resource "azurerm_role_assignment" "generic_terraform_kv_certs_access" {
+  for_each = toset([
+    for k, v in local.g_data_injects : v.location_ref
+    if v.location_type == "key_vault_certificate"
+  ])
+
+  scope                = azurerm_key_vault.kvaults[each.value].id
+  role_definition_name = "Key Vault Certificates Officer"
+  principal_id         = data.azurerm_client_config.current.object_id
+
+  depends_on = [azurerm_key_vault.kvaults]
+}
+
+# Import a PFX into the vault's certificate store (file material, read from file_path).
+resource "azurerm_key_vault_certificate" "generic_inject_kv_certificate" {
+  for_each = { for k, v in local.g_data_injects : k => v if v.location_type == "key_vault_certificate" }
+
+  name         = each.value.name
+  key_vault_id = azurerm_key_vault.kvaults[each.value.location_ref].id
+
+  certificate {
+    contents = filebase64(each.value.file_path)
+    password = each.value.pfx_password
+  }
+
+  depends_on = [
+    azurerm_key_vault.kvaults,
+    azurerm_role_assignment.generic_terraform_kv_certs_access,
+    azurerm_role_assignment.terraform_kv_access,
+  ]
+}
+
 # ---- data_inject (storage blob) — one private container per inject ----
 resource "azurerm_storage_container" "generic_inject_container" {
   for_each = { for k, v in local.g_data_injects : k => v if v.location_type == "storage_blob" }
@@ -495,6 +613,24 @@ resource "azuread_group_member" "generic_group_membership" {
     azuread_group.groups,
     azuread_user.users,
     azuread_service_principal.spns,
+  ]
+}
+
+# ---- au_membership ----
+resource "azuread_administrative_unit_member" "generic_au_membership" {
+  for_each = local.g_au_membership
+
+  administrative_unit_object_id = azuread_administrative_unit.aunits[each.value.au_ref].object_id
+  member_object_id = (
+    each.value.principal_type == "user" ?
+    azuread_user.users[each.value.principal_ref].object_id :
+    azuread_group.groups[each.value.principal_ref].object_id
+  )
+
+  depends_on = [
+    azuread_administrative_unit.aunits,
+    azuread_user.users,
+    azuread_group.groups,
   ]
 }
 

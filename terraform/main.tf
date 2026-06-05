@@ -2,7 +2,7 @@ terraform {
   required_providers {
     azuread = {
       source  = "hashicorp/azuread"
-      version = "2.53.0"
+      version = "3.8.0"
     }
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -62,16 +62,23 @@ resource "azuread_group" "groups" {
   # Attack path groups need to be role-assignable to receive Entra ID directory roles
   assignable_to_role = lookup(each.value, "is_attack_path_group", false)
 
-  # Set group owners for group_owner assignment type
-  # Include Terraform's executing principal to avoid "cannot remove last owner" errors
+  # Set group owners. Union of three sources, with the deploying principal always
+  # included to avoid "cannot remove last owner" errors:
+  #   (a) Terraform's executing principal
+  #   (b) legacy entity-level owner (owner_name/owner_type) — kept working until Phase 2
+  #   (c) generic group_ownership primitive (local.g_group_owner_ids_by_group)
+  # If no owner comes from (b) or (c), owners stays null (unmanaged), preserving
+  # the original behavior for groups that have no ownership edge.
   owners = (
-    lookup(each.value, "owner_name", null) != null ? toset(concat(
+    length(local.g_group_owner_ids_by_group[each.key]) > 0 || lookup(each.value, "owner_name", null) != null ?
+    toset(concat(
       [data.azurerm_client_config.current.object_id],
-      [
+      local.g_group_owner_ids_by_group[each.key],
+      lookup(each.value, "owner_name", null) != null ? [
         lookup(each.value, "owner_type", "user") == "user" ?
-          azuread_user.users[each.value.owner_name].id :
-          azuread_service_principal.spns[each.value.owner_name].id
-      ]
+          azuread_user.users[each.value.owner_name].object_id :
+          azuread_service_principal.spns[each.value.owner_name].object_id
+      ] : []
     )) : null
   )
 
