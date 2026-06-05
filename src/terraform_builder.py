@@ -1,0 +1,183 @@
+"""
+terraform_builder.py — turns a described lab into Terraform input.
+
+Takes a DeploymentModel (the building-block description of a lab) and produces
+the complete terraform.tfvars.json that Terraform consumes, targeting the
+generic primitives in terraform/generic.tf. Pair this with terraform_manager.py:
+the BUILDER writes the Terraform variables, the MANAGER runs terraform
+init/apply/destroy.
+
+It knows nothing about specific attack techniques (KeyVaultSecretTheft etc.) —
+only the generic building blocks. That's the whole point: techniques become
+recipes that produce building blocks, and this one file deploys any of them.
+
+Three cross-block jobs that don't belong to a single handler live here:
+
+  1. is_attack_path_group DERIVATION — a group is "role-assignable" only if some
+     EntraRoleAssignment (random OR attack_path) targets it. (Azure RBAC
+     targeting a group does NOT count.) Azure fixes this flag at group creation
+     time, so we must work it out up front rather than letting the operator
+     hand-set it.
+
+  2. Reference checking — every *_ref must point at a real entity of the right
+     kind, and each data_inject material (app_secret / app_client_id /
+     app_certificate / literal) must carry its companion field. We catch this in
+     Python in milliseconds instead of 8 minutes into a terraform apply.
+
+  3. credential_ref origin-prefixing — when a data_inject plants an app secret,
+     its credential_ref must be rewritten to the ORIGIN-PREFIXED name of the
+     credential it plants (e.g. "automation_secret" -> "ap:automation_secret"),
+     because g_inject_value in generic.tf looks the secret up in an
+     already-merged map. The prefix comes from the *referenced credential's*
+     origin, not the inject's — hence a cross-block lookup.
+"""
+from typing import Dict, List
+
+from src.primitives import (
+    DeploymentModel, Primitive, EntraRoleAssignment, AppCredential, DataInject,
+    RANDOM, ATTACK_PATH, value_fields,
+)
+from src.primitive_handlers import handler_for, CREDENTIAL
+
+
+class LabValidationError(ValueError):
+    """Raised when a lab description has a broken reference or structural flaw."""
+
+
+_ORIGIN_FAMILY_PREFIX = {RANDOM: "random", ATTACK_PATH: "attack_path"}
+_ORIGIN_KEY_PREFIX = {RANDOM: "random:", ATTACK_PATH: "ap:"}
+
+# Required companion field for each data_inject material.
+_MATERIAL_REQUIRES = {
+    "app_secret": "credential_ref",
+    "app_client_id": "source_ref",
+    "app_certificate": "file_path",
+    "literal": "literal_value",
+}
+
+
+class TerraformBuilder:
+    def __init__(self, model: DeploymentModel):
+        self.model = model
+        # bare AppCredential key -> origin, for credential_ref prefixing.
+        self._credential_origin: Dict[str, str] = {}
+        for p in model.primitives:
+            if isinstance(p, AppCredential):
+                if p.key in self._credential_origin:
+                    raise LabValidationError(
+                        f"Duplicate app_credential key '{p.key}' across origins; "
+                        f"credential keys must be unique so data_inject credential_ref "
+                        f"is unambiguous."
+                    )
+                self._credential_origin[p.key] = p.origin
+
+    # -- public API -----------------------------------------------------------
+    def build(self) -> Dict:
+        """Validate the lab and produce the full terraform.tfvars.json dict."""
+        self.validate()
+        groups = self._derive_attack_path_groups()
+        families = self._build_families()
+
+        tfvars: Dict = {
+            "tenant_id": self.model.tenant_id,
+            "domain": self.model.domain,
+            "subscription_id": self.model.subscription_id,
+            "public_ip": self.model.public_ip,
+            "azure_config_dir": self.model.azure_config_dir,
+        }
+        for attr in DeploymentModel.ENTITY_MAPS:
+            tfvars[attr] = groups if attr == "groups" else getattr(self.model, attr)
+        tfvars.update(families)
+        return tfvars
+
+    # -- step 1: is_attack_path_group derivation ------------------------------
+    def _role_assignable_groups(self) -> set:
+        return {
+            p.principal_ref
+            for p in self.model.primitives
+            if isinstance(p, EntraRoleAssignment) and p.principal_type == "group"
+        }
+
+    def _derive_attack_path_groups(self) -> Dict:
+        """Return a fresh groups map with is_attack_path_group set where derived.
+        Does not mutate the input model. Unflagged groups omit the key entirely
+        (matching the generic.tf default + the hand-written fixtures)."""
+        derived = self._role_assignable_groups()
+        out: Dict = {}
+        for gkey, gval in self.model.groups.items():
+            entry = dict(gval)
+            if entry.get("is_attack_path_group") or gkey in derived:
+                entry["is_attack_path_group"] = True
+            out[gkey] = entry
+        return out
+
+    # -- step 2: reference checking -------------------------------------------
+    def validate(self) -> None:
+        credential_keys = set(self._credential_origin.keys())
+        for p in self.model.primitives:
+            self._validate_refs(p, credential_keys)
+            if isinstance(p, DataInject):
+                self._validate_inject_material(p)
+
+    def _validate_refs(self, p: Primitive, credential_keys: set) -> None:
+        for ref in handler_for(p).refs(p):
+            if ref.value is None:
+                continue
+            if ref.kinds == (CREDENTIAL,):
+                if ref.value not in credential_keys:
+                    raise LabValidationError(
+                        f"{type(p).__name__} '{p.key}': {ref.field}='{ref.value}' "
+                        f"names no declared app_credential."
+                    )
+                continue
+            if not ref.kinds:
+                raise LabValidationError(
+                    f"{type(p).__name__} '{p.key}': cannot resolve {ref.field}="
+                    f"'{ref.value}' — unknown principal/scope/resource type."
+                )
+            valid = set()
+            for kind in ref.kinds:
+                valid |= self.model.entity_keys(kind)
+            if ref.value not in valid:
+                kinds = " | ".join(ref.kinds)
+                raise LabValidationError(
+                    f"{type(p).__name__} '{p.key}': {ref.field}='{ref.value}' "
+                    f"is not a declared {kinds}."
+                )
+
+    def _validate_inject_material(self, p: DataInject) -> None:
+        required = _MATERIAL_REQUIRES.get(p.material)
+        if required is None:
+            raise LabValidationError(
+                f"DataInject '{p.key}': unknown material '{p.material}'."
+            )
+        if getattr(p, required) in (None, ""):
+            raise LabValidationError(
+                f"DataInject '{p.key}': material '{p.material}' requires "
+                f"'{required}' to be set."
+            )
+
+    # -- step 3: write the Terraform variables (with credential_ref prefixing) -
+    def _build_families(self) -> Dict[str, Dict]:
+        families: Dict[str, Dict] = {}
+        for p in self.model.primitives:
+            base = handler_for(p).base_family
+            family = f"{_ORIGIN_FAMILY_PREFIX[p.origin]}_{base}"
+            value = {f: getattr(p, f) for f in value_fields(type(p))}
+
+            if isinstance(p, DataInject) and p.material == "app_secret" and p.credential_ref:
+                cred_origin = self._credential_origin[p.credential_ref]
+                value["credential_ref"] = _ORIGIN_KEY_PREFIX[cred_origin] + p.credential_ref
+
+            bucket = families.setdefault(family, {})
+            if p.key in bucket:
+                raise LabValidationError(
+                    f"Duplicate key '{p.key}' in Terraform variable '{family}'."
+                )
+            bucket[p.key] = value
+        return families
+
+
+def build_tfvars(model: DeploymentModel) -> Dict:
+    """Convenience entrypoint: validate + build the terraform.tfvars.json dict."""
+    return TerraformBuilder(model).build()
