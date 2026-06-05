@@ -72,6 +72,9 @@ class BuildCommand:
             return False
         if config.get('schema') == 'graph':
             return True
+        # `baseline:` is a Phase-3-only key (legacy uses `tenant:` counts).
+        if config.get('baseline'):
+            return True
         paths = config.get('attack_paths') or {}
         if not isinstance(paths, dict):
             return False

@@ -7,7 +7,7 @@ right generic primitives and a valid terraform.tfvars.json. Covers:
   - a KV-theft-equivalent chain (credential + data_inject + azure_rbac + entra_role)
   - a 2-hop managed-identity chain (principal_type / scope inference)
   - operator-credential surfacing for user and service_principal initial access
-  - clear errors for unimplemented pool features and un-inferable types
+  - clear errors for empty-baseline picks and un-inferable types
 
 No live tenant: this exercises the YAML -> DeploymentModel decomposition and the
 builder validation only. The actual `terraform apply` is the live acceptance step.
@@ -247,33 +247,100 @@ def test_loader_resolves_role_name_and_list_fans_out():
 
 
 # ---------------------------------------------------------------------------
-# Error handling
+# Slice 3: baseline layer + from: baseline + hybrid
 # ---------------------------------------------------------------------------
-def test_pool_section_not_implemented_yet():
-    config = {"pool": {"identities": {"users": 5}}, "attack_paths": {}}
-    try:
-        _load(config)
-        assert False, "expected ScenarioConfigError for pool section"
-    except ScenarioConfigError as e:
-        assert "pool" in str(e).lower()
+def test_baseline_only_generates_random_entities_and_noise():
+    config = {
+        "schema": "graph",
+        "baseline": {
+            "identities": {"users": 12, "groups": 5, "applications": 6},
+            "assignments": {"group_memberships": 8, "entra_roles": 4, "api_permissions": 3},
+        },
+    }
+    model = _load(config).model
+    assert len(model.users) == 12 and len(model.groups) == 5 and len(model.applications) == 6
+    out = build_tfvars(model)
+    # noise lands in the random_* families, with the requested counts
+    assert len(out["random_group_membership_assignments"]) == 8
+    assert len(out["random_entra_role_assignments"]) == 4
+    assert len(out["random_api_permission_assignments"]) == 3
+    # ...and NOT in the attack_path_* families
+    assert not out.get("attack_path_entra_role_assignments")
 
 
-def test_from_pool_ref_not_implemented_yet():
+def test_hybrid_from_baseline_binds_victim_and_keeps_attack_origin():
+    config = {
+        "baseline": {"identities": {"users": 10, "key_vaults": 0}},
+        "attack_paths": {
+            "opportunistic": {
+                "objective": {"name": "KV secrets", "impact": "high"},
+                "initial_access": {"principal_ref": "victim"},
+                "identities": {"users": [{"ref": "victim", "from": "baseline"}]},
+                "resources": {"key_vaults": [{"ref": "kv01"}]},
+                "assignments": [
+                    {"id": "a1", "type": "azure_rbac", "principal_ref": "victim",
+                     "role": "Key Vault Contributor", "scope_ref": "kv01"},
+                ],
+            }
+        },
+    }
+    scenario = _load(config)
+    model = scenario.model
+    out = build_tfvars(model)
+
+    rbac = out["attack_path_azure_rbac_assignments"]["opportunistic__a1"]
+    # victim was bound to a real baseline user key (not the literal alias "victim")
+    assert rbac["principal_ref"] != "victim"
+    assert rbac["principal_ref"] in model.users
+    assert rbac["principal_type"] == "user"
+    # operator creds resolve to the bound baseline user's password
+    creds = scenario.attack_paths[0].credentials
+    assert creds["user_principal_name"].split("@")[0] == rbac["principal_ref"]
+    assert creds["password"] == model.users[rbac["principal_ref"]]["password"]
+
+
+def test_from_baseline_without_baseline_entities_errors():
     config = {
         "attack_paths": {
             "p": {
-                "identities": {"users": [{"ref": "victim", "from": "pool"}]},
+                "identities": {"users": [{"ref": "victim", "from": "baseline"}]},
                 "assignments": [],
             }
         }
     }
     try:
         _load(config)
-        assert False, "expected ScenarioConfigError for from: pool"
+        assert False, "expected ScenarioConfigError for empty baseline"
     except ScenarioConfigError as e:
-        assert "pool" in str(e).lower()
+        assert "baseline" in str(e).lower()
 
 
+def test_attack_group_excluded_from_baseline_noise():
+    # A baseline with one group, used as an attack-path role principal: noise must
+    # NOT add random members to it (it's the only group, so 0 memberships result).
+    config = {
+        "baseline": {
+            "identities": {"users": 8, "groups": 1},
+            "assignments": {"group_memberships": 10},
+        },
+        "attack_paths": {
+            "grp": {
+                "identities": {"groups": [{"ref": "g", "from": "baseline"}]},
+                "assignments": [
+                    {"id": "a1", "type": "entra_role", "principal_ref": "g",
+                     "principal_type": "group", "role": "Global Administrator"},
+                ],
+            }
+        },
+    }
+    out = build_tfvars(_load(config).model)
+    # the sole group is the attack group -> excluded -> no random memberships
+    assert not out.get("random_group_membership_assignments")
+
+
+# ---------------------------------------------------------------------------
+# Error handling
+# ---------------------------------------------------------------------------
 def test_uninferable_principal_type_errors():
     config = {
         "attack_paths": {

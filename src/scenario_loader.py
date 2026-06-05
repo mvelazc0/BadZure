@@ -16,8 +16,12 @@ Slice 1 scope (intentionally narrow — see dev-docs/redesign/phase-3-yaml-ir.md
   - Entra-role / API-permission values are resolved through `name_resolver.py`
     (Slice 2): a GUID, a friendly name, a list, or `random` all work. Azure RBAC
     role names pass through verbatim (Terraform takes the role name directly).
-  - The random `pool:` layer and `from: pool` ref-picking arrive in Slice 3; a
-    pool section or a `from: pool` ref raises a clear "not yet" error here.
+  - The random `baseline:` layer + `from: baseline` ref-picking (Slice 3): a
+    `baseline:` section generates origin=random entities and noise via
+    `baseline_generator.py`; `{ref: x, from: baseline}` binds an attack-path ref to
+    a baseline entity. Baseline noise avoids the groups attack paths rely on, but
+    borrowed baseline users keep their noise (a victim that already looks like a
+    normal employee).
 
 The declarative-vs-legacy discriminator lives in cli.py (`_is_declarative_config`);
 by the time the loader runs we already know the config is the new shape.
@@ -25,8 +29,11 @@ by the time the loader runs we already know the config is the new shape.
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
+import random
+
 from src.entity_generator import EntityGenerator
 from src.name_resolver import NameResolver
+from src.baseline_generator import BaselineGenerator
 from src.primitives import (
     DeploymentModel, ATTACK_PATH,
     EntraRoleAssignment, AzureRbacAssignment, ApiPermission, AppCredential,
@@ -102,37 +109,53 @@ class ScenarioLoader:
     """Turns a declarative graph config into a ScenarioModel."""
 
     def __init__(self, entity_generator: Optional[EntityGenerator] = None,
-                 name_resolver: Optional[NameResolver] = None):
+                 name_resolver: Optional[NameResolver] = None,
+                 baseline_generator: Optional[BaselineGenerator] = None):
         self.generator = entity_generator or EntityGenerator()
         self.resolver = name_resolver or NameResolver()
+        self.baseline = baseline_generator or BaselineGenerator(self.generator)
 
     # -- public API -----------------------------------------------------------
     def load(self, config: Dict, tenant_id: str = "", domain: str = "",
              subscription_id: str = "", public_ip: str = "",
              azure_config_dir: str = "") -> ScenarioModel:
-        if config.get("pool"):
-            raise ScenarioConfigError(
-                "The 'pool' (random org-baseline) layer is not implemented yet — "
-                "it arrives in Slice 3. Remove the 'pool:' section for now."
-            )
+        baseline_config = config.get("baseline") or {}
         attack_paths = config.get("attack_paths") or {}
-        if not attack_paths:
+        if not attack_paths and not baseline_config:
             raise ScenarioConfigError(
-                "Declarative config declares no attack_paths to build."
+                "Declarative config declares neither a baseline nor any attack_paths."
             )
 
-        # 1. Build every inline-declared entity across all paths into symbolic-keyed
-        #    maps (the same keys the assignments below reference).
-        entities = self._build_entities(attack_paths)
+        # 1. The random org-baseline. Built FIRST so attack paths can pick from it.
+        baseline_entities = (self.baseline.generate_entities(baseline_config)
+                             if baseline_config else {})
+
+        # 2. Attack-path entities: inline-declared ones built fresh; `from: baseline`
+        #    refs bound to existing baseline entities (alias ref -> real baseline key).
+        inline_entities, alias = self._build_attack_entities(
+            attack_paths, baseline_entities)
+
+        # 3. One merged entity set (symbolic-keyed) the assignments resolve against.
+        entities = self._merge_entities(baseline_entities, inline_entities)
         ref_kind = self._index_refs(entities)
 
-        # 2. Walk each path, emitting primitives + collecting the narrative overlay.
+        # 4. Compile each path -> origin=attack_path primitives. Paths are rewritten
+        #    so `from: baseline` aliases point at their real baseline keys before emit.
         primitives: List = []
         overlays: List[AttackPathOverlay] = []
         for path_name, path in attack_paths.items():
-            overlay = self._compile_path(path_name, path, ref_kind, entities,
+            resolved = self._resolve_aliases_in_path(path, alias)
+            overlay = self._compile_path(path_name, resolved, ref_kind, entities,
                                          primitives, domain)
             overlays.append(overlay)
+
+        # 5. Baseline noise LAST: it samples baseline entities but avoids the groups
+        #    the attack paths rely on (so random members don't dilute a group-based
+        #    chain). Borrowed baseline users keep their noise — that's the realism.
+        if baseline_config:
+            excluded = self._attack_referenced_groups(primitives)
+            primitives.extend(
+                self.baseline.generate_noise(baseline_config, baseline_entities, excluded))
 
         model = DeploymentModel(
             tenant_id=tenant_id, domain=domain, subscription_id=subscription_id,
@@ -142,18 +165,32 @@ class ScenarioLoader:
         return ScenarioModel(model=model, attack_paths=overlays)
 
     # -- entity construction --------------------------------------------------
-    def _build_entities(self, attack_paths: Dict) -> Dict[str, Dict]:
-        """Collect inline identities/resources across paths and build the symbolic
-        entity maps via EntityGenerator's *_targeted methods (reusing their default
-        attributes: VM os_type, KV sku, ...). Returns a dict of entity-map attr ->
-        entity dict, ready to splat into DeploymentModel."""
-        # Gather raw specs per entity kind, deduped by ref (declared once, used
-        # by many assignments). Service principals fold into applications.
+    def _build_attack_entities(self, attack_paths: Dict,
+                               baseline_entities: Dict[str, Dict]):
+        """Build the attack paths' inline entities and bind their `from: baseline` refs.
+
+        Returns (inline_entities, alias) where:
+          - inline_entities: entity maps for the freshly-declared (non-baseline) refs,
+            built via EntityGenerator's *_targeted methods (default attrs reused).
+          - alias: ref -> real baseline key, for every `{ref: x, from: baseline}` spec,
+            so the loader can rewrite assignments before emitting primitives.
+        """
         specs: Dict[str, List[Dict]] = {}
         seen: Dict[str, set] = {}
+        alias: Dict[str, str] = {}
+        picked: Dict[str, set] = {}  # per-kind baseline keys already bound (no reuse)
 
         def add_spec(kind: str, raw: Dict):
             ref = self._spec_name(raw)
+            source = raw.get("from")
+            if source == "baseline":
+                alias[ref] = self._pick_from_baseline(kind, baseline_entities, picked, ref)
+                return
+            if source:
+                raise ScenarioConfigError(
+                    f"Entity '{ref}' has unknown source `from: {source}` "
+                    f"(only 'baseline' is supported)."
+                )
             seen.setdefault(kind, set())
             if ref in seen[kind]:
                 return
@@ -192,25 +229,55 @@ class ScenarioLoader:
         for kind, method in _RESOURCE_BUILDERS.items():
             kind_specs = [self._with_default_rg(s) for s in specs.get(kind, [])]
             entities[kind] = getattr(self.generator, method)(kind_specs, resource_groups)
-        return entities
+        return entities, alias
+
+    @staticmethod
+    def _pick_from_baseline(kind: str, baseline_entities: Dict[str, Dict],
+                            picked: Dict[str, set], ref: str) -> str:
+        """Bind a `from: baseline` ref to a random, not-yet-bound baseline entity of
+        `kind`."""
+        available = [k for k in baseline_entities.get(kind, {})
+                     if k not in picked.get(kind, set())]
+        if not available:
+            raise ScenarioConfigError(
+                f"`{ref}` requests a {kind} from the baseline, but the baseline has "
+                f"no (unused) {kind} to pick. Increase baseline.{kind} or declare it "
+                f"inline."
+            )
+        chosen = random.choice(available)
+        picked.setdefault(kind, set()).add(chosen)
+        return chosen
+
+    @staticmethod
+    def _merge_entities(baseline_entities: Dict[str, Dict],
+                        inline_entities: Dict[str, Dict]) -> Dict[str, Dict]:
+        """Combine baseline + inline entity maps per kind. Inline refs are explicit,
+        so a clash with a (random) baseline key is almost certainly a mistake."""
+        merged: Dict[str, Dict] = {}
+        for attr in DeploymentModel.ENTITY_MAPS:
+            baseline_map = baseline_entities.get(attr, {})
+            inline_map = inline_entities.get(attr, {})
+            clash = set(baseline_map) & set(inline_map)
+            if clash:
+                raise ScenarioConfigError(
+                    f"Inline {attr} ref(s) {sorted(clash)} collide with baseline "
+                    f"entity keys; rename the inline ref(s)."
+                )
+            merged[attr] = {**baseline_map, **inline_map}
+        return merged
 
     @staticmethod
     def _spec_name(raw: Dict) -> str:
         ref = raw.get("ref")
         if not ref:
             raise ScenarioConfigError(f"Entity spec is missing required 'ref': {raw}")
-        if raw.get("from"):
-            raise ScenarioConfigError(
-                f"Entity '{ref}' uses `from: {raw['from']}` (pool-picking), which "
-                "is not implemented yet — it arrives in Slice 3."
-            )
         return ref
 
     @classmethod
     def _to_targeted_spec(cls, raw: Dict) -> Dict:
         """Translate a declarative `{ref: X, ...}` entity into the `{name: X, ...}`
         shape the EntityGenerator *_targeted methods expect."""
-        spec = {k: v for k, v in raw.items() if k != "ref"}
+        spec = {k: v for k, v in raw.items() if k not in ("ref", "from")}
         spec["name"] = cls._spec_name(raw)
         return spec
 
@@ -243,6 +310,58 @@ class ScenarioLoader:
                     )
                 ref_kind[key] = attr
         return ref_kind
+
+    # -- from: baseline alias resolution --------------------------------------
+    # The *_ref fields in a path that may name a `from: baseline` alias. Rewriting
+    # only these (not entity declarations, ids, or path-local credential refs) keeps
+    # the substitution precise.
+    _ASSIGNMENT_REF_FIELDS = (
+        "principal_ref", "scope_ref", "group_ref", "app_ref", "au_ref",
+        "scope_app_ref",
+    )
+
+    @classmethod
+    def _resolve_aliases_in_path(cls, path: Dict, alias: Dict[str, str]) -> Dict:
+        """Return a shallow path copy with `from: baseline` alias refs rewritten to
+        their real baseline keys across assignments / credentials / data_injects /
+        initial_access. No-op when there are no aliases."""
+        if not alias:
+            return path
+        out = dict(path)
+
+        def sub(value):
+            return alias.get(value, value)
+
+        out["assignments"] = [
+            {**a, **{f: sub(a[f]) for f in cls._ASSIGNMENT_REF_FIELDS if f in a}}
+            for a in path.get("assignments", [])
+        ]
+        out["credentials"] = [
+            {**c, **({"app_ref": sub(c["app_ref"])} if "app_ref" in c else {})}
+            for c in path.get("credentials", [])
+        ]
+        out["data_injects"] = [
+            {**d, **{f: sub(d[f]) for f in ("location_ref", "source_ref") if f in d}}
+            for d in path.get("data_injects", [])
+        ]
+        ia = path.get("initial_access")
+        if isinstance(ia, dict) and "principal_ref" in ia:
+            out["initial_access"] = {**ia, "principal_ref": sub(ia["principal_ref"])}
+        return out
+
+    @staticmethod
+    def _attack_referenced_groups(primitives: List) -> set:
+        """Group keys an attack path uses as a role/RBAC principal or a membership
+        target — these are excluded from random group-membership noise so baseline
+        members don't dilute a group-based chain (mirrors legacy random mode)."""
+        groups = set()
+        for p in primitives:
+            if isinstance(p, (EntraRoleAssignment, AzureRbacAssignment)) \
+                    and p.principal_type == "group":
+                groups.add(p.principal_ref)
+            elif isinstance(p, (GroupMembership, GroupOwnership)):
+                groups.add(p.group_ref)
+        return groups
 
     # -- per-path compilation -------------------------------------------------
     def _compile_path(self, path_name: str, path: Dict, ref_kind: Dict[str, str],
