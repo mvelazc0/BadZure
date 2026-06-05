@@ -78,6 +78,14 @@ _MAP_TO_PRINCIPAL_TYPE = {
 # inferring an azure_rbac scope_type/scope_resource_type from the scope ref.
 _MAP_TO_RESOURCE_TYPE = {v: k for k, v in SCOPE_RESOURCE_TO_MAP.items()}
 
+# The assignment `type` tokens the declarative config accepts — the single source
+# of truth for both `_emit_assignment` (below) and `scenario_validator`. Each maps
+# 1:1 to a primitive (see the target-schema table in the Phase-3 doc).
+ASSIGNMENT_TYPES = frozenset({
+    "entra_role", "azure_rbac", "api_permission",
+    "group_membership", "group_ownership", "app_ownership", "au_membership",
+})
+
 # Default resource group synthesized for inline resources that don't name one.
 _DEFAULT_RG = "badzure-default-rg"
 _DEFAULT_RG_LOCATION = "West US"
@@ -96,6 +104,9 @@ class AttackPathOverlay:
     steps: List = field(default_factory=list)
     credentials: Dict = field(default_factory=dict)
     summary: Dict = field(default_factory=dict)
+    # Stamped by the reachability gate: {status, reason}. Surfaced in the operator
+    # output so they see WHY a path was accepted (reached / unverified).
+    reachability: Dict = field(default_factory=dict)
 
 
 @dataclass
@@ -120,6 +131,13 @@ class ScenarioLoader:
     def load(self, config: Dict, tenant_id: str = "", domain: str = "",
              subscription_id: str = "", public_ip: str = "",
              azure_config_dir: str = "") -> ScenarioModel:
+        # 0. Structural validation up front (registry-driven). Aggregates malformed
+        #    objectives / unknown assignment types / dangling step links into one
+        #    error before we build anything. Lazy import avoids an import cycle
+        #    (the validator imports this module's ASSIGNMENT_TYPES / error type).
+        from src import scenario_validator
+        scenario_validator.validate(config)
+
         baseline_config = config.get("baseline") or {}
         attack_paths = config.get("attack_paths") or {}
         if not attack_paths and not baseline_config:

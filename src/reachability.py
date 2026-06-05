@@ -113,12 +113,17 @@ def analyze(model: DeploymentModel, overlays: List, resolver) -> ReachabilityRep
 
 
 def attach_derived_steps(overlays: List, report: ReachabilityReport) -> None:
-    """For any path that did NOT author `steps:`, fill in the steps the walk
-    derived. Authored steps are left untouched (decision #1: derive-when-absent)."""
+    """Fold the report back into the overlays: stamp each overlay's `reachability`
+    ({status, reason}) for the operator output, and — for any path that did NOT
+    author `steps:` — fill in the steps the walk derived (authored steps are left
+    untouched; decision #1: derive-when-absent)."""
     by_name = {v.name: v for v in report.verdicts}
     for ov in overlays:
         v = by_name.get(ov.name)
-        if v and not ov.steps and v.derived_steps:
+        if not v:
+            continue
+        ov.reachability = {"status": v.status, "reason": v.reason}
+        if not ov.steps and v.derived_steps:
             ov.steps = v.derived_steps
 
 
@@ -133,7 +138,7 @@ def enforce(report: ReachabilityReport) -> None:
         return
     lines = [f"  - {v.name}: {v.reason}" for v in failing]
     raise ReachabilityError(
-        "Reachability gate rejected the following attack path(s) — the objective "
+        "Reachability gate rejected the following attack path(s) - the objective "
         "is not reachable from initial_access through the deployed graph:\n"
         + "\n".join(lines)
         + "\n\nFix the chain, or bypass the gate (BADZURE_SKIP_REACHABILITY=1 / "
@@ -170,7 +175,7 @@ class _Analyzer:
         if not capability:
             return PathVerdict(
                 name, UNVERIFIED,
-                "objective has no machine-checkable `capability:` — gate skipped "
+                "objective has no machine-checkable `capability:` - gate skipped "
                 "(add one, e.g. capability: entra_role / read_secrets / "
                 "code_execution, to enable validation).",
             )
@@ -178,7 +183,7 @@ class _Analyzer:
             return PathVerdict(
                 name, UNVERIFIED,
                 f"capability '{capability}' is not modelled yet in capabilities.py "
-                f"— gate skipped. Known: {sorted(capabilities.KNOWN_CAPABILITIES)}.",
+                f"- gate skipped. Known: {sorted(capabilities.KNOWN_CAPABILITIES)}.",
             )
         if not seed:
             return PathVerdict(
