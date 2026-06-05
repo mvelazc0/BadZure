@@ -153,3 +153,10 @@ site/
 
 scenarios/
 scenarios2/
+
+# BadZure Python redesign: track the offline test suite and its golden fixture.
+# These hold only fake/sample data — re-included here despite the inherited
+# `tests/` rule and the broad `*.tfvars.json` secrets rule (real tfvars stay ignored).
+!tests/
+!tests/*.py
+!terraform/fixture_full.tfvars.json

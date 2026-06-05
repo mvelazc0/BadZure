@@ -4,3 +4,4 @@ click
 python-terraform
 cryptography
 python-dotenv
+pytest  # optional: runs the offline tests in tests/ (they also self-run via `python tests/test_*.py`)
