@@ -1048,11 +1048,206 @@ class AttackPathManager:
         summary = {
             "path_name": path_name,
             "key": key,
+            "technique": "KeyVaultSecretTheft",
             "identity_type": identity_type,
             "principal_name": principal_name,
             "assignment_type": assignment_type,
             "group_name": group_name,
             "key_vault": kv_name,
+            "app_name": app_name,
+            "entra_role_ids": entra_role_ids,
+            "api_perm_ids": api_perm_ids,
+            "api_type": api_type,
+        }
+
+        return {
+            "primitives": primitives,
+            "credentials": credentials,
+            "groups": groups,
+            "summary": summary,
+        }
+
+    def macro_storage_certificate_theft(
+        self,
+        attack_config: Dict,
+        applications: Dict,
+        storage_accounts: Dict,
+        users: Dict,
+        service_principals: Dict,
+        domain: str,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None
+    ) -> Dict:
+        """StorageCertificateTheft expressed as generic building blocks (Phase 4 macro).
+
+        Same chain as create_storage_certificate_theft, but emits a flat list of
+        generic primitives instead of the legacy technique-shaped buckets. Entity
+        selection and the method/entra_role/app_role/random resolution are REUSED
+        verbatim from the legacy helpers, so picks stay identical.
+
+        The chain, as building blocks:
+          1. AppCredential(certificate) — mint a cert credential on the looted (high-
+                               priv) app, so the stolen cert authenticates as it.
+          2. DataInject x3   — plant the .key / .pem / .pfx in the storage account as
+                               blobs (material=app_certificate; generic.tf gives each
+                               its own private container). Parity blob names with legacy.
+          3. AzureRbacAssignment — grant the compromised principal (or its group)
+                               'Storage Blob Data Reader' on the storage account.
+          4. EntraRoleAssignment / ApiPermission — the looted app's privileges.
+          5. GroupMembership / GroupOwnership — for indirect (group-based) access.
+          6. AppCredential (no inject) — for service_principal initial access, mint the
+                               SP's own secret; surfaced via the generic_app_credentials
+                               TF output.
+
+        Returns: {primitives, credentials, groups, summary}.
+        """
+        identity_type = attack_config.get('initial_access', 'user')
+        if identity_type == 'managed_identity':
+            raise ValueError(
+                "StorageCertificateTheft does not support initial_access 'managed_identity'. "
+                "Use 'ManagedIdentityTheft' with target_resource_type 'storage_account' instead."
+            )
+
+        assignment_type = attack_config.get('assignment_type', 'direct')
+
+        # Attack-path key (same scheme as the legacy method, for output filtering).
+        attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
+        if mode == 'targeted' and path_name:
+            key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            key = f"{path_name}-{attack_path_id}"
+        else:
+            key = f"attack-path-{attack_path_id}"
+
+        # Entity selection — reuse the legacy selectors unchanged.
+        if mode == 'random':
+            app_name, sa_name, principal_name = self._select_random_entities_storage_cert_theft(
+                applications, storage_accounts, users, service_principals,
+                identity_type, used_apps
+            )
+        else:
+            app_name, sa_name, principal_name = self._select_targeted_entities_storage_cert_theft(
+                applications, storage_accounts, users,
+                entities, identity_type, path_name
+            )
+
+        primitives = []
+        groups = {}
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+
+        # 1. Mint the looted app's certificate credential + 2. plant .key/.pem/.pfx
+        #    as blobs. The cert files are generated on disk here (real files the
+        #    generic storage_blob inject uploads via file_path).
+        cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
+        primitives.append(AppCredential(
+            f"{key}_app_certificate", ATTACK_PATH, app_ref=app_name,
+            type="certificate", certificate_path=cert_path,
+            display_name="BadZureClientCertificate",
+        ))
+        # Parity blob names with legacy main.tf (app-private-key.key / -certificate.pem / .pfx).
+        for sub, blob_name, file_path in (
+            ("blob_key", f"{app_name}-private-key.key", key_path),
+            ("blob_pem", f"{app_name}-certificate.pem", cert_path),
+            ("blob_pfx", f"{app_name}-certificate.pfx", pfx_path),
+        ):
+            primitives.append(DataInject(
+                f"{key}_{sub}", ATTACK_PATH, material="app_certificate",
+                location_type="storage_blob", location_ref=sa_name,
+                name=blob_name, source_ref=app_name, file_path=file_path,
+            ))
+
+        # 3. Storage Blob Data Reader — to the principal directly, or to the group
+        #    for indirect (group_member / group_owner) access.
+        if assignment_type in ('group_member', 'group_owner'):
+            if assignment_type == 'group_owner':
+                group_spec = self.entity_generator.generate_attack_path_group(
+                    owner_name=principal_name, owner_type=identity_type
+                )
+            else:
+                group_spec = self.entity_generator.generate_attack_path_group()
+            group_name = group_spec['display_name']
+            groups[group_name] = group_spec
+
+            primitives.append(AzureRbacAssignment(
+                f"{key}_sa_access", ATTACK_PATH,
+                principal_ref=group_name, principal_type="group",
+                role="Storage Blob Data Reader", scope_type="resource",
+                scope_resource_type="storage_account", scope_ref=sa_name,
+            ))
+            if assignment_type == 'group_member':
+                primitives.append(GroupMembership(
+                    f"{key}_grp_member", ATTACK_PATH,
+                    principal_ref=principal_name, principal_type=identity_type,
+                    group_ref=group_name,
+                ))
+            else:  # group_owner
+                primitives.append(GroupOwnership(
+                    f"{key}_grp_owner", ATTACK_PATH,
+                    principal_ref=principal_name, principal_type=identity_type,
+                    group_ref=group_name,
+                ))
+        else:
+            group_name = None
+            primitives.append(AzureRbacAssignment(
+                f"{key}_sa_access", ATTACK_PATH,
+                principal_ref=principal_name, principal_type=identity_type,
+                role="Storage Blob Data Reader", scope_type="resource",
+                scope_resource_type="storage_account", scope_ref=sa_name,
+            ))
+
+        # 4. The looted app's privileges. Reuse the legacy resolver, then translate.
+        legacy_roles, legacy_perms = {}, {}
+        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
+        entra_role_ids, api_perm_ids, api_type = [], [], None
+        if key in legacy_roles:
+            entra_role_ids = legacy_roles[key]['role_ids']
+            for idx, role_id in enumerate(entra_role_ids):
+                primitives.append(EntraRoleAssignment(
+                    f"{key}_app_role_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, principal_type="service_principal",
+                    role=role_id,
+                ))
+        if key in legacy_perms:
+            api_perm_ids = legacy_perms[key]['api_permission_ids']
+            api_type = legacy_perms[key].get('api_type', 'graph')
+            for idx, perm_id in enumerate(api_perm_ids):
+                primitives.append(ApiPermission(
+                    f"{key}_app_perm_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
+                ))
+
+        # 5. Initial-access credentials for the operator.
+        if identity_type == 'user':
+            credentials = {
+                "initial_access": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point,
+            }
+        else:  # service_principal — mint its own secret, surfaced via TF output.
+            sp_cred_key = f"{key}_initial_sp"
+            primitives.append(AppCredential(
+                sp_cred_key, ATTACK_PATH, app_ref=principal_name, type="password",
+                display_name="BadZureInitialAccess",
+            ))
+            credentials = {
+                "initial_access": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point,
+                "generic_credential_key": f"ap:{sp_cred_key}",
+            }
+
+        summary = {
+            "path_name": path_name,
+            "key": key,
+            "technique": "StorageCertificateTheft",
+            "identity_type": identity_type,
+            "principal_name": principal_name,
+            "assignment_type": assignment_type,
+            "group_name": group_name,
+            "storage_account": sa_name,
             "app_name": app_name,
             "entra_role_ids": entra_role_ids,
             "api_perm_ids": api_perm_ids,

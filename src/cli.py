@@ -327,9 +327,9 @@ class BuildCommand:
         attack_path_group_membership_assignments = {}
         user_creds = {}
 
-        # Phase 2: building blocks emitted by macro-based techniques (KeyVaultSecretTheft)
+        # Phase 2/4: building blocks emitted by macro-based techniques.
         generic_primitives = []
-        generic_kv_summaries = []
+        generic_summaries = []
 
         # Track used resources to prevent conflicts
         used_apps = set()
@@ -453,28 +453,24 @@ class BuildCommand:
                 )
                 generic_primitives.extend(result['primitives'])
                 attack_path_group_assignments.update(result['groups'])
-                generic_kv_summaries.append(result['summary'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
                 # Track the looted app so other paths don't reuse it
                 used_apps.add(result['summary']['app_name'])
-            
+
             elif attack_path_data['privilege_escalation'] == 'StorageCertificateTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_storage_certificate_theft(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_storage_certificate_theft(
                     attack_path_data, applications, storage_accounts, users, applications,
-                    virtual_machines, domain, mode='random', path_name=attack_path_name,
+                    domain, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
                 )
-                attack_path_storage_abuse_assignments.update(result['storage_abuse_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used apps
-                for assignment in result['storage_abuse_assignments'].values():
-                    used_apps.add(assignment['app_name'])
+                used_apps.add(result['summary']['app_name'])
             
             elif attack_path_data['privilege_escalation'] == 'CosmosDBSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
@@ -620,9 +616,9 @@ class BuildCommand:
             attack_path_user_role_assignments,
             user_creds, domain
         )
-        # Phase 2: minimal printout for macro-based KeyVaultSecretTheft paths
-        # (rich narrative is rebuilt from the graph in Phase 5).
-        self.output_formatter.format_generic_kv_paths(generic_kv_summaries, user_creds, domain)
+        # Phase 2/4: minimal printout for macro-based techniques
+        # (rich narrative is the declarative path's job).
+        self.output_formatter.format_generic_paths(generic_summaries, user_creds, domain)
 
         # Display deployment statistics
         elapsed_time = time.time() - start_time
@@ -797,9 +793,9 @@ class BuildCommand:
         logging.info("Azure AD tenant setup completed!")
         self.output_formatter.write_users_file(users, domain)
         self.output_formatter.format_targeted_mode_attack_paths(config, attack_path_assignments, users, domain)
-        # Phase 2: minimal printout for macro-based KeyVaultSecretTheft paths.
-        self.output_formatter.format_generic_kv_paths(
-            attack_path_assignments.get('generic_kv_summaries', []), user_creds, domain)
+        # Phase 2/4: minimal printout for macro-based techniques.
+        self.output_formatter.format_generic_paths(
+            attack_path_assignments.get('generic_summaries', []), user_creds, domain)
 
         # Display deployment statistics
         elapsed_time = time.time() - start_time
@@ -830,9 +826,9 @@ class BuildCommand:
             'vm_contributor': {},
             'group_assignments': {},
             'group_membership_assignments': {},
-            # Phase 2: generic building blocks emitted by macro-based techniques
+            # Phase 2/4: generic building blocks emitted by macro-based techniques
             'generic_primitives': [],
-            'generic_kv_summaries': []
+            'generic_summaries': []
         }
 
         user_creds = {}
@@ -904,20 +900,18 @@ class BuildCommand:
                 )
                 assignments['generic_primitives'].extend(result['primitives'])
                 assignments['group_assignments'].update(result['groups'])
-                assignments['generic_kv_summaries'].append(result['summary'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
-            
+
             elif priv_esc == 'StorageCertificateTheft':
-                result = self.attack_path_mgr.create_storage_certificate_theft(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_storage_certificate_theft(
                     path_config, applications, storage_accounts, users, applications,
-                    virtual_machines, domain, mode='targeted', entities=entities, path_name=path_name
+                    domain, mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['storage_abuse'].update(result['storage_abuse_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['vm_contributor'].update(result['vm_contributor_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'CosmosDBSecretTheft':

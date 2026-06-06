@@ -10,17 +10,27 @@ from src.constants import API_REGISTRY
 class OutputFormatter:
     """Formats and writes output for BadZure."""
     
-    def format_generic_kv_paths(self, summaries, user_creds: Dict, domain: str) -> None:
-        """Minimal printout for KeyVaultSecretTheft paths built via the generic
-        layer (Phase 2). The legacy kv_abuse dict is empty for these paths, so we
+    # Per-technique "<principal> gains <access> on <resource>" line for the generic
+    # macro printout. Each entry: (summary key holding the resource, access label).
+    _GENERIC_ACCESS = {
+        "KeyVaultSecretTheft": ("key_vault", "Key Vault Access", "Key Vault Contributor"),
+        "StorageCertificateTheft": ("storage_account", "Storage Account Access",
+                                    "Storage Blob Data Reader"),
+        "CosmosDBSecretTheft": ("cosmos_db", "Cosmos DB Access", "Cosmos DB Data Contributor"),
+    }
+
+    def format_generic_paths(self, summaries, user_creds: Dict, domain: str) -> None:
+        """Minimal printout for macro-based techniques built via the generic layer
+        (Phase 2/4). The legacy per-technique dicts are empty for these paths, so we
         report the essentials from each macro summary. The rich, graph-derived
-        narrative is rebuilt in Phase 5.
+        narrative is the declarative path's job (`format_declarative_paths`).
         """
         if not summaries:
             return
         for summary in summaries:
+            technique = summary.get('technique', 'KeyVaultSecretTheft')
             path_name = summary.get('path_name')
-            logging.info(f"Attack Path: {path_name} (KeyVaultSecretTheft)")
+            logging.info(f"Attack Path: {path_name} ({technique})")
             logging.info(f"Attack Path ID: {summary.get('key')}")
 
             identity_type = summary.get('identity_type')
@@ -37,15 +47,17 @@ class OutputFormatter:
                 if 'client_secret' in creds:
                     logging.info(f"Client Secret: {creds['client_secret']}")
 
+            resource_key, access_label, role_label = self._GENERIC_ACCESS.get(
+                technique, ("key_vault", "Resource Access", "access"))
+            resource = summary.get(resource_key)
             assignment_type = summary.get('assignment_type', 'direct')
-            key_vault = summary.get('key_vault')
             if assignment_type in ('group_member', 'group_owner'):
                 label = 'Group Member (indirect)' if assignment_type == 'group_member' else 'Group Owner (indirect)'
                 logging.info(f"Assignment Type: {label}")
                 logging.info(f"Group: {summary.get('group_name')}")
-                logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor via Group)")
+                logging.info(f"{access_label}: {resource} ({role_label} via Group)")
             else:
-                logging.info(f"Key Vault Access: {key_vault} (Key Vault Contributor)")
+                logging.info(f"{access_label}: {resource} ({role_label})")
 
             logging.info(f"Target Application: {summary.get('app_name')}")
             if summary.get('entra_role_ids'):
