@@ -515,7 +515,8 @@ resource "azurerm_network_interface" "vm_nics" {
 resource "azurerm_virtual_network" "vm_vnets" {
   for_each = { for k, v in var.virtual_machines : k => v }
 
-  name                = "${each.value.resource_group_name}-vnet"
+  # Per-VM vnet name (was "<rg>-vnet", which collided when two VMs shared an RG).
+  name                = "${each.value.name}-vnet"
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
   address_space       = ["10.0.0.0/16"]

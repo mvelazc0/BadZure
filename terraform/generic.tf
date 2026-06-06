@@ -572,7 +572,14 @@ resource "azurerm_key_vault_certificate" "generic_inject_kv_certificate" {
 resource "azurerm_storage_container" "generic_inject_container" {
   for_each = { for k, v in local.g_data_injects : k => v if v.location_type == "storage_blob" }
 
-  name                  = substr(lower(replace(replace("inject-${each.key}", ":", "-"), "_", "-")), 0, 40)
+  # Container names: 3-63 chars, lowercase alphanumerics + single hyphens, no
+  # leading/trailing hyphen. Build a readable prefix from the inject key (collapse
+  # any invalid run to one hyphen, truncate, trim stray hyphens) then append a short
+  # hash of the key so two injects whose prefixes truncate to the same value still
+  # get distinct, valid names. (The meaningful name is on the blob inside.)
+  name = format("inject-%s-%s",
+    trim(substr(replace(lower(replace(replace(each.key, ":", "-"), "_", "-")), "/[^a-z0-9]+/", "-"), 0, 40), "-"),
+    substr(sha1(each.key), 0, 8))
   storage_account_id    = azurerm_storage_account.sas[each.value.location_ref].id
   container_access_type = "private"
 
