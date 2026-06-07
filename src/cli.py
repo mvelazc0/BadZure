@@ -313,18 +313,10 @@ class BuildCommand:
         show_warnings = len(enabled_attack_paths) > 0 or max_users > 0 or max_apps > 0
         
         # Create attack paths FIRST to collect group assignments
-        # This allows us to exclude attack path groups from random assignments
-        attack_path_application_owner_assignments = {}
-        attack_path_user_role_assignments = {}
-        attack_path_application_role_assignments = {}
-        attack_path_app_api_permission_assignments = {}
-        attack_path_kv_abuse_assignments = {}
-        attack_path_storage_abuse_assignments = {}
-        attack_path_managed_identity_theft_assignments = {}
-        attack_path_cosmos_abuse_assignments = {}
-        attack_path_vm_contributor_assignments = {}
+        # This allows us to exclude attack path groups from random assignments.
+        # attack_path_group_assignments holds the macro-created group ENTITIES (so
+        # Terraform creates them and they're excluded from random membership noise).
         attack_path_group_assignments = {}
-        attack_path_group_membership_assignments = {}
         user_creds = {}
 
         # Phase 2/4: building blocks emitted by macro-based techniques.
@@ -479,21 +471,11 @@ class BuildCommand:
                 attack_path_groups=attack_path_group_names
             )
         
-        # Collect compromised SP credentials for Terraform
-        compromised_sp_creds = {}
-        for ap_name, creds in user_creds.items():
-            if creds.get('initial_access') == 'service_principal':
-                sp_name = creds.get('service_principal_name')
-                if sp_name:
-                    compromised_sp_creds[ap_name] = {'app_name': sp_name}
-
         # Recon access for initial-access identities, emitted as generic primitives
-        # (Directory.Read.All for SPs + subscription Reader). The legacy recon vars
-        # stay empty and no-op in main.tf until the cutover removes them.
+        # (Directory.Read.All for SPs + subscription Reader).
         generic_primitives.extend(self.attack_path_mgr.build_recon_primitives(user_creds))
-        attack_path_subscription_reader_assignments = {}
 
-        # Build and write Terraform variables
+        # Build and write Terraform variables (entities + random noise).
         tf_vars = self.terraform_mgr.build_terraform_vars(
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
             users, groups, applications, administrative_units,
@@ -501,17 +483,8 @@ class BuildCommand:
             automation_accounts, function_apps, cosmos_dbs,
             user_group_assignments, user_au_assignments, user_role_assignments,
             app_role_assignments, app_api_permission_assignments,
-            attack_path_application_owner_assignments, attack_path_user_role_assignments,
-            attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
-            attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
-            attack_path_managed_identity_theft_assignments,
-            attack_path_vm_contributor_assignments,
-            attack_path_cosmos_abuse_assignments,
-            attack_path_group_membership_assignments,
-            attack_path_compromised_sp_credentials=compromised_sp_creds,
-            attack_path_subscription_reader_assignments=attack_path_subscription_reader_assignments
         )
-        # Phase 2: splice the generic-primitive families (KeyVaultSecretTheft) in.
+        # Splice the generic-primitive families (all attack-path edges + recon) in.
         tf_vars.update(self._compile_generic_families(
             generic_primitives, tenant_id, domain, subscription_id, public_ip,
             azure_config_dir,
@@ -543,15 +516,7 @@ class BuildCommand:
                 logging.error(stderr)
             return
 
-        # Read Terraform outputs for SP credentials
-        if compromised_sp_creds:
-            outputs = self.terraform_mgr.get_outputs()
-            sp_credentials = outputs.get('compromised_sp_credentials', {})
-            for ap_name, sp_cred in sp_credentials.items():
-                if ap_name in user_creds:
-                    user_creds[ap_name]['client_id'] = sp_cred.get('client_id')
-                    user_creds[ap_name]['client_secret'] = sp_cred.get('client_secret')
-        # Phase 2: SP secrets for macro-based paths come from the generic output.
+        # SP secrets for macro-based paths come from the generic_app_credentials output.
         self._apply_generic_sp_credentials(user_creds)
 
         logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
@@ -653,43 +618,22 @@ class BuildCommand:
         if attack_path_assignments.get('group_assignments'):
             logging.info(f"Generated {len(attack_path_assignments['group_assignments'])} attack path group(s)")
 
-        # Collect compromised SP credentials for Terraform
         user_creds = attack_path_assignments.get('user_creds', {})
-        compromised_sp_creds = {}
-        for ap_name, creds in user_creds.items():
-            if creds.get('initial_access') == 'service_principal':
-                sp_name = creds.get('service_principal_name')
-                if sp_name:
-                    compromised_sp_creds[ap_name] = {'app_name': sp_name}
 
         # Recon access for initial-access identities, emitted as generic primitives
-        # (Directory.Read.All for SPs + subscription Reader). The legacy recon vars
-        # stay empty and no-op in main.tf until the cutover removes them.
+        # (Directory.Read.All for SPs + subscription Reader).
         attack_path_assignments['generic_primitives'].extend(
             self.attack_path_mgr.build_recon_primitives(user_creds))
-        attack_path_subscription_reader_assignments = {}
 
-        # Build and write Terraform variables
+        # Build and write Terraform variables (entities only; targeted has no random noise).
         tf_vars = self.terraform_mgr.build_terraform_vars(
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
             users, groups, applications, administrative_units,
             resource_groups, key_vaults, storage_accounts, virtual_machines, logic_apps,
             automation_accounts, function_apps, cosmos_dbs,
-            {}, {}, {}, {}, {},  # Empty random assignments
-            attack_path_assignments.get('app_owners', {}),
-            attack_path_assignments.get('user_roles', {}),
-            attack_path_assignments.get('app_roles', {}),
-            attack_path_assignments.get('app_api_permissions', {}),
-            attack_path_assignments.get('kv_abuse', {}),
-            attack_path_assignments.get('storage_abuse', {}),
-            attack_path_assignments.get('managed_identity_theft', {}),
-            attack_path_assignments.get('vm_contributor', {}),
-            attack_path_assignments.get('cosmos_abuse', {}),
-            attack_path_assignments.get('group_membership_assignments', {}),
-            attack_path_compromised_sp_credentials=compromised_sp_creds,
-            attack_path_subscription_reader_assignments=attack_path_subscription_reader_assignments
+            {}, {}, {}, {}, {},  # no random noise in targeted mode
         )
-        # Phase 2: splice the generic-primitive families (KeyVaultSecretTheft) in.
+        # Splice the generic-primitive families (all attack-path edges + recon) in.
         tf_vars.update(self._compile_generic_families(
             attack_path_assignments.get('generic_primitives', []),
             tenant_id, domain, subscription_id, public_ip, azure_config_dir,
@@ -721,15 +665,7 @@ class BuildCommand:
                 logging.error(stderr)
             return
 
-        # Read Terraform outputs for SP credentials
-        if compromised_sp_creds:
-            outputs = self.terraform_mgr.get_outputs()
-            sp_credentials = outputs.get('compromised_sp_credentials', {})
-            for ap_name, sp_cred in sp_credentials.items():
-                if ap_name in user_creds:
-                    user_creds[ap_name]['client_id'] = sp_cred.get('client_id')
-                    user_creds[ap_name]['client_secret'] = sp_cred.get('client_secret')
-        # Phase 2: SP secrets for macro-based paths come from the generic output.
+        # SP secrets for macro-based paths come from the generic_app_credentials output.
         self._apply_generic_sp_credentials(user_creds)
 
         logging.info("Azure AD tenant setup completed!")
@@ -756,18 +692,9 @@ class BuildCommand:
     ) -> Dict:
         """Create targeted attack path assignments using consolidated AttackPathManager."""
         assignments = {
-            'app_owners': {},
-            'user_roles': {},
-            'app_roles': {},
-            'app_api_permissions': {},
-            'kv_abuse': {},
-            'storage_abuse': {},
-            'cosmos_abuse': {},
-            'managed_identity_theft': {},
-            'vm_contributor': {},
+            # macro-created group ENTITIES (for creation + random-noise exclusion)
             'group_assignments': {},
-            'group_membership_assignments': {},
-            # Phase 2/4: generic building blocks emitted by macro-based techniques
+            # generic building blocks emitted by the macros + recon
             'generic_primitives': [],
             'generic_summaries': []
         }

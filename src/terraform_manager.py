@@ -70,35 +70,10 @@ class TerraformManager:
         user_role_assignments: Dict,
         app_role_assignments: Dict,
         app_api_permission_assignments: Dict,
-        attack_path_application_owner_assignments: Dict,
-        attack_path_user_role_assignments: Dict,
-        attack_path_application_role_assignments: Dict,
-        attack_path_application_api_permission_assignments: Dict,
-        attack_path_kv_abuse_assignments: Dict,
-        attack_path_storage_abuse_assignments: Dict,
-        attack_path_managed_identity_theft_assignments: Dict,
-        attack_path_vm_contributor_assignments: Dict,
-        attack_path_cosmos_abuse_assignments: Dict = None,
-        attack_path_group_memberships: Dict = None,
-        attack_path_compromised_sp_credentials: Dict = None,
-        attack_path_subscription_reader_assignments: Dict = None
     ) -> Dict:
-        """
-        Build Terraform variables dictionary.
-        
-        Args:
-            attack_path_group_memberships: Group membership assignments for attack paths.
-                                          Maps attack path keys to group membership info.
-        
-        Returns:
-            Dictionary of Terraform variables
-        """
-        # Initialize optional parameters
-        attack_path_cosmos_abuse_assignments = attack_path_cosmos_abuse_assignments or {}
-        attack_path_group_memberships = attack_path_group_memberships or {}
-        attack_path_compromised_sp_credentials = attack_path_compromised_sp_credentials or {}
-        attack_path_subscription_reader_assignments = attack_path_subscription_reader_assignments or {}
-        
+        """Build the Terraform variables dictionary: entities + the random-noise
+        assignments. Attack-path edges are no longer passed here — they're emitted
+        as generic primitives and spliced in by cli._compile_generic_families."""
         # Convert entity dictionaries to Terraform format
         user_vars = {user['user_principal_name']: user for user in users.values()}
         group_vars = {group['display_name']: group for group in groups.values()}
@@ -135,20 +110,6 @@ class TerraformManager:
             'user_role_assignments': user_role_assignments,
             'app_role_assignments': app_role_assignments,
             'app_api_permission_assignments': app_api_permission_assignments,
-            
-            # Attack Paths
-            'attack_path_application_owner_assignments': attack_path_application_owner_assignments,
-            'attack_path_user_role_assignments': attack_path_user_role_assignments,
-            'attack_path_application_role_assignments': attack_path_application_role_assignments,
-            'attack_path_application_api_permission_assignments': attack_path_application_api_permission_assignments,
-            'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
-            'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments,
-            'attack_path_managed_identity_theft_assignments': attack_path_managed_identity_theft_assignments,
-            'attack_path_cosmos_abuse_assignments': attack_path_cosmos_abuse_assignments,
-            'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments,
-            'attack_path_group_memberships': attack_path_group_memberships,
-            'attack_path_compromised_sp_credentials': attack_path_compromised_sp_credentials,
-            'attack_path_subscription_reader_assignments': attack_path_subscription_reader_assignments
         }
         
         return tf_vars
