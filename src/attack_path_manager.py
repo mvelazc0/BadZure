@@ -5,7 +5,7 @@ Handles creation of all attack path types for both random and targeted modes.
 import random
 import string
 import logging
-from typing import Dict, Tuple, Optional
+from typing import Dict, List, Tuple, Optional
 from src.constants import (
     HIGH_PRIVILEGED_ENTRA_ROLES,
     HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS,
@@ -43,53 +43,45 @@ class AttackPathManager:
         """
         self.entity_generator = entity_generator or EntityGenerator()
 
-    def build_recon_permissions(self, user_creds: Dict) -> Tuple[Dict, Dict]:
-        """
-        Build recon permissions for all initial access identities.
+    def build_recon_primitives(self, user_creds: Dict) -> List:
+        """Recon access for every initial-access identity, as generic primitives:
+          - service principals get Directory.Read.All (Graph) for Entra enumeration,
+          - every identity gets subscription-scoped Reader for Azure resource enum.
+            (Users already have directory read by default in Entra.)
 
-        - Service principals get Directory.Read.All (Graph API) for Entra ID enumeration
-        - All identities (users and SPs) get subscription-level Reader role for Azure resource enumeration
-        - Users already have directory read access by default in Entra ID
-        """
-        recon_api_permissions = {}
-        subscription_reader_assignments = {}
-
-        for path_name, credentials in user_creds.items():
+        Returns origin=attack_path primitives (ApiPermission + AzureRbacAssignment)
+        to fold into the generic families alongside the macro output. principal_ref
+        uses the SAME symbolic keys the macros use (SP = app display_name, user =
+        bare UPN local part = the var.users key)."""
+        primitives: List = []
+        seen_api, seen_reader = set(), set()
+        for credentials in user_creds.values():
             identity_type = credentials.get('initial_access')
-
             if identity_type == 'service_principal':
-                sp_name = credentials.get('service_principal_name')
-                if sp_name:
-                    # Directory.Read.All for Entra ID enumeration
-                    api_key = f"recon_{sp_name}"
-                    if api_key not in recon_api_permissions:
-                        recon_api_permissions[api_key] = {
-                            'app_name': sp_name,
-                            'api_permission_ids': [RECON_DIRECTORY_READ_ALL_ID],
-                            'api_type': 'graph'
-                        }
-                    # Subscription Reader for Azure resource enumeration
-                    reader_key = f"recon_{sp_name}"
-                    if reader_key not in subscription_reader_assignments:
-                        subscription_reader_assignments[reader_key] = {
-                            'initial_access': 'service_principal',
-                            'principal_name': sp_name
-                        }
-
+                name = credentials.get('service_principal_name')
+                if not name:
+                    continue
+                principal_type = 'service_principal'
+                if name not in seen_api:
+                    seen_api.add(name)
+                    primitives.append(ApiPermission(
+                        f"recon_{name}", ATTACK_PATH, principal_ref=name,
+                        permission_id=RECON_DIRECTORY_READ_ALL_ID, api_type='graph'))
             elif identity_type == 'user':
-                # Extract bare username from UPN (remove @domain)
                 upn = credentials.get('user_principal_name', '')
-                principal_name = upn.split('@')[0] if '@' in upn else upn
-                if principal_name:
-                    # Subscription Reader only (users already have directory read)
-                    reader_key = f"recon_{principal_name}"
-                    if reader_key not in subscription_reader_assignments:
-                        subscription_reader_assignments[reader_key] = {
-                            'initial_access': 'user',
-                            'principal_name': principal_name
-                        }
-
-        return recon_api_permissions, subscription_reader_assignments
+                name = upn.split('@')[0] if '@' in upn else upn
+                principal_type = 'user'
+                if not name:
+                    continue
+            else:
+                continue
+            if name not in seen_reader:
+                seen_reader.add(name)
+                primitives.append(AzureRbacAssignment(
+                    f"recon_reader_{name}", ATTACK_PATH, principal_ref=name,
+                    principal_type=principal_type, role='Reader',
+                    scope_type='subscription'))
+        return primitives
 
     # ========================================================================
     # Phase 4 macros — identity-based + managed-identity techniques.

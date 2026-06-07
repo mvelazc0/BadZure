@@ -487,10 +487,11 @@ class BuildCommand:
                 if sp_name:
                     compromised_sp_creds[ap_name] = {'app_name': sp_name}
 
-        # Add recon permissions to initial access identities
-        recon_api_perms, attack_path_subscription_reader_assignments = \
-            self.attack_path_mgr.build_recon_permissions(user_creds)
-        attack_path_app_api_permission_assignments.update(recon_api_perms)
+        # Recon access for initial-access identities, emitted as generic primitives
+        # (Directory.Read.All for SPs + subscription Reader). The legacy recon vars
+        # stay empty and no-op in main.tf until the cutover removes them.
+        generic_primitives.extend(self.attack_path_mgr.build_recon_primitives(user_creds))
+        attack_path_subscription_reader_assignments = {}
 
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
@@ -661,10 +662,12 @@ class BuildCommand:
                 if sp_name:
                     compromised_sp_creds[ap_name] = {'app_name': sp_name}
 
-        # Add recon permissions to initial access identities
-        recon_api_perms, attack_path_subscription_reader_assignments = \
-            self.attack_path_mgr.build_recon_permissions(user_creds)
-        attack_path_assignments['app_api_permissions'].update(recon_api_perms)
+        # Recon access for initial-access identities, emitted as generic primitives
+        # (Directory.Read.All for SPs + subscription Reader). The legacy recon vars
+        # stay empty and no-op in main.tf until the cutover removes them.
+        attack_path_assignments['generic_primitives'].extend(
+            self.attack_path_mgr.build_recon_primitives(user_creds))
+        attack_path_subscription_reader_assignments = {}
 
         # Build and write Terraform variables
         tf_vars = self.terraform_mgr.build_terraform_vars(
