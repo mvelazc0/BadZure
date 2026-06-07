@@ -345,103 +345,63 @@ class BuildCommand:
             if priv_esc == 'ServicePrincipalAbuse':
                 logging.warning(f"{attack_path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_application_ownership_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_application_ownership_abuse(
                     attack_path_data, users, applications, domain, mode='random',
                     path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_application_owner_assignments.update(result['app_owner_assignments'])
-                attack_path_user_role_assignments.update(result['user_role_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used resources from owner assignments
-                for assignment in result['app_owner_assignments'].values():
-                    used_apps.add(assignment['app_name'])
-                    # Track principal (user or service principal)
-                    if 'principal_name' in assignment:
-                        used_users.add(assignment['principal_name'])
-                for assignment in result['user_role_assignments'].values():
-                    if 'principal_name' in assignment:
-                        used_users.add(assignment['principal_name'])
-                    elif 'user_name' in assignment:
-                        used_users.add(assignment['user_name'])
+                used_apps.add(result['summary']['app_name'])
+                used_users.add(result['summary']['principal_name'])
             
             elif priv_esc == 'ApplicationOwnershipAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_application_ownership_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_application_ownership_abuse(
                     attack_path_data, users, applications, domain, mode='random',
                     path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_application_owner_assignments.update(result['app_owner_assignments'])
-                attack_path_user_role_assignments.update(result['user_role_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used resources from owner assignments
-                for assignment in result['app_owner_assignments'].values():
-                    used_apps.add(assignment['app_name'])
-                    # Track principal (user or service principal)
-                    if 'principal_name' in assignment:
-                        used_users.add(assignment['principal_name'])
-                for assignment in result['user_role_assignments'].values():
-                    if 'principal_name' in assignment:
-                        used_users.add(assignment['principal_name'])
-                    elif 'user_name' in assignment:
-                        used_users.add(assignment['user_name'])
+                used_apps.add(result['summary']['app_name'])
+                used_users.add(result['summary']['principal_name'])
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_application_administrator_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_application_administrator_abuse(
                     attack_path_data, users, applications, domain, mode='random',
                     path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_user_role_assignments.update(result['user_role_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used resources from both role and API permission assignments
-                for assignment in result['app_role_assignments'].values():
-                    used_apps.add(assignment['app_name'])
-                for assignment in result['app_api_permission_assignments'].values():
-                    used_apps.add(assignment['app_name'])
-                for assignment in result['user_role_assignments'].values():
-                    if 'principal_name' in assignment:
-                        used_users.add(assignment['principal_name'])
-                    elif 'user_name' in assignment:
-                        used_users.add(assignment['user_name'])
+                used_apps.add(result['summary']['app_name'])
+                used_users.add(result['summary']['principal_name'])
 
             elif priv_esc == 'CloudAppAdministratorAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_cloud_app_administrator_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_cloud_app_administrator_abuse(
                     attack_path_data, users, applications, domain, mode='random',
                     path_name=attack_path_name,
                     used_apps=used_apps, used_users=used_users
                 )
-                attack_path_user_role_assignments.update(result['user_role_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used resources from both role and API permission assignments
-                for assignment in result['app_role_assignments'].values():
-                    used_apps.add(assignment['app_name'])
-                for assignment in result['app_api_permission_assignments'].values():
-                    used_apps.add(assignment['app_name'])
-                for assignment in result['user_role_assignments'].values():
-                    if 'principal_name' in assignment:
-                        used_users.add(assignment['principal_name'])
-                    elif 'user_name' in assignment:
-                        used_users.add(assignment['user_name'])
+                used_apps.add(result['summary']['app_name'])
+                used_users.add(result['summary']['principal_name'])
 
             elif attack_path_data['privilege_escalation'] == 'KeyVaultSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
@@ -474,45 +434,33 @@ class BuildCommand:
             
             elif attack_path_data['privilege_escalation'] == 'CosmosDBSecretTheft':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_cosmosdb_secret_theft(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_cosmosdb_secret_theft(
                     attack_path_data, applications, cosmos_dbs, users, applications,
                     domain, mode='random', path_name=attack_path_name,
                     used_apps=used_apps
                 )
-                attack_path_cosmos_abuse_assignments.update(result['cosmos_abuse_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used apps
-                for assignment in result['cosmos_abuse_assignments'].values():
-                    used_apps.add(assignment['app_name'])
+                used_apps.add(result['summary']['app_name'])
 
-            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityTheft':
+            elif attack_path_data['privilege_escalation'] in ('ManagedIdentityTheft', 'ManagedIdentityAbuse'):
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                result = self.attack_path_mgr.create_managed_identity_theft(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_managed_identity_theft(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
-                    domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='random', path_name=attack_path_name,
-                    used_apps=used_apps, used_users=used_users,
-                    cosmos_dbs=cosmos_dbs
+                    domain, virtual_machines, logic_apps, automation_accounts, function_apps,
+                    mode='random', path_name=attack_path_name,
+                    used_apps=used_apps, used_users=used_users, cosmos_dbs=cosmos_dbs
                 )
-                attack_path_managed_identity_theft_assignments.update(result['mi_theft_assignments'])
-                attack_path_application_role_assignments.update(result['app_role_assignments'])
-                attack_path_app_api_permission_assignments.update(result['app_api_permission_assignments'])
-                attack_path_vm_contributor_assignments.update(result['vm_contributor_assignments'])
-                attack_path_group_assignments.update(result.get('group_assignments', {}))
-                attack_path_group_membership_assignments.update(result.get('group_membership_assignments', {}))
+                generic_primitives.extend(result['primitives'])
+                attack_path_group_assignments.update(result['groups'])
+                generic_summaries.append(result['summary'])
                 user_creds[attack_path_name] = result['credentials']
-                # Track used apps and users/service principals
-                for assignment in result['mi_theft_assignments'].values():
-                    used_apps.add(assignment['app_name'])
-                    # Track initial access principal (user or service principal)
-                    if 'initial_access_principal' in assignment:
-                        used_users.add(assignment['initial_access_principal'])
-                    elif 'initial_access_user' in assignment:
-                        # Backward compatibility
-                        used_users.add(assignment['initial_access_user'])
+                used_apps.add(result['summary']['app_name'])
+                used_users.add(result['summary']['principal_name'])
         
         # Add attack path groups to the groups dictionary
         # These groups will be created by Terraform
@@ -843,53 +791,47 @@ class BuildCommand:
             # Support both old and new names with deprecation warning
             if priv_esc == 'ServicePrincipalAbuse':
                 logging.warning(f"{path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
-                result = self.attack_path_mgr.create_application_ownership_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_application_ownership_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['app_owners'].update(result['app_owner_assignments'])
-                assignments['user_roles'].update(result['user_role_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'ApplicationOwnershipAbuse':
-                result = self.attack_path_mgr.create_application_ownership_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_application_ownership_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['app_owners'].update(result['app_owner_assignments'])
-                assignments['user_roles'].update(result['user_role_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
-                result = self.attack_path_mgr.create_application_administrator_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_application_administrator_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['user_roles'].update(result['user_role_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
 
             elif priv_esc == 'CloudAppAdministratorAbuse':
-                result = self.attack_path_mgr.create_cloud_app_administrator_abuse(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_cloud_app_administrator_abuse(
                     path_config, users, applications, domain,
                     mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['user_roles'].update(result['user_role_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
 
             elif priv_esc == 'KeyVaultSecretTheft':
@@ -915,29 +857,26 @@ class BuildCommand:
                 user_creds[path_name] = result['credentials']
             
             elif priv_esc == 'CosmosDBSecretTheft':
-                result = self.attack_path_mgr.create_cosmosdb_secret_theft(
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_cosmosdb_secret_theft(
                     path_config, applications, cosmos_dbs, users, applications,
                     domain, mode='targeted', entities=entities, path_name=path_name
                 )
-                assignments['cosmos_abuse'].update(result['cosmos_abuse_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
 
-            elif priv_esc == 'ManagedIdentityTheft':
-                result = self.attack_path_mgr.create_managed_identity_theft(
+            elif priv_esc in ('ManagedIdentityTheft', 'ManagedIdentityAbuse'):
+                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
+                result = self.attack_path_mgr.macro_managed_identity_theft(
                     path_config, applications, key_vaults, storage_accounts, users,
-                    domain, virtual_machines, logic_apps, automation_accounts, function_apps, mode='targeted', entities=entities, path_name=path_name,
-                    cosmos_dbs=cosmos_dbs
+                    domain, virtual_machines, logic_apps, automation_accounts, function_apps,
+                    mode='targeted', entities=entities, path_name=path_name, cosmos_dbs=cosmos_dbs
                 )
-                assignments['managed_identity_theft'].update(result['mi_theft_assignments'])
-                assignments['app_roles'].update(result['app_role_assignments'])
-                assignments['app_api_permissions'].update(result['app_api_permission_assignments'])
-                assignments['vm_contributor'].update(result['vm_contributor_assignments'])
-                assignments['group_assignments'].update(result.get('group_assignments', {}))
-                assignments['group_membership_assignments'].update(result.get('group_membership_assignments', {}))
+                assignments['generic_primitives'].extend(result['primitives'])
+                assignments['group_assignments'].update(result['groups'])
+                assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
         
         # Store user credentials for output

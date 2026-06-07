@@ -1,0 +1,42 @@
+# Consolidated StorageCertificateTheft test — all variants in ONE build
+# (replaces test_storage_theft_{user,sp,group}.yml for a single run).
+#   python badzure.py build --config .test_configs/test_storage_all.yml --verbose
+#   python badzure.py destroy --verbose
+# Each path uses a distinct app/principal (used_apps/used_users), so no conflicts.
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+  users: 4
+  applications: 6
+  groups: 2
+  administrative_units: 0
+  resource_groups: 1
+  key_vaults: 0
+  storage_accounts: 3
+  virtual_machines: 0
+  logic_apps: 0
+  automation_accounts: 0
+  function_apps: 0
+  cosmos_dbs: 0
+attack_paths:
+  storage_user:
+    enabled: true
+    privilege_escalation: StorageCertificateTheft
+    initial_access: user
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
+  storage_sp:
+    enabled: true
+    privilege_escalation: StorageCertificateTheft
+    initial_access: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+  storage_group:
+    enabled: true
+    privilege_escalation: StorageCertificateTheft
+    initial_access: user
+    assignment_type: group_member
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10

@@ -26,6 +26,7 @@ from src.primitives import (
     ApiPermission,
     GroupMembership,
     GroupOwnership,
+    AppOwnership,
 )
 
 
@@ -89,6 +90,429 @@ class AttackPathManager:
                         }
 
         return recon_api_permissions, subscription_reader_assignments
+
+    # ========================================================================
+    # Phase 4 macros — identity-based + managed-identity techniques.
+    # Each emits generic primitives (like the KV/Storage/Cosmos macros) and
+    # reuses the legacy entity selectors + _assign_app_privileges verbatim.
+    # ========================================================================
+    HELPDESK_ADMIN_ROLE_ID = "729827e3-9c14-49f7-bb1b-9608f156bbb8"
+
+    # ManagedIdentityTheft role sets (parity with the legacy main.tf blocks).
+    SOURCE_CONTRIBUTOR_ROLE = {
+        'vm': 'Virtual Machine Contributor', 'logic_app': 'Logic App Contributor',
+        'automation_account': 'Automation Contributor', 'function_app': 'Website Contributor',
+    }
+    SOURCE_SCOPE_RESOURCE_TYPE = {
+        'vm': 'virtual_machine', 'logic_app': 'logic_app',
+        'automation_account': 'automation_account', 'function_app': 'function_app',
+    }
+    MI_KV_ROLES = ['Key Vault Contributor', 'Key Vault Secrets User', 'Key Vault Reader']
+    MI_KV_CERTIFICATE_ROLE = 'Key Vault Certificate User'
+    MI_STORAGE_ROLES = ['Storage Blob Data Reader', 'Storage Account Contributor']
+
+    # ---- shared macro helpers ----------------------------------------------
+    @staticmethod
+    def _attack_path_key(mode: str, path_name: Optional[str]) -> str:
+        aid = ''.join(random.choices(string.ascii_lowercase + string.digits, k=6))
+        if mode == 'targeted' and path_name:
+            return f"attack-path-{path_name}-{aid}"
+        if mode == 'random' and path_name:
+            return f"{path_name}-{aid}"
+        return f"attack-path-{aid}"
+
+    def _app_privilege_primitives(self, attack_config: Dict, app_name: str, key: str):
+        """Translate the looted app's privileges (method/entra_role/app_role) into
+        EntraRoleAssignment / ApiPermission primitives. Reuses the legacy resolver.
+        Returns (primitives, entra_role_ids, api_perm_ids, api_type)."""
+        legacy_roles, legacy_perms = {}, {}
+        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
+        prims, entra_role_ids, api_perm_ids, api_type = [], [], [], None
+        if key in legacy_roles:
+            entra_role_ids = legacy_roles[key]['role_ids']
+            for idx, role_id in enumerate(entra_role_ids):
+                prims.append(EntraRoleAssignment(
+                    f"{key}_app_role_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, principal_type="service_principal", role=role_id,
+                ))
+        if key in legacy_perms:
+            api_perm_ids = legacy_perms[key]['api_permission_ids']
+            api_type = legacy_perms[key].get('api_type', 'graph')
+            for idx, perm_id in enumerate(api_perm_ids):
+                prims.append(ApiPermission(
+                    f"{key}_app_perm_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
+                ))
+        return prims, entra_role_ids, api_perm_ids, api_type
+
+    def _initial_access_credentials(self, identity_type, principal_name, users, domain,
+                                    entry_point, key, primitives):
+        """Operator credentials for the initial-access identity. For a service
+        principal, mint its own secret (appended to `primitives`) so the operator
+        can authenticate; surfaced via the generic_app_credentials TF output."""
+        if identity_type == 'user':
+            return {
+                "initial_access": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point,
+            }
+        sp_cred_key = f"{key}_initial_sp"
+        primitives.append(AppCredential(
+            sp_cred_key, ATTACK_PATH, app_ref=principal_name, type="password",
+            display_name="BadZureInitialAccess",
+        ))
+        return {
+            "initial_access": "service_principal",
+            "service_principal_name": principal_name,
+            "entry_point": entry_point,
+            "generic_credential_key": f"ap:{sp_cred_key}",
+        }
+
+    def _attack_group(self, assignment_type, principal_name, identity_type):
+        if assignment_type == 'group_owner':
+            return self.entity_generator.generate_attack_path_group(
+                owner_name=principal_name, owner_type=identity_type)
+        return self.entity_generator.generate_attack_path_group()
+
+    @staticmethod
+    def _group_link_primitive(assignment_type, key, principal_name, identity_type, group_name):
+        if assignment_type == 'group_member':
+            return GroupMembership(f"{key}_grp_member", ATTACK_PATH,
+                                   principal_ref=principal_name, principal_type=identity_type,
+                                   group_ref=group_name)
+        return GroupOwnership(f"{key}_grp_owner", ATTACK_PATH,
+                              principal_ref=principal_name, principal_type=identity_type,
+                              group_ref=group_name)
+
+    # ---- ApplicationOwnershipAbuse -----------------------------------------
+    def macro_application_ownership_abuse(
+        self, attack_config: Dict, users: Dict, applications: Dict, domain: str,
+        mode: str = 'random', entities: Optional[Dict] = None,
+        path_name: Optional[str] = None, used_apps: Optional[set] = None,
+        used_users: Optional[set] = None
+    ) -> Dict:
+        """ApplicationOwnershipAbuse as generic building blocks (Phase 4 macro).
+
+        The attacker OWNS a high-priv app (AppOwnership) -> can add credentials ->
+        authenticate as its SP, which carries the privileges (entra_role / api_perm).
+        Azure AD forbids GROUPS owning apps, so group_member/group_owner fall back to
+        direct (parity with the legacy method). A 'helpdesk' scenario adds a second
+        user with Helpdesk Administrator (who can reset the owner's password).
+        Returns {primitives, credentials, groups, summary}.
+        """
+        identity_type = attack_config.get('initial_access', 'user')
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        scenario = attack_config.get('scenario', 'direct')
+        assignment_type = attack_config.get('assignment_type', 'direct')
+        if assignment_type in ('group_member', 'group_owner'):
+            logging.warning(
+                f"{path_name}: assignment_type '{assignment_type}' is not supported for "
+                "ApplicationOwnershipAbuse (Azure AD forbids group app owners). Falling back to 'direct'.")
+            assignment_type = 'direct'
+        if scenario == 'helpdesk' and identity_type == 'service_principal':
+            logging.warning(f"{path_name}: helpdesk scenario needs a user; using user initial access.")
+            identity_type = 'user'
+
+        key = self._attack_path_key(mode, path_name)
+        if mode == 'random':
+            app_name, principal_name, second_user_name = self._select_random_entities_app_ownership(
+                users, applications, scenario, identity_type, used_apps, used_users)
+        else:
+            app_name, principal_name, second_user_name = self._select_targeted_entities_app_ownership(
+                users, applications, entities, scenario, identity_type, path_name)
+
+        primitives = []
+        # The principal owns the target app (groups can't own apps -> always direct).
+        primitives.append(AppOwnership(
+            f"{key}_app_owner", ATTACK_PATH, principal_ref=principal_name,
+            principal_type=identity_type, app_ref=app_name))
+        access_lines = [f"Owned Application: {app_name}"]
+
+        if scenario == 'helpdesk' and identity_type == 'user':
+            # The operator compromises the helpdesk admin, who resets the owner's password.
+            primitives.append(EntraRoleAssignment(
+                f"{key}_helpdesk", ATTACK_PATH, principal_ref=second_user_name,
+                principal_type='user', role=self.HELPDESK_ADMIN_ROLE_ID))
+            credentials = {
+                "initial_access": "user",
+                "user_principal_name": f"{second_user_name}@{domain}",
+                "password": users[second_user_name]['password'],
+                "entry_point": entry_point,
+            }
+            access_lines.append(
+                f"Helpdesk Admin (resets {principal_name}'s password): {second_user_name}@{domain}")
+        else:
+            credentials = self._initial_access_credentials(
+                identity_type, principal_name, users, domain, entry_point, key, primitives)
+
+        priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
+            attack_config, app_name, key)
+        primitives.extend(priv_prims)
+
+        summary = {
+            "path_name": path_name, "key": key, "technique": "ApplicationOwnershipAbuse",
+            "identity_type": identity_type, "principal_name": principal_name,
+            "assignment_type": "direct", "group_name": None, "app_name": app_name,
+            "access_lines": access_lines, "show_target_app": False,
+            "entra_role_ids": entra_role_ids, "api_perm_ids": api_perm_ids, "api_type": api_type,
+        }
+        return {"primitives": primitives, "credentials": credentials, "groups": {}, "summary": summary}
+
+    # ---- Application / Cloud Application Administrator Abuse -----------------
+    def macro_application_administrator_abuse(self, attack_config, users, applications, domain,
+                                              mode='random', entities=None, path_name=None,
+                                              used_apps=None, used_users=None) -> Dict:
+        return self._macro_admin_role_abuse(
+            attack_config, users, applications, domain, APP_ADMIN_ROLE_ID,
+            "Application Administrator", "ApplicationAdministratorAbuse",
+            mode, entities, path_name, used_apps, used_users)
+
+    def macro_cloud_app_administrator_abuse(self, attack_config, users, applications, domain,
+                                            mode='random', entities=None, path_name=None,
+                                            used_apps=None, used_users=None) -> Dict:
+        return self._macro_admin_role_abuse(
+            attack_config, users, applications, domain, CLOUD_APP_ADMIN_ROLE_ID,
+            "Cloud Application Administrator", "CloudAppAdministratorAbuse",
+            mode, entities, path_name, used_apps, used_users)
+
+    def _macro_admin_role_abuse(self, attack_config, users, applications, domain, admin_role_id,
+                                role_label, technique, mode, entities, path_name,
+                                used_apps, used_users) -> Dict:
+        """Shared macro for Application/Cloud Application Administrator abuse.
+
+        The attacker holds the admin Entra role (directory-wide or scoped to one app)
+        -> can add credentials to the target app -> authenticate as it. The role can
+        go to the principal directly or to a group (group_member / group_owner).
+        Returns {primitives, credentials, groups, summary}.
+        """
+        identity_type = attack_config.get('initial_access', 'user')
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        assignment_type = attack_config.get('assignment_type', 'direct')
+        scope = attack_config.get('scope', 'directory')
+
+        key = self._attack_path_key(mode, path_name)
+        if mode == 'random':
+            app_name, principal_name = self._select_random_entities_app_administrator(
+                users, applications, identity_type, used_apps, used_users)
+        else:
+            app_name, principal_name = self._select_targeted_entities_app_administrator(
+                users, applications, entities, identity_type, path_name)
+
+        scope_app_ref = app_name if scope == 'application' else None
+        primitives, groups = [], {}
+        if assignment_type in ('group_member', 'group_owner'):
+            group_spec = self._attack_group(assignment_type, principal_name, identity_type)
+            group_name = group_spec['display_name']
+            groups[group_name] = group_spec
+            primitives.append(EntraRoleAssignment(
+                f"{key}_admin_role", ATTACK_PATH, principal_ref=group_name,
+                principal_type='group', role=admin_role_id, scope_app_ref=scope_app_ref))
+            primitives.append(self._group_link_primitive(
+                assignment_type, key, principal_name, identity_type, group_name))
+        else:
+            group_name = None
+            primitives.append(EntraRoleAssignment(
+                f"{key}_admin_role", ATTACK_PATH, principal_ref=principal_name,
+                principal_type=identity_type, role=admin_role_id, scope_app_ref=scope_app_ref))
+
+        credentials = self._initial_access_credentials(
+            identity_type, principal_name, users, domain, entry_point, key, primitives)
+        priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
+            attack_config, app_name, key)
+        primitives.extend(priv_prims)
+
+        scope_str = f" (scoped to application {app_name})" if scope_app_ref else " (directory-wide)"
+        summary = {
+            "path_name": path_name, "key": key, "technique": technique,
+            "identity_type": identity_type, "principal_name": principal_name,
+            "assignment_type": assignment_type, "group_name": group_name, "app_name": app_name,
+            "access_lines": [f"Principal Role: {role_label}{scope_str}"], "show_target_app": True,
+            "entra_role_ids": entra_role_ids, "api_perm_ids": api_perm_ids, "api_type": api_type,
+        }
+        return {"primitives": primitives, "credentials": credentials, "groups": groups, "summary": summary}
+
+    # ---- ManagedIdentityTheft ----------------------------------------------
+    def macro_managed_identity_theft(
+        self, attack_config: Dict, applications: Dict, key_vaults: Dict,
+        storage_accounts: Dict, users: Dict, domain: str, virtual_machines: Dict,
+        logic_apps: Dict, automation_accounts: Dict, function_apps: Dict,
+        mode: str = 'random', entities: Optional[Dict] = None, path_name: Optional[str] = None,
+        used_apps: Optional[set] = None, used_users: Optional[set] = None,
+        cosmos_dbs: Optional[Dict] = None
+    ) -> Dict:
+        """ManagedIdentityTheft as generic building blocks (Phase 4 macro).
+
+        The attacker holds Contributor on a SOURCE compute resource (VM/Logic App/
+        Automation/Function) -> runs code -> steals the source's managed identity
+        token -> the MI has grants on a TARGET (KV/Storage/Cosmos) holding the looted
+        app's credential.
+
+        Building blocks:
+          1. AzureRbacAssignment — source-specific Contributor to the principal/group.
+          2. AzureRbacAssignment(s) — the MI's grants on the target (per target type;
+                               data_plane=cosmos_sql for Cosmos).
+          3. AppCredential — the looted app's secret/certificate.
+          4. DataInject(s) — plant that credential in the target (none for Cosmos: TF
+                               can't write Cosmos items).
+          5. EntraRoleAssignment / ApiPermission — the looted app's privileges.
+          6. GroupMembership / GroupOwnership — for indirect (group-based) access.
+          7. AppCredential — SP initial-access secret (service_principal only).
+        Returns {primitives, credentials, groups, summary}.
+        """
+        cosmos_dbs = cosmos_dbs or {}
+        source_type = attack_config.get('source_type', 'vm')
+        target_resource_type = attack_config.get('target_resource_type')
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+        identity_type = attack_config.get('initial_access', 'user')
+        credential_type = attack_config.get('credential_type', 'secret')
+        assignment_type = attack_config.get('assignment_type', 'direct')
+
+        key = self._attack_path_key(mode, path_name)
+        if mode == 'random':
+            app_name, target_name, source_name, principal_name = self._select_random_entities_mi_theft(
+                applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
+                automation_accounts, function_apps, users, source_type, target_resource_type,
+                identity_type, used_apps, used_users, cosmos_dbs=cosmos_dbs)
+        else:
+            app_name, target_name, source_name, principal_name = self._select_targeted_entities_mi_theft(
+                applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
+                automation_accounts, function_apps, users, entities, source_type,
+                target_resource_type, identity_type, path_name, cosmos_dbs=cosmos_dbs)
+
+        primitives, groups = [], {}
+
+        # 1. Source-specific Contributor to the initial-access principal (or group).
+        src_role = self.SOURCE_CONTRIBUTOR_ROLE.get(source_type, 'Contributor')
+        src_scope_rtype = self.SOURCE_SCOPE_RESOURCE_TYPE.get(source_type, 'virtual_machine')
+        if assignment_type in ('group_member', 'group_owner'):
+            group_spec = self._attack_group(assignment_type, principal_name, identity_type)
+            group_name = group_spec['display_name']
+            groups[group_name] = group_spec
+            primitives.append(AzureRbacAssignment(
+                f"{key}_src_contrib", ATTACK_PATH, principal_ref=group_name,
+                principal_type='group', role=src_role, scope_type='resource',
+                scope_resource_type=src_scope_rtype, scope_ref=source_name))
+            primitives.append(self._group_link_primitive(
+                assignment_type, key, principal_name, identity_type, group_name))
+        else:
+            group_name = None
+            primitives.append(AzureRbacAssignment(
+                f"{key}_src_contrib", ATTACK_PATH, principal_ref=principal_name,
+                principal_type=identity_type, role=src_role, scope_type='resource',
+                scope_resource_type=src_scope_rtype, scope_ref=source_name))
+
+        # 2. The source's managed identity gains access to the target.
+        mi_common = dict(
+            principal_ref=source_name, principal_type='managed_identity',
+            mi_source_type=source_type, scope_type='resource',
+            scope_resource_type=target_resource_type, scope_ref=target_name)
+        if target_resource_type == 'key_vault':
+            roles = list(self.MI_KV_ROLES)
+            if credential_type == 'certificate':
+                roles.append(self.MI_KV_CERTIFICATE_ROLE)
+            for idx, role in enumerate(roles):
+                primitives.append(AzureRbacAssignment(f"{key}_mi_kv_{idx}", ATTACK_PATH, role=role, **mi_common))
+        elif target_resource_type == 'storage_account':
+            for idx, role in enumerate(self.MI_STORAGE_ROLES):
+                primitives.append(AzureRbacAssignment(f"{key}_mi_sa_{idx}", ATTACK_PATH, role=role, **mi_common))
+        elif target_resource_type == 'cosmos_db':
+            primitives.append(AzureRbacAssignment(
+                f"{key}_mi_cosmos", ATTACK_PATH, role=self.COSMOS_DATA_CONTRIBUTOR_ROLE,
+                data_plane='cosmos_sql', **mi_common))
+
+        # 3. Mint the looted app's credential + 4. plant it in the target.
+        app_cred_key = f"{key}_app_credential"
+        cert_paths = None
+        if credential_type == 'certificate':
+            cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
+            cert_paths = {"cert": cert_path, "key": key_path, "pfx": pfx_path}
+            primitives.append(AppCredential(
+                app_cred_key, ATTACK_PATH, app_ref=app_name, type="certificate",
+                certificate_path=cert_path, display_name="BadZureClientCertificate"))
+        else:
+            primitives.append(AppCredential(
+                app_cred_key, ATTACK_PATH, app_ref=app_name, type="password",
+                display_name="BadZureClientSecret"))
+        primitives.extend(self._mi_data_injects(
+            key, target_resource_type, target_name, app_name, credential_type,
+            app_cred_key, cert_paths))
+
+        # 5. The looted app's privileges + 6/7. initial-access credentials.
+        priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
+            attack_config, app_name, key)
+        primitives.extend(priv_prims)
+        credentials = self._initial_access_credentials(
+            identity_type, principal_name, users, domain, entry_point, key, primitives)
+
+        summary = {
+            "path_name": path_name, "key": key, "technique": "ManagedIdentityTheft",
+            "identity_type": identity_type, "principal_name": principal_name,
+            "assignment_type": assignment_type, "group_name": group_name, "app_name": app_name,
+            "source_type": source_type, "source_name": source_name,
+            "target_resource_type": target_resource_type, "target_name": target_name,
+            "access_lines": [
+                f"Source Resource: {source_type} - {source_name} (with {src_role})",
+                f"Managed Identity → Target: {target_resource_type} - {target_name}",
+            ],
+            "show_target_app": True,
+            "entra_role_ids": entra_role_ids, "api_perm_ids": api_perm_ids, "api_type": api_type,
+        }
+        return {"primitives": primitives, "credentials": credentials, "groups": groups, "summary": summary}
+
+    def _mi_data_injects(self, key, target_type, target_name, app_name, credential_type,
+                         app_cred_key, cert_paths):
+        """The data_injects that plant the looted app's credential into the MI's
+        target (parity names with legacy main.tf). Cosmos plants nothing (TF can't
+        write Cosmos items)."""
+        injects = []
+        if target_type == 'key_vault':
+            if credential_type == 'certificate':
+                injects.append(DataInject(
+                    f"{key}_kv_cert", ATTACK_PATH, material="app_certificate",
+                    location_type="key_vault_certificate", location_ref=target_name,
+                    name=f"mi-certificate-{app_name}", source_ref=app_name,
+                    file_path=cert_paths["pfx"], pfx_password=""))
+                injects.append(DataInject(
+                    f"{key}_kv_certid", ATTACK_PATH, material="app_client_id",
+                    location_type="key_vault_secret", location_ref=target_name,
+                    name=f"mi-client-id-{app_name}", source_ref=app_name))
+            else:
+                injects.append(DataInject(
+                    f"{key}_kv_secret", ATTACK_PATH, material="app_secret",
+                    location_type="key_vault_secret", location_ref=target_name,
+                    name=f"mi-client-secret-{app_name}", credential_ref=app_cred_key))
+                injects.append(DataInject(
+                    f"{key}_kv_id", ATTACK_PATH, material="app_client_id",
+                    location_type="key_vault_secret", location_ref=target_name,
+                    name=f"mi-client-id-{app_name}", source_ref=app_name))
+        elif target_type == 'storage_account':
+            if credential_type == 'certificate':
+                injects.append(DataInject(
+                    f"{key}_sa_pem", ATTACK_PATH, material="app_certificate",
+                    location_type="storage_blob", location_ref=target_name,
+                    name=f"{app_name}-certificate.pem", source_ref=app_name,
+                    file_path=cert_paths["cert"]))
+                injects.append(DataInject(
+                    f"{key}_sa_key", ATTACK_PATH, material="app_certificate",
+                    location_type="storage_blob", location_ref=target_name,
+                    name=f"{app_name}-private-key.key", source_ref=app_name,
+                    file_path=cert_paths["key"]))
+                injects.append(DataInject(
+                    f"{key}_sa_id", ATTACK_PATH, material="app_client_id",
+                    location_type="storage_blob", location_ref=target_name,
+                    name=f"{app_name}-app-id.txt", source_ref=app_name))
+            else:
+                injects.append(DataInject(
+                    f"{key}_sa_id", ATTACK_PATH, material="app_client_id",
+                    location_type="storage_blob", location_ref=target_name,
+                    name=f"{app_name}-app-id.txt", source_ref=app_name))
+                injects.append(DataInject(
+                    f"{key}_sa_secret", ATTACK_PATH, material="app_secret",
+                    location_type="storage_blob", location_ref=target_name,
+                    name=f"{app_name}-secret.txt", credential_ref=app_cred_key))
+        # cosmos_db: no inject — TF can't write Cosmos items.
+        return injects
 
     def create_application_ownership_abuse(
         self,
@@ -1420,6 +1844,188 @@ class AttackPathManager:
             'group_membership_assignments': group_membership_assignments
         }
     
+    # Cosmos DB Built-in Data Contributor — a well-known SQL role definition GUID,
+    # the same one main.tf hardcodes for the legacy Cosmos data-plane grant.
+    COSMOS_DATA_CONTRIBUTOR_ROLE = "00000000-0000-0000-0000-000000000002"
+
+    def macro_cosmosdb_secret_theft(
+        self,
+        attack_config: Dict,
+        applications: Dict,
+        cosmos_dbs: Dict,
+        users: Dict,
+        service_principals: Dict,
+        domain: str,
+        mode: str = 'random',
+        entities: Optional[Dict] = None,
+        path_name: Optional[str] = None,
+        used_apps: Optional[set] = None
+    ) -> Dict:
+        """CosmosDBSecretTheft expressed as generic building blocks (Phase 4 macro).
+
+        Same chain as create_cosmosdb_secret_theft, emitting generic primitives.
+        Unlike KV/Storage there is NO data_inject: Terraform can't write items into
+        Cosmos, so the looted app's secret is minted but not planted (the operator
+        places it). The escalation is the Cosmos DATA-PLANE grant.
+
+        The chain, as building blocks:
+          1. AppCredential(password) — mint the looted (high-priv) app's client secret.
+          2. AzureRbacAssignment(data_plane=cosmos_sql) — grant the compromised
+                               principal (or its group) 'Cosmos DB Built-in Data
+                               Contributor' on the Cosmos account.
+          3. EntraRoleAssignment / ApiPermission — the looted app's privileges.
+          4. GroupMembership / GroupOwnership — for indirect (group-based) access.
+          5. AppCredential (no inject) — for service_principal initial access, mint the
+                               SP's own secret; surfaced via the generic_app_credentials
+                               TF output.
+
+        Returns: {primitives, credentials, groups, summary}.
+        """
+        identity_type = attack_config.get('initial_access', 'user')
+        if identity_type == 'managed_identity':
+            raise ValueError(
+                "CosmosDBSecretTheft does not support initial_access 'managed_identity'. "
+                "Use 'ManagedIdentityTheft' with target_resource_type 'cosmos_db' instead."
+            )
+
+        assignment_type = attack_config.get('assignment_type', 'direct')
+
+        # Attack-path key (same scheme as the legacy method, for output filtering).
+        attack_path_id = ''.join(random.choices("abcdefghijklmnopqrstuvwxyz0123456789", k=6))
+        if mode == 'targeted' and path_name:
+            key = f"attack-path-{path_name}-{attack_path_id}"
+        elif mode == 'random' and path_name:
+            key = f"{path_name}-{attack_path_id}"
+        else:
+            key = f"attack-path-{attack_path_id}"
+
+        # Entity selection — reuse the legacy selectors unchanged.
+        if mode == 'random':
+            app_name, cosmos_db_name, principal_name = self._select_random_entities_cosmos_secret_theft(
+                applications, cosmos_dbs, users, service_principals,
+                identity_type, used_apps
+            )
+        else:
+            app_name, cosmos_db_name, principal_name = self._select_targeted_entities_cosmos_secret_theft(
+                applications, cosmos_dbs, users,
+                entities, identity_type, path_name
+            )
+
+        primitives = []
+        groups = {}
+        entry_point = attack_config.get('entry_point', 'compromised_identity')
+
+        # 1. Mint the looted app's client secret (NOT planted — no Cosmos inject).
+        primitives.append(AppCredential(
+            f"{key}_app_secret", ATTACK_PATH, app_ref=app_name, type="password",
+            display_name="BadZureClientSecret",
+        ))
+
+        # 2. Cosmos DB Built-in Data Contributor (data-plane) — to the principal
+        #    directly, or to the group for indirect (group_member / group_owner) access.
+        if assignment_type in ('group_member', 'group_owner'):
+            if assignment_type == 'group_owner':
+                group_spec = self.entity_generator.generate_attack_path_group(
+                    owner_name=principal_name, owner_type=identity_type
+                )
+            else:
+                group_spec = self.entity_generator.generate_attack_path_group()
+            group_name = group_spec['display_name']
+            groups[group_name] = group_spec
+
+            primitives.append(AzureRbacAssignment(
+                f"{key}_cosmos_access", ATTACK_PATH,
+                principal_ref=group_name, principal_type="group",
+                role=self.COSMOS_DATA_CONTRIBUTOR_ROLE, scope_type="resource",
+                scope_resource_type="cosmos_db", scope_ref=cosmos_db_name,
+                data_plane="cosmos_sql",
+            ))
+            if assignment_type == 'group_member':
+                primitives.append(GroupMembership(
+                    f"{key}_grp_member", ATTACK_PATH,
+                    principal_ref=principal_name, principal_type=identity_type,
+                    group_ref=group_name,
+                ))
+            else:  # group_owner
+                primitives.append(GroupOwnership(
+                    f"{key}_grp_owner", ATTACK_PATH,
+                    principal_ref=principal_name, principal_type=identity_type,
+                    group_ref=group_name,
+                ))
+        else:
+            group_name = None
+            primitives.append(AzureRbacAssignment(
+                f"{key}_cosmos_access", ATTACK_PATH,
+                principal_ref=principal_name, principal_type=identity_type,
+                role=self.COSMOS_DATA_CONTRIBUTOR_ROLE, scope_type="resource",
+                scope_resource_type="cosmos_db", scope_ref=cosmos_db_name,
+                data_plane="cosmos_sql",
+            ))
+
+        # 3. The looted app's privileges. Reuse the legacy resolver, then translate.
+        legacy_roles, legacy_perms = {}, {}
+        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
+        entra_role_ids, api_perm_ids, api_type = [], [], None
+        if key in legacy_roles:
+            entra_role_ids = legacy_roles[key]['role_ids']
+            for idx, role_id in enumerate(entra_role_ids):
+                primitives.append(EntraRoleAssignment(
+                    f"{key}_app_role_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, principal_type="service_principal",
+                    role=role_id,
+                ))
+        if key in legacy_perms:
+            api_perm_ids = legacy_perms[key]['api_permission_ids']
+            api_type = legacy_perms[key].get('api_type', 'graph')
+            for idx, perm_id in enumerate(api_perm_ids):
+                primitives.append(ApiPermission(
+                    f"{key}_app_perm_{idx}", ATTACK_PATH,
+                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
+                ))
+
+        # 4. Initial-access credentials for the operator.
+        if identity_type == 'user':
+            credentials = {
+                "initial_access": "user",
+                "user_principal_name": f"{principal_name}@{domain}",
+                "password": users[principal_name]['password'],
+                "entry_point": entry_point,
+            }
+        else:  # service_principal — mint its own secret, surfaced via TF output.
+            sp_cred_key = f"{key}_initial_sp"
+            primitives.append(AppCredential(
+                sp_cred_key, ATTACK_PATH, app_ref=principal_name, type="password",
+                display_name="BadZureInitialAccess",
+            ))
+            credentials = {
+                "initial_access": "service_principal",
+                "service_principal_name": principal_name,
+                "entry_point": entry_point,
+                "generic_credential_key": f"ap:{sp_cred_key}",
+            }
+
+        summary = {
+            "path_name": path_name,
+            "key": key,
+            "technique": "CosmosDBSecretTheft",
+            "identity_type": identity_type,
+            "principal_name": principal_name,
+            "assignment_type": assignment_type,
+            "group_name": group_name,
+            "cosmos_db": cosmos_db_name,
+            "app_name": app_name,
+            "entra_role_ids": entra_role_ids,
+            "api_perm_ids": api_perm_ids,
+            "api_type": api_type,
+        }
+
+        return {
+            "primitives": primitives,
+            "credentials": credentials,
+            "groups": groups,
+            "summary": summary,
+        }
+
     def create_cosmosdb_secret_theft(
         self,
         attack_config: Dict,

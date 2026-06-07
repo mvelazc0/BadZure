@@ -2541,9 +2541,11 @@ ALL_HIGH_PRIVILEGED_PERMISSIONS = {
 # Valid privilege escalation technique names
 VALID_TECHNIQUES = [
     'ApplicationOwnershipAbuse',
+    'ServicePrincipalAbuse',        # deprecated alias of ApplicationOwnershipAbuse
     'ApplicationAdministratorAbuse',
     'CloudAppAdministratorAbuse',
     'ManagedIdentityTheft',
+    'ManagedIdentityAbuse',         # canonical name (alias of ManagedIdentityTheft)
     'KeyVaultSecretTheft',
     'StorageCertificateTheft',
     'CosmosDBSecretTheft'

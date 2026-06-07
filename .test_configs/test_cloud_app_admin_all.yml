@@ -1,0 +1,39 @@
+# Consolidated CloudAppAdministratorAbuse test — all variants in ONE build
+# (replaces test_cloud_app_admin_{user,scoped,sp}.yml).
+#   python badzure.py build --config .test_configs/test_cloud_app_admin_all.yml --verbose
+#   python badzure.py destroy --verbose
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+  users: 6
+  applications: 8
+  groups: 2
+  administrative_units: 0
+  resource_groups: 0
+  key_vaults: 0
+  storage_accounts: 0
+  virtual_machines: 0
+  logic_apps: 0
+  automation_accounts: 0
+  function_apps: 0
+  cosmos_dbs: 0
+attack_paths:
+  cloud_app_admin_user:
+    enabled: true
+    privilege_escalation: CloudAppAdministratorAbuse
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
+  cloud_app_admin_scoped:
+    enabled: true
+    privilege_escalation: CloudAppAdministratorAbuse
+    scope: application
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
+  cloud_app_admin_sp:
+    enabled: true
+    privilege_escalation: CloudAppAdministratorAbuse
+    initial_access: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8

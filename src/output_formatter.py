@@ -24,6 +24,10 @@ class OutputFormatter:
         (Phase 2/4). The legacy per-technique dicts are empty for these paths, so we
         report the essentials from each macro summary. The rich, graph-derived
         narrative is the declarative path's job (`format_declarative_paths`).
+
+        Each macro summary may carry its own `access_lines` (technique-specific
+        narrative) + `show_target_app`; resource-theft techniques fall back to the
+        `_GENERIC_ACCESS` table.
         """
         if not summaries:
             return
@@ -47,19 +51,24 @@ class OutputFormatter:
                 if 'client_secret' in creds:
                     logging.info(f"Client Secret: {creds['client_secret']}")
 
-            resource_key, access_label, role_label = self._GENERIC_ACCESS.get(
-                technique, ("key_vault", "Resource Access", "access"))
-            resource = summary.get(resource_key)
             assignment_type = summary.get('assignment_type', 'direct')
             if assignment_type in ('group_member', 'group_owner'):
                 label = 'Group Member (indirect)' if assignment_type == 'group_member' else 'Group Owner (indirect)'
                 logging.info(f"Assignment Type: {label}")
                 logging.info(f"Group: {summary.get('group_name')}")
-                logging.info(f"{access_label}: {resource} ({role_label} via Group)")
-            else:
-                logging.info(f"{access_label}: {resource} ({role_label})")
 
-            logging.info(f"Target Application: {summary.get('app_name')}")
+            # Technique-specific access narrative: macro-provided, else the table.
+            access_lines = summary.get('access_lines')
+            if access_lines is None:
+                resource_key, access_label, role_label = self._GENERIC_ACCESS.get(
+                    technique, ("key_vault", "Resource Access", "access"))
+                via = " via Group" if assignment_type in ('group_member', 'group_owner') else ""
+                access_lines = [f"{access_label}: {summary.get(resource_key)} ({role_label}{via})"]
+            for line in access_lines:
+                logging.info(line)
+
+            if summary.get('show_target_app', True):
+                logging.info(f"Target Application: {summary.get('app_name')}")
             if summary.get('entra_role_ids'):
                 logging.info(f"Application Privileges: Entra Role(s) - {', '.join(summary['entra_role_ids'])}")
             elif summary.get('api_perm_ids'):

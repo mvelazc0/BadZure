@@ -102,7 +102,7 @@ class ConfigManager:
             elif priv_esc == 'CosmosDBSecretTheft':
                 self._validate_cosmosdb_secret_theft(path_name, path_config, entities, errors)
 
-            elif priv_esc == 'ManagedIdentityTheft':
+            elif priv_esc in ('ManagedIdentityTheft', 'ManagedIdentityAbuse'):
                 self._validate_managed_identity_theft(path_name, path_config, entities, errors)
         
         return len(errors) == 0, errors
@@ -408,7 +408,7 @@ class ConfigManager:
                 'ServicePrincipalAbuse', 'ApplicationOwnershipAbuse',
                 'ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse',
                 'KeyVaultSecretTheft', 'StorageCertificateTheft', 'CosmosDBSecretTheft',
-                'ManagedIdentityTheft'
+                'ManagedIdentityTheft', 'ManagedIdentityAbuse'
             ]
         )
         
