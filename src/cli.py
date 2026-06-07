@@ -555,15 +555,6 @@ class BuildCommand:
 
         logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
         self.output_formatter.write_users_file(users, domain)
-        self.output_formatter.format_random_mode_attack_paths(
-            config, attack_path_application_owner_assignments,
-            attack_path_kv_abuse_assignments, attack_path_storage_abuse_assignments,
-            attack_path_managed_identity_theft_assignments,
-            attack_path_cosmos_abuse_assignments,
-            attack_path_application_role_assignments, attack_path_app_api_permission_assignments,
-            attack_path_user_role_assignments,
-            user_creds, domain
-        )
         # Phase 2/4: minimal printout for macro-based techniques
         # (rich narrative is the declarative path's job).
         self.output_formatter.format_generic_paths(generic_summaries, user_creds, domain)
@@ -740,7 +731,6 @@ class BuildCommand:
 
         logging.info("Azure AD tenant setup completed!")
         self.output_formatter.write_users_file(users, domain)
-        self.output_formatter.format_targeted_mode_attack_paths(config, attack_path_assignments, users, domain)
         # Phase 2/4: minimal printout for macro-based techniques.
         self.output_formatter.format_generic_paths(
             attack_path_assignments.get('generic_summaries', []), user_creds, domain)
