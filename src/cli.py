@@ -331,26 +331,9 @@ class BuildCommand:
             if not attack_path_data['enabled']:
                 continue
             
-            # Support both old and new names with deprecation warning
             priv_esc = attack_path_data['privilege_escalation']
-            
-            if priv_esc == 'ServicePrincipalAbuse':
-                logging.warning(f"{attack_path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
-                logging.info(f"Creating assignments for attack path '{attack_path_name}'")
-                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
-                result = self.attack_path_mgr.macro_application_ownership_abuse(
-                    attack_path_data, users, applications, domain, mode='random',
-                    path_name=attack_path_name,
-                    used_apps=used_apps, used_users=used_users
-                )
-                generic_primitives.extend(result['primitives'])
-                attack_path_group_assignments.update(result['groups'])
-                generic_summaries.append(result['summary'])
-                user_creds[attack_path_name] = result['credentials']
-                used_apps.add(result['summary']['app_name'])
-                used_users.add(result['summary']['principal_name'])
-            
-            elif priv_esc == 'ApplicationOwnershipAbuse':
+
+            if priv_esc == 'ApplicationOwnershipAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 # Phase 4 macro: emit generic building blocks instead of legacy buckets.
                 result = self.attack_path_mgr.macro_application_ownership_abuse(
@@ -438,10 +421,10 @@ class BuildCommand:
                 user_creds[attack_path_name] = result['credentials']
                 used_apps.add(result['summary']['app_name'])
 
-            elif attack_path_data['privilege_escalation'] in ('ManagedIdentityTheft', 'ManagedIdentityAbuse'):
+            elif attack_path_data['privilege_escalation'] == 'ManagedIdentityAbuse':
                 logging.info(f"Creating assignments for attack path '{attack_path_name}'")
                 # Phase 4 macro: emit generic building blocks instead of legacy buckets.
-                result = self.attack_path_mgr.macro_managed_identity_theft(
+                result = self.attack_path_mgr.macro_managed_identity_abuse(
                     attack_path_data, applications, key_vaults, storage_accounts, users,
                     domain, virtual_machines, logic_apps, automation_accounts, function_apps,
                     mode='random', path_name=attack_path_name,
@@ -708,20 +691,7 @@ class BuildCommand:
             priv_esc = path_config.get('privilege_escalation')
             entities = path_config.get('entities', {})
             
-            # Support both old and new names with deprecation warning
-            if priv_esc == 'ServicePrincipalAbuse':
-                logging.warning(f"{path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
-                # Phase 4 macro: emit generic building blocks instead of legacy buckets.
-                result = self.attack_path_mgr.macro_application_ownership_abuse(
-                    path_config, users, applications, domain,
-                    mode='targeted', entities=entities, path_name=path_name
-                )
-                assignments['generic_primitives'].extend(result['primitives'])
-                assignments['group_assignments'].update(result['groups'])
-                assignments['generic_summaries'].append(result['summary'])
-                user_creds[path_name] = result['credentials']
-            
-            elif priv_esc == 'ApplicationOwnershipAbuse':
+            if priv_esc == 'ApplicationOwnershipAbuse':
                 # Phase 4 macro: emit generic building blocks instead of legacy buckets.
                 result = self.attack_path_mgr.macro_application_ownership_abuse(
                     path_config, users, applications, domain,
@@ -787,9 +757,9 @@ class BuildCommand:
                 assignments['generic_summaries'].append(result['summary'])
                 user_creds[path_name] = result['credentials']
 
-            elif priv_esc in ('ManagedIdentityTheft', 'ManagedIdentityAbuse'):
+            elif priv_esc == 'ManagedIdentityAbuse':
                 # Phase 4 macro: emit generic building blocks instead of legacy buckets.
-                result = self.attack_path_mgr.macro_managed_identity_theft(
+                result = self.attack_path_mgr.macro_managed_identity_abuse(
                     path_config, applications, key_vaults, storage_accounts, users,
                     domain, virtual_machines, logic_apps, automation_accounts, function_apps,
                     mode='targeted', entities=entities, path_name=path_name, cosmos_dbs=cosmos_dbs

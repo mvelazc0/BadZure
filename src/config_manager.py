@@ -78,13 +78,8 @@ class ConfigManager:
             
             # Validate based on privilege_escalation type
             priv_esc = path_config.get('privilege_escalation')
-            
-            # Support both old and new names with deprecation warning
-            if priv_esc == 'ServicePrincipalAbuse':
-                logging.warning(f"{path_name}: 'ServicePrincipalAbuse' is deprecated. Please use 'ApplicationOwnershipAbuse' instead.")
-                self._validate_app_ownership_abuse(path_name, path_config, entities, errors)
-            
-            elif priv_esc == 'ApplicationOwnershipAbuse':
+
+            if priv_esc == 'ApplicationOwnershipAbuse':
                 self._validate_app_ownership_abuse(path_name, path_config, entities, errors)
             
             elif priv_esc == 'ApplicationAdministratorAbuse':
@@ -102,8 +97,8 @@ class ConfigManager:
             elif priv_esc == 'CosmosDBSecretTheft':
                 self._validate_cosmosdb_secret_theft(path_name, path_config, entities, errors)
 
-            elif priv_esc in ('ManagedIdentityTheft', 'ManagedIdentityAbuse'):
-                self._validate_managed_identity_theft(path_name, path_config, entities, errors)
+            elif priv_esc == 'ManagedIdentityAbuse':
+                self._validate_managed_identity_abuse(path_name, path_config, entities, errors)
         
         return len(errors) == 0, errors
     
@@ -274,7 +269,7 @@ class ConfigManager:
         # Validate initial_access requirements (only user and service_principal supported)
         identity_type = path_config.get('initial_access', 'user')
         if identity_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: KeyVaultSecretTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+            errors.append(f"{path_name}: KeyVaultSecretTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityAbuse' for managed identity scenarios.")
         elif identity_type == 'user' and ('users' not in entities or not entities['users']):
             errors.append(f"{path_name}: initial_access 'user' requires at least one user")
     
@@ -293,7 +288,7 @@ class ConfigManager:
         # Validate initial_access requirements (only user and service_principal supported)
         identity_type = path_config.get('initial_access', 'user')
         if identity_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: StorageCertificateTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+            errors.append(f"{path_name}: StorageCertificateTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityAbuse' for managed identity scenarios.")
         elif identity_type == 'user' and ('users' not in entities or not entities['users']):
             errors.append(f"{path_name}: initial_access 'user' requires at least one user")
     
@@ -312,22 +307,22 @@ class ConfigManager:
         # Validate initial_access requirements (only user and service_principal supported)
         identity_type = path_config.get('initial_access', 'user')
         if identity_type not in ['user', 'service_principal']:
-            errors.append(f"{path_name}: CosmosDBSecretTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityTheft' for managed identity scenarios.")
+            errors.append(f"{path_name}: CosmosDBSecretTheft only supports initial_access 'user' or 'service_principal'. Use 'ManagedIdentityAbuse' for managed identity scenarios.")
         elif identity_type == 'user' and ('users' not in entities or not entities['users']):
             errors.append(f"{path_name}: initial_access 'user' requires at least one user")
 
-    def _validate_managed_identity_theft(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
-        """Validate Managed Identity Theft configuration."""
+    def _validate_managed_identity_abuse(self, path_name: str, path_config: Dict, entities: Dict, errors: List[str]) -> None:
+        """Validate Managed Identity Abuse configuration."""
         if 'applications' not in entities or not entities['applications']:
-            errors.append(f"{path_name}: ManagedIdentityTheft requires at least one application")
+            errors.append(f"{path_name}: ManagedIdentityAbuse requires at least one application")
         
         # Only require user if initial_access is 'user' (or not specified, defaulting to user)
         identity_type = path_config.get('initial_access', 'user')
         if identity_type == 'user' and ('users' not in entities or not entities['users']):
-            errors.append(f"{path_name}: ManagedIdentityTheft with initial_access 'user' requires at least one user for Contributor access")
+            errors.append(f"{path_name}: ManagedIdentityAbuse with initial_access 'user' requires at least one user for Contributor access")
         
         if 'resource_groups' not in entities or not entities['resource_groups']:
-            errors.append(f"{path_name}: ManagedIdentityTheft requires at least one resource_group")
+            errors.append(f"{path_name}: ManagedIdentityAbuse requires at least one resource_group")
         
         # Validate assignment_type parameter
         self._validate_assignment_type(path_name, path_config, errors)
@@ -335,14 +330,14 @@ class ConfigManager:
         # Validate source_type parameter
         source_type = path_config.get('source_type')
         if not source_type:
-            errors.append(f"{path_name}: ManagedIdentityTheft requires 'source_type' parameter")
+            errors.append(f"{path_name}: ManagedIdentityAbuse requires 'source_type' parameter")
         elif source_type not in MANAGED_IDENTITY_SOURCE_TYPES:
             errors.append(f"{path_name}: Invalid source_type '{source_type}'. Must be one of: {', '.join(MANAGED_IDENTITY_SOURCE_TYPES)}")
         
         # Validate target_resource_type parameter
         target_resource_type = path_config.get('target_resource_type')
         if not target_resource_type:
-            errors.append(f"{path_name}: ManagedIdentityTheft requires 'target_resource_type' parameter")
+            errors.append(f"{path_name}: ManagedIdentityAbuse requires 'target_resource_type' parameter")
         elif target_resource_type not in MI_TARGET_RESOURCE_TYPES:
             errors.append(f"{path_name}: Invalid target_resource_type '{target_resource_type}'. Must be one of: {', '.join(MI_TARGET_RESOURCE_TYPES)}")
         
@@ -405,10 +400,10 @@ class ConfigManager:
         app_paths = sum(
             1 for name, path in enabled_paths
             if path.get('privilege_escalation') in [
-                'ServicePrincipalAbuse', 'ApplicationOwnershipAbuse',
+                'ApplicationOwnershipAbuse',
                 'ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse',
                 'KeyVaultSecretTheft', 'StorageCertificateTheft', 'CosmosDBSecretTheft',
-                'ManagedIdentityTheft', 'ManagedIdentityAbuse'
+                'ManagedIdentityAbuse'
             ]
         )
         
@@ -416,7 +411,7 @@ class ConfigManager:
         user_role_paths = sum(
             1 for name, path in enabled_paths
             if path.get('privilege_escalation') in ['ApplicationAdministratorAbuse', 'CloudAppAdministratorAbuse'] or
-            (path.get('privilege_escalation') in ['ServicePrincipalAbuse', 'ApplicationOwnershipAbuse'] and
+            (path.get('privilege_escalation') == 'ApplicationOwnershipAbuse' and
              path.get('scenario') == 'helpdesk')
         )
         

@@ -1,7 +1,7 @@
 """
-test_macro_managed_identity_theft.py — offline test of the Phase-4 MI macro.
+test_macro_managed_identity_abuse.py — offline test of the Phase-4 MI macro.
 
-Drives the real `macro_managed_identity_theft` (no Azure) through the Terraform
+Drives the real `macro_managed_identity_abuse` (no Azure) through the Terraform
 builder and asserts the emitted generic families model the chain: source-Contributor
 -> the source's managed identity -> grants on the target -> the looted app's
 credential planted there. Covers KV (secret + certificate), storage, cosmos (no
@@ -10,8 +10,8 @@ inject), group assignment, and SP initial access.
 The cert generator is monkeypatched (no file I/O).
 
 Runs two ways:
-    python tests/test_macro_managed_identity_theft.py
-    pytest tests/test_macro_managed_identity_theft.py
+    python tests/test_macro_managed_identity_abuse.py
+    pytest tests/test_macro_managed_identity_abuse.py
 """
 import os
 import sys
@@ -50,7 +50,7 @@ def _base_entities():
 
 def _run(cfg, groups_out=None):
     ents = _base_entities()
-    result = AttackPathManager().macro_managed_identity_theft(
+    result = AttackPathManager().macro_managed_identity_abuse(
         cfg, ents["applications"], ents["key_vaults"], ents["storage_accounts"],
         ents["users"], "contoso.com", ents["virtual_machines"], {}, {}, {},
         mode="random", path_name="mi", cosmos_dbs=ents["cosmos_dbs"])
@@ -65,7 +65,7 @@ def _rbac(out):
 
 # ---------------------------------------------------------------------------
 def test_vm_to_keyvault_secret():
-    cfg = {"privilege_escalation": "ManagedIdentityTheft", "source_type": "vm",
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "user",
            "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
     result, out = _run(cfg)
@@ -85,11 +85,11 @@ def test_vm_to_keyvault_secret():
     injects = out["attack_path_data_injects"]
     assert {i["name"] for i in injects.values()} == {"mi-client-secret-app-hp", "mi-client-id-app-hp"}
     assert {i["material"] for i in injects.values()} == {"app_secret", "app_client_id"}
-    assert result["summary"]["technique"] == "ManagedIdentityTheft"
+    assert result["summary"]["technique"] == "ManagedIdentityAbuse"
 
 
 def test_vm_to_keyvault_certificate():
-    cfg = {"privilege_escalation": "ManagedIdentityTheft", "source_type": "vm",
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "user",
            "credential_type": "certificate", "method": "AzureADRole", "entra_role": GA_ROLE}
     result, out = _run(cfg)
@@ -104,7 +104,7 @@ def test_vm_to_keyvault_certificate():
 
 
 def test_vm_to_storage_secret():
-    cfg = {"privilege_escalation": "ManagedIdentityTheft", "source_type": "vm",
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "storage_account", "initial_access": "user",
            "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
     result, out = _run(cfg)
@@ -116,7 +116,7 @@ def test_vm_to_storage_secret():
 
 
 def test_vm_to_cosmos_has_no_inject():
-    cfg = {"privilege_escalation": "ManagedIdentityTheft", "source_type": "vm",
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "cosmos_db", "initial_access": "user",
            "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
     result, out = _run(cfg)
@@ -127,7 +127,7 @@ def test_vm_to_cosmos_has_no_inject():
 
 
 def test_group_member_routes_source_contributor_to_group():
-    cfg = {"privilege_escalation": "ManagedIdentityTheft", "source_type": "vm",
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "user",
            "assignment_type": "group_member", "method": "AzureADRole", "entra_role": GA_ROLE}
     result, out = _run(cfg)
@@ -139,7 +139,7 @@ def test_group_member_routes_source_contributor_to_group():
 
 
 def test_sp_initial_access_mints_secret():
-    cfg = {"privilege_escalation": "ManagedIdentityTheft", "source_type": "vm",
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "service_principal",
            "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
     result, out = _run(cfg)

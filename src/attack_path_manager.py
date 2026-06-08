@@ -90,7 +90,7 @@ class AttackPathManager:
     # ========================================================================
     HELPDESK_ADMIN_ROLE_ID = "729827e3-9c14-49f7-bb1b-9608f156bbb8"
 
-    # ManagedIdentityTheft role sets (parity with the legacy main.tf blocks).
+    # ManagedIdentityAbuse role sets (parity with the legacy main.tf blocks).
     SOURCE_CONTRIBUTOR_ROLE = {
         'vm': 'Virtual Machine Contributor', 'logic_app': 'Logic App Contributor',
         'automation_account': 'Automation Contributor', 'function_app': 'Website Contributor',
@@ -324,8 +324,8 @@ class AttackPathManager:
         }
         return {"primitives": primitives, "credentials": credentials, "groups": groups, "summary": summary}
 
-    # ---- ManagedIdentityTheft ----------------------------------------------
-    def macro_managed_identity_theft(
+    # ---- ManagedIdentityAbuse ----------------------------------------------
+    def macro_managed_identity_abuse(
         self, attack_config: Dict, applications: Dict, key_vaults: Dict,
         storage_accounts: Dict, users: Dict, domain: str, virtual_machines: Dict,
         logic_apps: Dict, automation_accounts: Dict, function_apps: Dict,
@@ -333,7 +333,7 @@ class AttackPathManager:
         used_apps: Optional[set] = None, used_users: Optional[set] = None,
         cosmos_dbs: Optional[Dict] = None
     ) -> Dict:
-        """ManagedIdentityTheft as generic building blocks (Phase 4 macro).
+        """ManagedIdentityAbuse as generic building blocks (Phase 4 macro).
 
         The attacker holds Contributor on a SOURCE compute resource (VM/Logic App/
         Automation/Function) -> runs code -> steals the source's managed identity
@@ -438,7 +438,7 @@ class AttackPathManager:
             identity_type, principal_name, users, domain, entry_point, key, primitives)
 
         summary = {
-            "path_name": path_name, "key": key, "technique": "ManagedIdentityTheft",
+            "path_name": path_name, "key": key, "technique": "ManagedIdentityAbuse",
             "identity_type": identity_type, "principal_name": principal_name,
             "assignment_type": assignment_type, "group_name": group_name, "app_name": app_name,
             "source_type": source_type, "source_name": source_name,
@@ -546,7 +546,7 @@ class AttackPathManager:
         if identity_type == 'managed_identity':
             raise ValueError(
                 "KeyVaultSecretTheft does not support initial_access 'managed_identity'. "
-                "Use 'ManagedIdentityTheft' with target_resource_type 'key_vault' instead."
+                "Use 'ManagedIdentityAbuse' with target_resource_type 'key_vault' instead."
             )
 
         assignment_type = attack_config.get('assignment_type', 'direct')
@@ -733,7 +733,7 @@ class AttackPathManager:
         if identity_type == 'managed_identity':
             raise ValueError(
                 "StorageCertificateTheft does not support initial_access 'managed_identity'. "
-                "Use 'ManagedIdentityTheft' with target_resource_type 'storage_account' instead."
+                "Use 'ManagedIdentityAbuse' with target_resource_type 'storage_account' instead."
             )
 
         assignment_type = attack_config.get('assignment_type', 'direct')
@@ -928,7 +928,7 @@ class AttackPathManager:
         if identity_type == 'managed_identity':
             raise ValueError(
                 "CosmosDBSecretTheft does not support initial_access 'managed_identity'. "
-                "Use 'ManagedIdentityTheft' with target_resource_type 'cosmos_db' instead."
+                "Use 'ManagedIdentityAbuse' with target_resource_type 'cosmos_db' instead."
             )
 
         assignment_type = attack_config.get('assignment_type', 'direct')
