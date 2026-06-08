@@ -40,7 +40,7 @@ graph LR
 | **Auth method** | Certificate-based (X.509) | Secret-based (client credentials) |
 | **Detection** | Certificate auth is harder to detect in logs | Secret-based auth produces clearer audit signals |
 
-## How It Differs From ManagedIdentityTheft
+## How It Differs From ManagedIdentityAbuse
 
 This attack path provides **direct access** to the Storage Account. Use this when simulating scenarios where a user or service principal has been directly granted blob storage access, rather than reaching it through a managed identity.
 
@@ -154,3 +154,10 @@ attack_paths:
 
 !!! tip
     Make sure your tenant configuration includes at least one Storage Account (`storage_accounts: 1`) when using this attack path.
+
+## Further Reading
+
+- [From listKeys to Glory: Privilege Escalation and RCE by Abusing Azure Storage Account Keys - Orca Security](https://orca.security/resources/blog/azure-shared-key-authorization-exploitation/)
+- [Privilege Escalation via Storage Accounts - Rogier Dijkman](https://rogierdijkman.medium.com/privilege-escalation-via-storage-accounts-bca24373cc2e)
+- [Not the Access You Asked For: How Azure Storage Account Permissions Can Be Abused - Yehuda Tamir](https://medium.com/@tamirye94/not-the-access-you-asked-for-how-azure-storage-account-read-write-permissions-can-be-abused-75311103430f)
+- [Inside the Attack Chain: Threat Activity Targeting Azure Blob Storage - Microsoft Security Blog](https://www.microsoft.com/en-us/security/blog/2025/10/20/inside-the-attack-chain-threat-activity-targeting-azure-blob-storage/)

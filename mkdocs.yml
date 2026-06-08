@@ -1,13 +1,15 @@
 site_name: BadZure Documentation
-site_description: Automate the deployment of intentionally misconfigured Entra ID tenants and Azure subscriptions, populating them with diverse entities and configurable, traversable attack paths.
+site_description: Automate the deployment of intentionally misconfigured Entra ID tenants and Azure subscriptions, populating them with diverse entities and exploitable attack paths.
 site_author: Mauricio Velazco
-site_url: https://mvelazc0.github.io/BadZure
+site_url: https://www.badzure.com
+copyright: Maintained by Mauricio Velazco and contributors
 
 repo_name: mvelazc0/BadZure
 repo_url: https://github.com/mvelazc0/BadZure
 
 theme:
   name: material
+  custom_dir: docs/overrides
   logo: img/BadZure-cropped.png
   favicon: img/BadZure-cropped.png
   palette:
@@ -34,7 +36,7 @@ theme:
 nav:
   - BadZure:
     - Home: index.md
-    - What Are Attack Paths?: what-are-attack-paths.md
+    - What Are Cloud Attack Paths?: what-are-cloud-attack-paths.md
     - Getting Started: getting-started.md
     - Configuration Guide: configuration.md
     - Talks & Demos: talks-and-demos.md
@@ -43,7 +45,7 @@ nav:
     - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
     - ApplicationAdministratorAbuse: attack-paths/app-administrator-abuse.md
     - CloudAppAdministratorAbuse: attack-paths/cloud-app-administrator-abuse.md
-    - ManagedIdentityTheft: attack-paths/managed-identity-theft.md
+    - ManagedIdentityAbuse: attack-paths/managed-identity-abuse.md
     - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
     - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
     - CosmosDBSecretTheft: attack-paths/cosmosdb-secret-theft.md

@@ -1,7 +1,7 @@
 # BadZure
 [![BlackHat Arsenal 2024](https://raw.githubusercontent.com/toolswatch/badges/master/arsenal/usa/2024.svg)](https://www.blackhat.com/us-24/arsenal/schedule/index.html#badzure-simulating-and-exploring-entra-id-attack-paths-39628)
 [![Open_Threat_Research Community](https://img.shields.io/badge/Open_Threat_Research-Community-brightgreen.svg)](https://twitter.com/OTR_Community)
-[![Documentation](https://img.shields.io/badge/docs-mvelazc0.github.io%2FBadZure-blue)](https://mvelazc0.github.io/BadZure/)
+[![Documentation](https://img.shields.io/badge/docs-mvelazc0.github.io%2FBadZure-blue)](https://www.badzure.com)
 
 <div align="center">
     <img src="img/BadZure-cropped.png" alt="BadZure logo" style="width: 25%; height: 25%;">
@@ -12,7 +12,7 @@ BadZure is a Python tool that automates the creation of misconfigured Azure envi
 
 BadZure automates the creation of users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts, and Resource Groups. To simulate a realistic tenant, it randomly assigns Entra ID roles, Graph permissions, and Azure resource access permissions to selected security principals, mimicking the organic permission sprawl found in real environments. On top of this realistic baseline, BadZure layers intentional misconfigurations through configurable attack paths, producing exploitable privilege escalation chains for adversary simulation.
 
-The key advantage of BadZure is its ability to quickly populate and purge tenants with configurations, pre-configured initial access, and intentional attack paths, facilitating continuous and iterative adversary simulation and detection development. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques including certificate-based authentication abuse and managed identity privilege escalation.
+The key advantage of BadZure is its ability to quickly populate and purge tenants with configurations, pre-configured initial access, and intentional attack paths, facilitating continuous and iterative adversary simulation and detection development. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack techniques.
 
 ## Goals / Use Cases
 
@@ -42,7 +42,7 @@ BadZure supports seven distinct privilege escalation attack paths that introduce
 - **ApplicationOwnershipAbuse**: Exploits application ownership to add credentials to owned applications with high privileges
 - **ApplicationAdministratorAbuse**: Exploits the Application Administrator Entra ID role to manage any application and add credentials to privileged applications
 - **CloudAppAdministratorAbuse**: Exploits the Cloud Application Administrator Entra ID role — narrower scope than Application Administrator
-- **ManagedIdentityTheft**: Exploits access to Azure resources (VMs, Logic Apps, Automation Accounts, Function Apps) with managed identities to steal identity tokens and pivot to other cloud resources
+- **ManagedIdentityAbuse**: Exploits access to Azure resources (VMs, Logic Apps, Automation Accounts, Function Apps) with managed identities to steal identity tokens and pivot to other cloud resources
   - **Supported Sources**: Virtual Machines, Logic Apps, Automation Accounts, Function Apps (Linux/Python)
   - **Supported Targets**: Key Vault, Storage Account, Cosmos DB
   - **Credential Types**: Secrets (default) or certificates
@@ -52,7 +52,7 @@ BadZure supports seven distinct privilege escalation attack paths that introduce
 - **StorageCertificateTheft**: Direct privilege escalation through Azure Storage Account access to retrieve application certificates
 - **CosmosDBSecretTheft**: Direct privilege escalation through Azure Cosmos DB access to retrieve application secrets stored as database documents
 
-Each attack path can be configured with specific or random role assignments and supports various principal types depending on the technique. For detailed configuration options and attack path descriptions, refer to the [documentation](https://mvelazc0.github.io/BadZure/attack-paths/).
+Each attack path can be configured with specific or random role assignments and supports various principal types depending on the technique. For detailed configuration options and attack path descriptions, refer to the [documentation](https://www.badzure.com/attack-paths/).
 
 A BloodHound-generated graph, showcasing the attack paths BadZure can create, is shown below.
 
@@ -131,7 +131,7 @@ python badzure.py destroy --verbose
 
 ## Documentation
 
-Full documentation is available at [mvelazc0.github.io/BadZure](https://mvelazc0.github.io/BadZure/), including the [Getting Started](https://mvelazc0.github.io/BadZure/getting-started/) guide, [Configuration Reference](https://mvelazc0.github.io/BadZure/configuration/), and detailed [Attack Path](https://mvelazc0.github.io/BadZure/attack-paths/) descriptions.
+Full documentation is available at [www.badzure.com](https://www.badzure.com/), including the [Getting Started](https://www.badzure.com/getting-started/) guide, [Configuration Reference](https://www.badzure.com/configuration/), and detailed [Attack Path](https://www.badzure.com/attack-paths/) descriptions.
 
 ## Author
 

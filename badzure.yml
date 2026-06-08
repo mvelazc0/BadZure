@@ -23,7 +23,7 @@ tenant:
   # - KeyVaultSecretTheft requires key_vaults >= 1
   # - StorageCertificateTheft requires storage_accounts >= 1
   # - CosmosDBSecretTheft requires cosmos_dbs >= 1
-  # - ManagedIdentityTheft requires the corresponding source resource >= 1
+  # - ManagedIdentityAbuse requires the corresponding source resource >= 1
   resource_groups: 2
   key_vaults: 2
   storage_accounts: 2
@@ -46,7 +46,7 @@ tenant:
 #   - KeyVaultSecretTheft: Retrieve secrets from Key Vault
 #   - StorageCertificateTheft: Retrieve certificates from Storage
 #   - CosmosDBSecretTheft: Retrieve secrets from Cosmos DB
-#   - ManagedIdentityTheft: Steal managed identity tokens
+#   - ManagedIdentityAbuse: Steal managed identity tokens
 #
 # Initial Access (optional, defaults to 'user'):
 #   - user: Regular user account
@@ -68,9 +68,9 @@ tenant:
 #   - directory: Role applies tenant-wide (default)
 #   - application: Role scoped to a specific application
 #
-# ManagedIdentityTheft source types: vm, logic_app, automation_account, function_app
-# ManagedIdentityTheft target types: key_vault, storage_account, cosmos_db
-# ManagedIdentityTheft credential types: secret (default), certificate
+# ManagedIdentityAbuse source types: vm, logic_app, automation_account, function_app
+# ManagedIdentityAbuse target types: key_vault, storage_account, cosmos_db
+# ManagedIdentityAbuse credential types: secret (default), certificate
 # =============================================================================
 
 attack_paths:
@@ -351,7 +351,7 @@ attack_paths:
     app_role: random
 
   # ===========================================================================
-  # ManagedIdentityTheft (Examples 23-29)
+  # ManagedIdentityAbuse (Examples 23-29)
   # ===========================================================================
   # Exploits access to Azure resources with managed identities to steal tokens.
   # The attacker has Contributor access to the source resource, extracts the
@@ -364,9 +364,9 @@ attack_paths:
   # Example 23: VM with managed identity - user access with secret
   # Attack: Run commands on VM to extract MI token, access Key Vault secrets
   # New concept: vm -> key_vault + user + secret (default credential_type)
-  mi_theft_vm_user:
+  mi_abuse_vm_user:
     enabled: false
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: key_vault
     method: APIPermission
@@ -378,9 +378,9 @@ attack_paths:
   # Example 24: Logic App with managed identity - service principal access
   # Attack: Modify Logic App workflow to extract MI token, access storage certs
   # New concept: logic_app -> storage_account + SP
-  mi_theft_logicapp_sp:
+  mi_abuse_logicapp_sp:
     enabled: false
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: logic_app
     target_resource_type: storage_account
     initial_access: service_principal
@@ -390,9 +390,9 @@ attack_paths:
   # Example 25: Function App with certificate-based credentials
   # Attack: Modify Function App code to extract MI token, retrieve certs from Key Vault
   # New concept: function_app -> key_vault + credential_type: certificate
-  mi_theft_functionapp_cert:
+  mi_abuse_functionapp_cert:
     enabled: false
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: function_app
     target_resource_type: key_vault
     credential_type: certificate
@@ -403,9 +403,9 @@ attack_paths:
   # Example 26: Automation Account with certificate-based credentials
   # Attack: Modify runbook to extract MI token, download certs from blob storage
   # New concept: automation_account -> storage_account + certificate
-  mi_theft_automation_cert:
+  mi_abuse_automation_cert:
     enabled: false
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: automation_account
     target_resource_type: storage_account
     credential_type: certificate
@@ -415,9 +415,9 @@ attack_paths:
   # Example 27: VM with group-based assignment
   # Attack: User is member of group with VM Contributor, extracts MI token
   # New concept: vm -> key_vault + group_member
-  mi_theft_vm_group:
+  mi_abuse_vm_group:
     enabled: false
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: key_vault
     assignment_type: group_member
@@ -428,9 +428,9 @@ attack_paths:
   # Example 28: VM targeting Cosmos DB
   # Attack: Run commands on VM to extract MI token, access Cosmos DB secrets
   # New concept: vm -> cosmos_db target
-  mi_theft_vm_cosmos:
+  mi_abuse_vm_cosmos:
     enabled: false
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: cosmos_db
     method: AzureADRole
@@ -439,9 +439,9 @@ attack_paths:
   # Example 29: Automation Account targeting Cosmos DB with group ownership
   # Attack: SP owns group with Contributor on automation account, extracts MI token
   # New concept: automation_account -> cosmos_db + SP + group_owner
-  mi_theft_automation_cosmos_sp:
+  mi_abuse_automation_cosmos_sp:
     enabled: false
-    privilege_escalation: ManagedIdentityTheft
+    privilege_escalation: ManagedIdentityAbuse
     source_type: automation_account
     target_resource_type: cosmos_db
     initial_access: service_principal
