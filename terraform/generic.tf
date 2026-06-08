@@ -495,13 +495,21 @@ resource "azuread_app_role_assignment" "generic_api_permission" {
   depends_on = [azuread_service_principal.spns]
 }
 
+# Stable 1-year expiry for generated app credentials. A time_offset resource freezes
+# the value in state (computed once at create), so end_date does NOT drift on every
+# apply the way timeadd(timestamp(), ...) would — and it replaces the deprecated
+# end_date_relative (azuread v3).
+resource "time_offset" "cred_expiry" {
+  offset_years = 1
+}
+
 # ---- app_credential (password) ----
 resource "azuread_application_password" "generic_app_password" {
   for_each = { for k, v in local.g_app_credentials : k => v if v.type == "password" }
 
-  application_id    = azuread_application_registration.spns[each.value.app_ref].id
-  display_name      = each.value.display_name
-  end_date_relative = "8760h" # 1 year
+  application_id = azuread_application_registration.spns[each.value.app_ref].id
+  display_name   = each.value.display_name
+  end_date       = time_offset.cred_expiry.rfc3339
 
   depends_on = [azuread_application_registration.spns]
 }
