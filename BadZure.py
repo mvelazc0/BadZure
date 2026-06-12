@@ -19,7 +19,7 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip loading .env file
 
-from src.cli import BuildCommand, ShowCommand, DestroyCommand
+from src.cli import BuildCommand, ShowCommand, DestroyCommand, GenerateCommand
 
 # Ensure AZURE_CONFIG_DIR is set to the Azure CLI config directory
 os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
@@ -86,6 +86,24 @@ def build(config, verbose):
     """Create resources and attack paths"""
     command = BuildCommand()
     command.execute(config, verbose)
+
+
+@cli.command()
+@click.option('--prompt', help="Natural-language description of the org to generate (baseline)")
+@click.option('--attack-prompt', 'attack_prompt',
+              help="(later slice) Description of attack paths to generate")
+@click.option('--input', 'input_config', type=click.Path(exists=True),
+              help="(later slice) Existing config to extend with generated attack paths")
+@click.option('-o', '--output', default='generated.yml',
+              help="Where to write the generated config (default: generated.yml)")
+@click.option('--model', help="LLM model (e.g. anthropic/claude-opus-4-1, openai/gpt-4o); "
+                              "overrides BADZURE_LLM_MODEL / llm.model")
+@click.option('--verbose', is_flag=True, help="Enable verbose output")
+def generate(prompt, attack_prompt, input_config, output, model, verbose):
+    """Generate a declarative config from a prompt using an LLM (review, then build)"""
+    command = GenerateCommand()
+    command.execute(prompt=prompt, attack_prompt=attack_prompt,
+                    input_config=input_config, output=output, model=model, verbose=verbose)
 
 
 @cli.command()

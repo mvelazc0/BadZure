@@ -5,7 +5,8 @@ Implements build, show, and destroy commands.
 import os
 import logging
 import time
-from typing import Dict
+from typing import Dict, Optional
+import yaml
 from src.config_manager import ConfigManager
 from src.entity_generator import EntityGenerator
 from src.assignment_manager import AssignmentManager
@@ -163,7 +164,8 @@ class BuildCommand:
             elapsed_time, model.users, model.groups, model.applications,
             model.administrative_units, model.resource_groups, model.key_vaults,
             model.storage_accounts, model.virtual_machines, model.logic_apps,
-            model.automation_accounts, model.function_apps, model.cosmos_dbs
+            model.automation_accounts, model.function_apps, model.cosmos_dbs,
+            primitives=model.primitives
         )
 
         logging.info("Good bye.")
@@ -826,13 +828,30 @@ class BuildCommand:
         
         return all_entities
     
+    # Building-block class name -> human label, in display order. AppCredential /
+    # DataInject aren't "assignments" but they ARE deployed edges/material, so we
+    # surface them in the same block.
+    _ASSIGNMENT_LABELS = (
+        ("GroupMembership", "Group Memberships"),
+        ("GroupOwnership", "Group Ownerships"),
+        ("AppOwnership", "App Ownerships"),
+        ("AuMembership", "AU Memberships"),
+        ("EntraRoleAssignment", "Entra Role Assignments"),
+        ("AzureRbacAssignment", "Azure RBAC Assignments"),
+        ("ApiPermission", "API Permissions"),
+        ("AppCredential", "App Credentials"),
+        ("DataInject", "Data Injects"),
+    )
+
     def _display_deployment_stats(self, elapsed_time: float, users: Dict, groups: Dict,
                                    applications: Dict, administrative_units: Dict,
                                    resource_groups: Dict, key_vaults: Dict,
                                    storage_accounts: Dict, virtual_machines: Dict, logic_apps: Dict,
                                    automation_accounts: Dict, function_apps: Dict,
-                                   cosmos_dbs: Dict = None) -> None:
-        """Display deployment statistics summary."""
+                                   cosmos_dbs: Dict = None, primitives: list = None) -> None:
+        """Display deployment statistics summary. When `primitives` is provided (the
+        declarative path, where they are the complete picture), also break down the
+        deployed assignments by type and origin."""
         cosmos_dbs = cosmos_dbs or {}
         minutes = int(elapsed_time // 60)
         seconds = int(elapsed_time % 60)
@@ -859,6 +878,23 @@ class BuildCommand:
         logging.info(f"  - Automation Accounts: {len(automation_accounts)}")
         logging.info(f"  - Function Apps: {len(function_apps)}")
         logging.info(f"  - Cosmos DB Accounts: {len(cosmos_dbs)}")
+
+        if primitives:
+            counts = {}
+            origins = {"random": 0, "attack_path": 0}
+            for p in primitives:
+                counts[type(p).__name__] = counts.get(type(p).__name__, 0) + 1
+                origins[getattr(p, "origin", "random")] = \
+                    origins.get(getattr(p, "origin", "random"), 0) + 1
+            total = len(primitives)
+            logging.info(
+                f"Total assignments created: {total} "
+                f"(baseline: {origins.get('random', 0)}, "
+                f"attack-path: {origins.get('attack_path', 0)})")
+            for cls_name, label in self._ASSIGNMENT_LABELS:
+                if counts.get(cls_name):
+                    logging.info(f"  - {label}: {counts[cls_name]}")
+
         logging.info("=" * 70)
         logging.info("")
 
@@ -932,8 +968,73 @@ class DestroyCommand:
             return
         
         logging.info("Azure AD tenant resources have been successfully destroyed!")
-        
+
         # Cleanup state files
         self.terraform_mgr.cleanup_state_files()
-        
+
         logging.info("Good bye.")
+
+
+class GenerateCommand:
+    """Handles `generate`: author a declarative config from a natural-language
+    prompt via an LLM, write it to disk for REVIEW, then deploy with `build`.
+
+    Composable / layer-aware (decision #8): `--prompt` authors the baseline org;
+    `--attack-prompt` / `--input` are reserved for the later attack-path layer.
+    """
+
+    def __init__(self):
+        self.config_mgr = ConfigManager()
+        self.generator = EntityGenerator()
+
+    def execute(self, prompt: Optional[str] = None, attack_prompt: Optional[str] = None,
+                input_config: Optional[str] = None, output: str = "generated.yml",
+                model: Optional[str] = None, verbose: bool = False) -> None:
+        if attack_prompt:
+            logging.warning("--attack-prompt is not implemented yet (attack-path "
+                            "generation is a later slice); ignoring it.")
+        if input_config:
+            logging.warning("--input is reserved for extending an existing config with "
+                            "generated attack paths (a later slice); ignoring it.")
+        if not prompt:
+            logging.error("Provide --prompt describing the organization to generate.")
+            return
+
+        # Resolve LLM settings (CLI --model > env > config llm: block).
+        try:
+            llm = self.config_mgr.resolve_llm_config(model_override=model)
+        except ValueError as e:
+            logging.error(str(e))
+            return
+
+        # Lazy imports: keep build/show/destroy free of the LLM dependency surface.
+        from src.llm_provider import LLMProvider, LLMError
+        from src.org_generator import OrgGenerator, OrgGenerationError
+
+        provider = LLMProvider(model=llm["model"], api_key=llm["api_key"],
+                               base_url=llm["base_url"])
+        org_gen = OrgGenerator(provider, self.generator)
+
+        logging.info(f"Generating an org baseline from your prompt using {llm['model']}")
+        try:
+            config = org_gen.generate_baseline(prompt)
+        except (OrgGenerationError, LLMError) as e:
+            logging.error(f"Generation failed: {e}")
+            return
+
+        self._write_config(config, output, prompt, llm["model"])
+        logging.info(f"Wrote generated config to {output}")
+        logging.info(f"Review it, then deploy with:  python badzure.py build --config {output}")
+
+    @staticmethod
+    def _write_config(config: Dict, output: str, prompt: str, model: str) -> None:
+        header = (
+            "# BadZure config generated by `badzure generate`.\n"
+            f"# Prompt: {prompt}\n"
+            f"# Model:  {model}\n"
+            "# Review/edit before deploying. Resource names (key vaults / storage)\n"
+            "# must be globally unique for a live build.\n\n"
+        )
+        body = yaml.safe_dump(config, sort_keys=False, default_flow_style=False, width=100)
+        with open(output, "w") as f:
+            f.write(header + body)

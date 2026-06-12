@@ -4,4 +4,5 @@ click
 python-terraform
 cryptography
 python-dotenv
+litellm  # optional: only needed for `badzure generate` (LLM-authored configs); multi-provider client
 pytest  # optional: runs the offline tests in tests/ (they also self-run via `python tests/test_*.py`)
