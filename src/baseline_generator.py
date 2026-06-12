@@ -43,6 +43,13 @@ _RG_DEPENDENT = (
 )
 
 
+def _count(value) -> int:
+    """A baseline kind is either an integer COUNT or an explicit LIST of specs.
+    This helper extracts the count form; explicit lists (built by the loader's
+    targeted path) read as 0 here so the two forms can coexist in one baseline."""
+    return value if isinstance(value, int) else 0
+
+
 class BaselineGenerator:
     """Generates the random org-baseline entities and noise assignments."""
 
@@ -51,42 +58,49 @@ class BaselineGenerator:
 
     # -- entities -------------------------------------------------------------
     def generate_entities(self, baseline_config: Dict) -> Dict[str, Dict]:
-        """Counts under baseline.identities / baseline.resources -> symbolic entity
-        maps (same shape the attack-path layer and the builder expect)."""
+        """COUNT-driven baseline entities: integer counts under
+        baseline.identities / baseline.resources -> symbolic entity maps (same
+        shape the attack-path layer and the builder expect).
+
+        Kinds given as an explicit LIST of specs (the named, declarative form) are
+        ignored here and built by the scenario loader's targeted path instead — so
+        a baseline may mix counts (some kinds) and explicit specs (others). Only the
+        count kinds are produced here; the loader merges the explicit ones in."""
         identities = baseline_config.get("identities") or {}
         resources = baseline_config.get("resources") or {}
         gen = self.generator
 
-        rg_count = resources.get("resource_groups", 0)
-        if rg_count == 0 and any(resources.get(k, 0) for k in _RG_DEPENDENT):
-            # Resources were requested with no resource group to hold them — give
-            # them one rather than silently dropping them (EntityGenerator would
-            # warn-and-skip otherwise).
+        rg_count = _count(resources.get("resource_groups"))
+        if rg_count == 0 and any(_count(resources.get(k)) for k in _RG_DEPENDENT):
+            # Count resources were requested with no resource group to hold them —
+            # give them one rather than silently dropping them (EntityGenerator
+            # would warn-and-skip otherwise). Explicit resources get their RG via
+            # the loader's default-RG synthesis.
             rg_count = 1
             logging.info("baseline: synthesizing 1 resource group for baseline resources")
         resource_groups = gen.generate_resource_groups(rg_count)
 
         return {
-            "users": gen.generate_users(identities.get("users", 0)),
-            "groups": gen.generate_groups(identities.get("groups", 0)),
-            "applications": gen.generate_applications(identities.get("applications", 0)),
+            "users": gen.generate_users(_count(identities.get("users"))),
+            "groups": gen.generate_groups(_count(identities.get("groups"))),
+            "applications": gen.generate_applications(_count(identities.get("applications"))),
             "administrative_units": gen.generate_administrative_units(
-                identities.get("administrative_units", 0)),
+                _count(identities.get("administrative_units"))),
             "resource_groups": resource_groups,
             "key_vaults": gen.generate_key_vaults(
-                resources.get("key_vaults", 0), resource_groups),
+                _count(resources.get("key_vaults")), resource_groups),
             "storage_accounts": gen.generate_storage_accounts(
-                resources.get("storage_accounts", 0), resource_groups),
+                _count(resources.get("storage_accounts")), resource_groups),
             "virtual_machines": gen.generate_virtual_machines(
-                resources.get("virtual_machines", 0), resource_groups),
+                _count(resources.get("virtual_machines")), resource_groups),
             "logic_apps": gen.generate_logic_apps(
-                resources.get("logic_apps", 0), resource_groups),
+                _count(resources.get("logic_apps")), resource_groups),
             "automation_accounts": gen.generate_automation_accounts(
-                resources.get("automation_accounts", 0), resource_groups),
+                _count(resources.get("automation_accounts")), resource_groups),
             "function_apps": gen.generate_function_apps(
-                resources.get("function_apps", 0), resource_groups),
+                _count(resources.get("function_apps")), resource_groups),
             "cosmos_dbs": gen.generate_cosmos_dbs(
-                resources.get("cosmos_dbs", 0), resource_groups),
+                _count(resources.get("cosmos_dbs")), resource_groups),
         }
 
     # -- noise assignments ----------------------------------------------------
@@ -95,7 +109,11 @@ class BaselineGenerator:
         """Counts under baseline.assignments -> origin=random assignment primitives,
         sampled over the baseline entities only. `excluded_groups` are groups an
         attack path relies on; random group memberships avoid them."""
-        acfg = baseline_config.get("assignments") or {}
+        acfg = baseline_config.get("assignments")
+        if not isinstance(acfg, dict):
+            # A LIST under assignments is the explicit form (emitted by the loader);
+            # count-driven noise only applies to the dict-of-counts form.
+            return []
         excluded = excluded_groups or set()
         prims: List[Primitive] = []
         prims += self._group_memberships(acfg.get("group_memberships", 0), entities, excluded)

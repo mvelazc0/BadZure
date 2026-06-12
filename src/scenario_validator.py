@@ -37,15 +37,17 @@ _TARGET_REF_CAPABILITIES = set(capabilities.READ_CAPABILITY_RESOURCE) | {
 
 
 def validate(config: Dict) -> None:
-    """Validate the declarative `attack_paths` section. Raises ScenarioConfigError
-    (aggregating every problem found) on a hard error; logs warnings for soft
-    issues. A no-op when there are no attack paths (a baseline-only config)."""
+    """Validate the declarative config's `baseline` and `attack_paths` sections.
+    Raises ScenarioConfigError (aggregating every problem found) on a hard error;
+    logs warnings for soft issues."""
     attack_paths = config.get("attack_paths") or {}
     if not isinstance(attack_paths, dict):
         raise ScenarioConfigError("`attack_paths` must be a mapping of name -> path.")
 
     errors: List[str] = []
     warnings: List[str] = []
+
+    _validate_baseline(config.get("baseline"), errors)
     for name, path in attack_paths.items():
         _validate_path(str(name), path, errors, warnings)
 
@@ -56,6 +58,60 @@ def validate(config: Dict) -> None:
             f"Declarative config has {len(errors)} problem(s):\n"
             + "\n".join(f"  - {e}" for e in errors)
         )
+
+
+def _validate_baseline(baseline, errors: List[str]) -> None:
+    """Validate the EXPLICIT (list-of-specs) baseline forms: each declared
+    identity/resource has a unique `ref`, and each explicit assignment has a known
+    `type` and a `principal_ref`. Count-form kinds (integers) and a None baseline
+    are no-ops here — they carry nothing to check structurally."""
+    if baseline is None:
+        return
+    if not isinstance(baseline, dict):
+        errors.append("`baseline` must be a mapping.")
+        return
+
+    refs = set()
+    for section in ("identities", "resources"):
+        block = baseline.get(section)
+        if block is None:
+            continue
+        if not isinstance(block, dict):
+            errors.append(f"baseline.{section} must be a mapping.")
+            continue
+        for kind, val in block.items():
+            if not isinstance(val, list):
+                continue  # count form (int) — nothing structural to validate
+            for i, spec in enumerate(val):
+                if not isinstance(spec, dict):
+                    errors.append(
+                        f"baseline.{section}.{kind}[{i}] must be a mapping with a `ref`.")
+                    continue
+                ref = spec.get("ref")
+                if not ref:
+                    errors.append(
+                        f"baseline.{section}.{kind}[{i}] is missing a required `ref`.")
+                    continue
+                if ref in refs:
+                    errors.append(f"baseline: duplicate entity ref '{ref}'.")
+                refs.add(ref)
+
+    assignments = baseline.get("assignments")
+    if isinstance(assignments, list):
+        for idx, a in enumerate(assignments):
+            if not isinstance(a, dict):
+                errors.append(f"baseline.assignments[{idx}] must be a mapping.")
+                continue
+            aid = a.get("id") or f"a{idx}"
+            atype = a.get("type")
+            if not atype:
+                errors.append(f"baseline assignment '{aid}' has no `type`.")
+            elif atype not in ASSIGNMENT_TYPES:
+                errors.append(
+                    f"baseline assignment '{aid}' has unknown type '{atype}'. "
+                    f"Valid: {', '.join(sorted(ASSIGNMENT_TYPES))}.")
+            if not a.get("principal_ref"):
+                errors.append(f"baseline assignment '{aid}' has no `principal_ref`.")
 
 
 def _validate_path(name: str, path, errors: List[str], warnings: List[str]) -> None:

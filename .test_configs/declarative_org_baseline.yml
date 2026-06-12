@@ -1,0 +1,69 @@
+# Declarative EXPLICIT-baseline config (Slice 1 of the LLM-org-baseline phase).
+#
+# Demonstrates a realistic org expressed entirely as named, explicit baseline
+# entities + assignments (origin: random) — no attack paths. This is the shape the
+# LLM org-generator will emit (and the deterministic compiler will expand into).
+# Hand-written here to prove the deploy path before any LLM is involved.
+#
+# NOTE: resource refs double as real Azure names and must be globally unique for a
+# LIVE build (key vault 3-24 chars; storage account lowercased alphanumeric <=24).
+# Adjust kv-/st- names before `build` against a real tenant.
+#
+# Live test:
+#   python badzure.py build --config .test_configs/declarative_org_baseline.yml --verbose
+#   python badzure.py destroy --verbose
+schema: graph
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+# A small "Northwind Tech" startup, fully explicit. Everything here is origin=random
+# (org baseline) — a believable tenant, not an attack path.
+baseline:
+  identities:
+    users:
+      - { ref: alice.chen }       # Engineering
+      - { ref: bob.singh }        # Engineering
+      - { ref: carol.diaz }       # Sales
+      - { ref: dave.kim }         # Finance
+      - { ref: eve.martin }       # IT
+    groups:
+      - { ref: Engineering }
+      - { ref: Sales }
+      - { ref: Finance }
+      - { ref: IT-Admins }
+    applications:
+      - { ref: cicd-pipeline }    # CI/CD service principal
+      - { ref: backup-service }   # backup automation service principal
+    administrative_units:
+      - { ref: Finance-Unit }
+
+  resources:
+    resource_groups:
+      - { ref: rg-prod, location: East US }
+      - { ref: rg-dev,  location: East US }
+    key_vaults:
+      - { ref: kvmvc-northwind-prod, resource_group: rg-prod }
+    storage_accounts:
+      - { ref: stnorthwindprod12, resource_group: rg-prod }
+
+  assignments:
+    # Departmental group membership.
+    - { type: group_membership, principal_ref: alice.chen, group_ref: Engineering }
+    - { type: group_membership, principal_ref: bob.singh,  group_ref: Engineering }
+    - { type: group_membership, principal_ref: carol.diaz, group_ref: Sales }
+    - { type: group_membership, principal_ref: dave.kim,   group_ref: Finance }
+    - { type: group_membership, principal_ref: eve.martin, group_ref: IT-Admins }
+    # A low-stakes Entra role for the IT person (realistic delegation).
+    - { type: entra_role, principal_ref: eve.martin, role: "Helpdesk Administrator" }
+    # CI/CD SP contributes to the dev RG; IT-Admins read prod; backup reads storage.
+    - { type: azure_rbac, principal_ref: cicd-pipeline, role: "Contributor", scope_ref: rg-dev }
+    - { type: azure_rbac, principal_ref: IT-Admins, role: "Reader", scope_ref: rg-prod }
+    - { type: azure_rbac, principal_ref: backup-service, role: "Storage Blob Data Reader",
+        scope_ref: stnorthwindprod12 }
+    # A benign Graph permission on the CI/CD SP.
+    - { type: api_permission, principal_ref: cicd-pipeline, app_role: "User.Read.All", api_type: graph }
+    # Finance user belongs to the Finance administrative unit.
+    - { type: au_membership, principal_ref: dave.kim, au_ref: Finance-Unit }

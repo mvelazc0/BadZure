@@ -36,7 +36,7 @@ from src.entity_generator import EntityGenerator
 from src.name_resolver import NameResolver
 from src.baseline_generator import BaselineGenerator
 from src.primitives import (
-    DeploymentModel, ATTACK_PATH,
+    DeploymentModel, ATTACK_PATH, RANDOM,
     EntraRoleAssignment, AzureRbacAssignment, ApiPermission, AppCredential,
     DataInject, GroupMembership, GroupOwnership, AppOwnership, AuMembership,
 )
@@ -145,9 +145,19 @@ class ScenarioLoader:
                 "Declarative config declares neither a baseline nor any attack_paths."
             )
 
-        # 1. The random org-baseline. Built FIRST so attack paths can pick from it.
+        # 1. The org-baseline. Built FIRST so attack paths can pick from it.
+        #    Two forms, which may coexist per kind: COUNT-driven random entities
+        #    (baseline_generator) and EXPLICIT named entities (the declarative form,
+        #    built via the shared targeted path). Explicit entities make a baseline
+        #    realistic (named users in departmental groups, etc.) and are directly
+        #    referenceable by attack-path assignments.
         baseline_entities = (self.baseline.generate_entities(baseline_config)
                              if baseline_config else {})
+        if baseline_config:
+            explicit_specs = self._collect_explicit_baseline_specs(baseline_config)
+            if explicit_specs:
+                baseline_entities = self._merge_baseline_explicit(
+                    baseline_entities, self._build_targeted_entities(explicit_specs))
 
         # 2. Attack-path entities: inline-declared ones built fresh; `from: baseline`
         #    refs bound to existing baseline entities (alias ref -> real baseline key).
@@ -158,9 +168,15 @@ class ScenarioLoader:
         entities = self._merge_entities(baseline_entities, inline_entities)
         ref_kind = self._index_refs(entities)
 
+        primitives: List = []
+
+        # 3a. Explicit baseline assignments -> origin=random primitives, resolved
+        #     against the merged entity set. (Count-driven noise comes in step 5.)
+        if baseline_config:
+            self._emit_baseline_assignments(baseline_config, ref_kind, primitives)
+
         # 4. Compile each path -> origin=attack_path primitives. Paths are rewritten
         #    so `from: baseline` aliases point at their real baseline keys before emit.
-        primitives: List = []
         overlays: List[AttackPathOverlay] = []
         for path_name, path in attack_paths.items():
             resolved = self._resolve_aliases_in_path(path, alias)
@@ -240,6 +256,13 @@ class ScenarioLoader:
                 for raw in resources.get(kind, []):
                     add_spec(kind, raw)
 
+        return self._build_targeted_entities(specs), alias
+
+    def _build_targeted_entities(self, specs: Dict[str, List[Dict]]) -> Dict[str, Dict]:
+        """Turn a `{kind: [targeted-form spec, ...]}` map (specs already in the
+        `{name: X, ...}` shape the EntityGenerator *_targeted methods expect) into
+        symbolic-keyed entity maps. Shared by the attack-path inline entities and
+        the explicit baseline entities — both build the same way."""
         # Resource groups first — resources need a parent RG to attach to.
         resource_groups = self.generator.generate_resource_groups_targeted(
             specs.get("resource_groups", [])
@@ -257,7 +280,42 @@ class ScenarioLoader:
         for kind, method in _RESOURCE_BUILDERS.items():
             kind_specs = [self._with_default_rg(s) for s in specs.get(kind, [])]
             entities[kind] = getattr(self.generator, method)(kind_specs, resource_groups)
-        return entities, alias
+        return entities
+
+    def _collect_explicit_baseline_specs(self, baseline_config: Dict) -> Dict[str, List[Dict]]:
+        """Gather the EXPLICIT (list-of-specs) baseline identities/resources into a
+        targeted-form `{kind: [spec]}` map. Count-form kinds (integers) are ignored
+        here — baseline_generator builds those. Returns {} when the baseline declares
+        no explicit specs (the pure count-driven case)."""
+        specs: Dict[str, List[Dict]] = {}
+
+        def collect(kind: str, raw_list) -> None:
+            if not isinstance(raw_list, list):
+                return  # int (count) or absent -> not built here
+            for raw in raw_list:
+                specs.setdefault(kind, []).append(self._to_targeted_spec(raw))
+
+        identities = baseline_config.get("identities") or {}
+        for kind in _IDENTITY_BUILDERS:
+            collect(kind, identities.get(kind))
+        collect("applications", identities.get("service_principals"))
+
+        resources = baseline_config.get("resources") or {}
+        collect("resource_groups", resources.get("resource_groups"))
+        for kind in _RESOURCE_BUILDERS:
+            collect(kind, resources.get(kind))
+        return specs
+
+    @staticmethod
+    def _merge_baseline_explicit(count_entities: Dict[str, Dict],
+                                 explicit_entities: Dict[str, Dict]) -> Dict[str, Dict]:
+        """Union the count-driven and explicit baseline entity maps per kind. Both
+        are baseline; cross-kind ref collisions are caught later by `_index_refs`."""
+        merged: Dict[str, Dict] = {}
+        for attr in DeploymentModel.ENTITY_MAPS:
+            merged[attr] = {**count_entities.get(attr, {}),
+                            **explicit_entities.get(attr, {})}
+        return merged
 
     @staticmethod
     def _pick_from_baseline(kind: str, baseline_entities: Dict[str, Dict],
@@ -400,6 +458,22 @@ class ScenarioLoader:
                 groups.add(p.group_ref)
         return groups
 
+    # -- explicit baseline assignments ----------------------------------------
+    def _emit_baseline_assignments(self, baseline_config: Dict,
+                                   ref_kind: Dict[str, str], primitives: List) -> None:
+        """Compile the EXPLICIT baseline assignments (the LIST form of
+        `baseline.assignments`) into origin=random primitives, keyed under a
+        `baseline__` namespace and resolved against the merged entity set. The DICT
+        form (counts) is handled separately by baseline_generator.generate_noise."""
+        assignments = baseline_config.get("assignments")
+        if not isinstance(assignments, list):
+            return
+        for idx, a in enumerate(assignments):
+            aid = a.get("id") or f"a{idx}"
+            primitives.extend(
+                self._emit_assignment(self._key("baseline", aid), a, ref_kind,
+                                      "baseline", origin=RANDOM))
+
     # -- per-path compilation -------------------------------------------------
     def _compile_path(self, path_name: str, path: Dict, ref_kind: Dict[str, str],
                       entities: Dict[str, Dict], primitives: List,
@@ -467,7 +541,10 @@ class ScenarioLoader:
 
     # -- assignment -> primitive(s) -------------------------------------------
     def _emit_assignment(self, key: str, a: Dict, ref_kind: Dict[str, str],
-                         path_name: str) -> List:
+                         path_name: str, origin: str = ATTACK_PATH) -> List:
+        """Compile one declarative assignment into primitive(s). `origin` is
+        ATTACK_PATH for attack-path assignments (default) and RANDOM for explicit
+        baseline assignments — the only difference between the two is bookkeeping."""
         atype = a.get("type")
         if atype == "entra_role":
             # Names/lists/`random` -> GUIDs; one EntraRoleAssignment per GUID.
@@ -475,7 +552,7 @@ class ScenarioLoader:
             ptype = self._principal_type(a, ref_kind, path_name)
             return [
                 EntraRoleAssignment(
-                    k, ATTACK_PATH,
+                    k, origin,
                     principal_ref=a["principal_ref"], principal_type=ptype,
                     role=role, scope_app_ref=a.get("scope_app_ref"),
                 )
@@ -485,7 +562,7 @@ class ScenarioLoader:
             # Azure RBAC takes the role NAME directly — passthrough, no resolution.
             scope_type, scope_resource_type = self._scope(a, ref_kind, path_name)
             return [AzureRbacAssignment(
-                key, ATTACK_PATH,
+                key, origin,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 role=a["role"], scope_type=scope_type,
@@ -501,7 +578,7 @@ class ScenarioLoader:
             )
             return [
                 ApiPermission(
-                    k, ATTACK_PATH,
+                    k, origin,
                     principal_ref=a["principal_ref"],
                     permission_id=perm, api_type=api_type,
                 )
@@ -509,28 +586,28 @@ class ScenarioLoader:
             ]
         if atype == "group_membership":
             return [GroupMembership(
-                key, ATTACK_PATH,
+                key, origin,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 group_ref=a["group_ref"],
             )]
         if atype == "group_ownership":
             return [GroupOwnership(
-                key, ATTACK_PATH,
+                key, origin,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 group_ref=a["group_ref"],
             )]
         if atype == "app_ownership":
             return [AppOwnership(
-                key, ATTACK_PATH,
+                key, origin,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 app_ref=a["app_ref"],
             )]
         if atype == "au_membership":
             return [AuMembership(
-                key, ATTACK_PATH,
+                key, origin,
                 principal_ref=a["principal_ref"],
                 principal_type=self._principal_type(a, ref_kind, path_name),
                 au_ref=a["au_ref"],
