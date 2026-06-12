@@ -19,8 +19,10 @@ from src.entity_generator import EntityGenerator  # noqa: E402
 from src.baseline_generator import BaselineGenerator  # noqa: E402
 from src.primitives import (  # noqa: E402
     RANDOM, EntraRoleAssignment, ApiPermission, GroupMembership, AuMembership,
+    AzureRbacAssignment, GroupOwnership, AppOwnership, AppCredential, DataInject,
 )
 from src.constants import ENTRA_ROLES  # noqa: E402
+from src.vocabulary import COMMON_AZURE_RBAC_ROLES  # noqa: E402
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
@@ -87,6 +89,77 @@ def test_noise_pairs_are_distinct():
     gms = [(p.principal_ref, p.group_ref) for p in prims if isinstance(p, GroupMembership)]
     assert len(gms) == len(set(gms))  # no duplicate memberships
     assert len(gms) <= 6
+
+
+def _entities_with_resources():
+    return _gen().generate_entities({
+        "identities": {"users": 10, "groups": 4, "applications": 5,
+                       "administrative_units": 2},
+        "resources": {"resource_groups": 2, "key_vaults": 2, "storage_accounts": 1},
+    })
+
+
+def test_full_primitive_noise_present_and_random():
+    g = _gen()
+    ents = _entities_with_resources()
+    prims = g.generate_noise({"assignments": {
+        "azure_rbac": 10, "group_ownerships": 4, "app_ownerships": 3,
+        "app_credentials": 3, "data_injects": 4, "au_memberships": 3,
+    }}, ents, excluded_groups=set())
+
+    by = lambda c: [p for p in prims if isinstance(p, c)]
+    assert by(AzureRbacAssignment) and by(GroupOwnership) and by(AppOwnership)
+    assert by(AppCredential) and by(DataInject)
+    assert all(p.origin == RANDOM for p in prims)
+
+    # RBAC scope typing is valid: RG scope has no resource_type; resource scope does.
+    for r in by(AzureRbacAssignment):
+        assert r.scope_type in ("resource_group", "resource")
+        assert r.role in COMMON_AZURE_RBAC_ROLES
+        if r.scope_type == "resource":
+            assert r.scope_resource_type  # set for resource-scoped grants
+    # ownership principals are users or SPs (never groups)
+    for o in by(GroupOwnership) + by(AppOwnership):
+        assert o.principal_type in ("user", "service_principal")
+    # credentials are passwords; injects are benign literal material
+    assert all(c.type == "password" for c in by(AppCredential))
+    for d in by(DataInject):
+        assert d.material == "literal"
+        assert d.location_type in ("key_vault_secret", "storage_blob")
+
+
+def test_noise_excludes_attack_groups_from_rbac_and_ownership():
+    g = _gen()
+    ents = _entities_with_resources()
+    excluded = {next(iter(ents["groups"]))}
+    prims = g.generate_noise({"assignments": {
+        "azure_rbac": 50, "group_ownerships": 50,
+    }}, ents, excluded_groups=excluded)
+    # excluded group is never an RBAC principal nor an ownership target
+    rbac_groups = {p.principal_ref for p in prims
+                   if isinstance(p, AzureRbacAssignment) and p.principal_type == "group"}
+    owned = {p.group_ref for p in prims if isinstance(p, GroupOwnership)}
+    assert excluded.isdisjoint(rbac_groups)
+    assert excluded.isdisjoint(owned)
+
+
+def test_au_membership_can_include_groups():
+    g = _gen()
+    ents = g.generate_entities({"identities": {"users": 2, "groups": 4,
+                                               "administrative_units": 2}})
+    prims = g.generate_noise({"assignments": {"au_memberships": 50}}, ents,
+                             excluded_groups=set())
+    ptypes = {p.principal_type for p in prims if isinstance(p, AuMembership)}
+    assert "group" in ptypes  # AUs now accept group members, not just users
+
+
+def test_data_injects_need_a_resource():
+    g = _gen()
+    ents = g.generate_entities({"identities": {"users": 3}})  # no vaults/storage
+    prims = g.generate_noise({"assignments": {"data_injects": 5, "azure_rbac": 5}},
+                             ents, excluded_groups=set())
+    assert not [p for p in prims if isinstance(p, DataInject)]
+    assert not [p for p in prims if isinstance(p, AzureRbacAssignment)]  # no resources
 
 
 def _main():

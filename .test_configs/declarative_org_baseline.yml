@@ -67,3 +67,21 @@ baseline:
     - { type: api_permission, principal_ref: cicd-pipeline, app_role: "User.Read.All", api_type: graph }
     # Finance user belongs to the Finance administrative unit.
     - { type: au_membership, principal_ref: dave.kim, au_ref: Finance-Unit }
+    # The Finance group is also scoped into the Finance AU (groups can be members).
+    - { type: au_membership, principal_ref: Finance, au_ref: Finance-Unit }
+    # Ownership: every real group / app registration has owners (users or SPs).
+    - { type: group_ownership, principal_ref: eve.martin, group_ref: IT-Admins }
+    - { type: app_ownership,   principal_ref: eve.martin, app_ref: cicd-pipeline }
+    - { type: app_ownership,   principal_ref: alice.chen, app_ref: backup-service }
+
+  # Service principals realistically have client secrets.
+  credentials:
+    - { ref: cicd-secret,   app_ref: cicd-pipeline,  type: password, display_name: github-actions }
+    - { ref: backup-secret, app_ref: backup-service, type: password, display_name: backup-job }
+
+  # Benign (FAKE) material living in the org's vault / storage.
+  data_injects:
+    - { material: literal, location_type: key_vault_secret, location_ref: kvmvc-northwind-prod,
+        name: db-connection-string, literal_value: "FAKE-Server=prod;Password=placeholder" }
+    - { material: literal, location_type: storage_blob, location_ref: stnorthwindprod12,
+        name: backup-config.json, literal_value: "{\"fake\": true}" }

@@ -113,6 +113,27 @@ def _validate_baseline(baseline, errors: List[str]) -> None:
             if not a.get("principal_ref"):
                 errors.append(f"baseline assignment '{aid}' has no `principal_ref`.")
 
+    for idx, c in enumerate(baseline.get("credentials") or []):
+        if not isinstance(c, dict):
+            errors.append(f"baseline.credentials[{idx}] must be a mapping.")
+            continue
+        cid = c.get("ref") or f"cred{idx}"
+        if not c.get("ref"):
+            errors.append(f"baseline credential #{idx} is missing a `ref`.")
+        if not c.get("app_ref"):
+            errors.append(f"baseline credential '{cid}' is missing an `app_ref`.")
+
+    for idx, d in enumerate(baseline.get("data_injects") or []):
+        if not isinstance(d, dict):
+            errors.append(f"baseline.data_injects[{idx}] must be a mapping.")
+            continue
+        did = d.get("id") or f"d{idx}"
+        for fld in ("material", "location_ref", "name"):
+            if not d.get(fld):
+                errors.append(f"baseline data_inject '{did}' is missing `{fld}`.")
+        if not (d.get("location_type") or d.get("location")):
+            errors.append(f"baseline data_inject '{did}' is missing `location_type`.")
+
 
 def _validate_path(name: str, path, errors: List[str], warnings: List[str]) -> None:
     if not isinstance(path, dict):

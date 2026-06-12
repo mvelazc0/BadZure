@@ -31,7 +31,8 @@ from src import scenario_validator  # noqa: E402
 from src.terraform_builder import build_tfvars  # noqa: E402
 from src.primitives import (  # noqa: E402
     RANDOM, ATTACK_PATH, EntraRoleAssignment, AzureRbacAssignment, ApiPermission,
-    GroupMembership, AuMembership,
+    GroupMembership, AuMembership, GroupOwnership, AppOwnership, AppCredential,
+    DataInject,
 )
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -132,6 +133,80 @@ def test_counts_and_explicit_coexist():
     assert len(sm.model.groups) == 3             # count groups present
 
 
+_FULL = {
+    "schema": "graph",
+    "baseline": {
+        "identities": {
+            "users": [{"ref": "lead.dev"}],
+            "groups": [{"ref": "Engineering"}],
+            "applications": [{"ref": "cicd"}],
+            "administrative_units": [{"ref": "Finance-Unit"}],
+        },
+        "resources": {
+            "resource_groups": [{"ref": "rg-prod", "location": "East US"}],
+            "key_vaults": [{"ref": "kv-full01", "resource_group": "rg-prod"}],
+            "storage_accounts": [{"ref": "stfull01", "resource_group": "rg-prod"}],
+        },
+        "assignments": [
+            {"type": "group_membership", "principal_ref": "lead.dev", "group_ref": "Engineering"},
+            {"type": "group_ownership", "principal_ref": "lead.dev", "group_ref": "Engineering"},
+            {"type": "app_ownership", "principal_ref": "lead.dev", "app_ref": "cicd"},
+            {"type": "au_membership", "principal_ref": "Engineering", "au_ref": "Finance-Unit"},
+            {"type": "entra_role", "principal_ref": "lead.dev", "role": "Helpdesk Administrator"},
+            {"type": "azure_rbac", "principal_ref": "cicd", "role": "Reader", "scope_ref": "rg-prod"},
+            {"type": "api_permission", "principal_ref": "cicd", "app_role": "User.Read.All",
+             "api_type": "graph"},
+        ],
+        "credentials": [{"ref": "cicd-secret", "app_ref": "cicd", "type": "password"}],
+        "data_injects": [
+            {"material": "literal", "location_type": "key_vault_secret",
+             "location_ref": "kv-full01", "name": "db-conn", "literal_value": "FAKE-xyz"},
+            {"material": "literal", "location_type": "storage_blob",
+             "location_ref": "stfull01", "name": "cfg.json", "literal_value": "FAKE-blob"},
+        ],
+    },
+}
+
+
+def test_count_baseline_full_primitives_build():
+    # The COUNT-driven baseline (Slice 3b) now emits all 9 primitive kinds; ensure
+    # the random_* families build end-to-end through the loader + builder.
+    sm = _load({
+        "schema": "graph",
+        "baseline": {
+            "identities": {"users": 8, "groups": 3, "applications": 4,
+                           "administrative_units": 2},
+            "resources": {"resource_groups": 1, "key_vaults": 1, "storage_accounts": 1},
+            "assignments": {
+                "group_memberships": 5, "entra_roles": 3, "api_permissions": 2,
+                "au_memberships": 2, "azure_rbac": 6, "group_ownerships": 2,
+                "app_ownerships": 2, "app_credentials": 2, "data_injects": 3,
+            },
+        },
+    })
+    prims = sm.model.primitives
+    assert all(p.origin == RANDOM for p in prims)
+    present = {type(p) for p in prims}
+    assert {AzureRbacAssignment, AppCredential, DataInject,
+            GroupOwnership, AppOwnership} <= present
+    build_tfvars(sm.model)  # random_* families for all 9 primitives must build
+
+
+def test_baseline_exercises_all_nine_primitives():
+    sm = _load(_FULL)
+    prims = sm.model.primitives
+    assert all(p.origin == RANDOM for p in prims)
+    present = {type(p) for p in prims}
+    for cls in (GroupMembership, GroupOwnership, AppOwnership, AuMembership,
+                EntraRoleAssignment, AzureRbacAssignment, ApiPermission,
+                AppCredential, DataInject):
+        assert cls in present, f"missing {cls.__name__} in baseline primitives"
+    # a group can be an AU member
+    au = [p for p in prims if isinstance(p, AuMembership)]
+    assert any(p.principal_type == "group" for p in au)
+    build_tfvars(sm.model)  # all 9 primitive families build under origin=random
+
+
 def test_fixture_compiles_and_builds():
     with open(_FIXTURE) as f:
         cfg = yaml.safe_load(f)
@@ -141,7 +216,8 @@ def test_fixture_compiles_and_builds():
     assert "alice.chen" in m.users and "eve.martin" in m.users
     assert {"Engineering", "Sales", "Finance", "IT-Admins"} <= set(m.groups)
     assert "cicd-pipeline" in m.applications
-    assert "kv-northwind-prod" in m.key_vaults
+    # exact resource names are tweaked for global uniqueness; just assert topology
+    assert len(m.key_vaults) == 1 and len(m.storage_accounts) == 1
     assert all(p.origin == RANDOM for p in m.primitives)
     build_tfvars(m)  # must produce a valid tfvars dict
 

@@ -170,10 +170,13 @@ class ScenarioLoader:
 
         primitives: List = []
 
-        # 3a. Explicit baseline assignments -> origin=random primitives, resolved
-        #     against the merged entity set. (Count-driven noise comes in step 5.)
+        # 3a. Explicit baseline assignments + credentials + data_injects -> origin=
+        #     random primitives, resolved against the merged entity set. (Count-driven
+        #     noise comes in step 5.) Credentials/injects make a baseline complete:
+        #     SPs with client secrets, vaults/storage holding (benign) material.
         if baseline_config:
             self._emit_baseline_assignments(baseline_config, ref_kind, primitives)
+            self._emit_baseline_credentials_and_injects(baseline_config, primitives)
 
         # 4. Compile each path -> origin=attack_path primitives. Paths are rewritten
         #    so `from: baseline` aliases point at their real baseline keys before emit.
@@ -473,6 +476,38 @@ class ScenarioLoader:
             primitives.extend(
                 self._emit_assignment(self._key("baseline", aid), a, ref_kind,
                                       "baseline", origin=RANDOM))
+
+    def _emit_baseline_credentials_and_injects(self, baseline_config: Dict,
+                                               primitives: List) -> None:
+        """Compile baseline `credentials` -> AppCredential and `data_injects` ->
+        DataInject, both origin=random. Mirrors `_compile_path`'s handling but for
+        the org baseline (a realistic tenant has SP secrets + material in its
+        vaults/storage). data_injects' credential_ref binds to a baseline credential
+        key when it names one (the app_secret join)."""
+        cred_ref_to_key: Dict[str, str] = {}
+        for idx, cred in enumerate(baseline_config.get("credentials") or []):
+            ref = cred.get("ref") or f"cred{idx}"
+            key = self._key("baseline", ref)
+            cred_ref_to_key[ref] = key
+            primitives.append(AppCredential(
+                key, RANDOM,
+                app_ref=cred["app_ref"], type=cred.get("type", "password"),
+                certificate_path=cred.get("certificate_path"),
+                display_name=cred.get("display_name", "BadZureBaselineCredential"),
+            ))
+        for idx, d in enumerate(baseline_config.get("data_injects") or []):
+            did = d.get("id") or f"d{idx}"
+            cref = d.get("credential_ref")
+            primitives.append(DataInject(
+                self._key("baseline", did), RANDOM,
+                material=d["material"],
+                location_type=d.get("location_type") or d.get("location"),
+                location_ref=d["location_ref"], name=d["name"],
+                source_ref=d.get("source_ref"),
+                credential_ref=cred_ref_to_key.get(cref, cref) if cref else None,
+                literal_value=d.get("literal_value"), file_path=d.get("file_path"),
+                pfx_password=d.get("pfx_password", ""),
+            ))
 
     # -- per-path compilation -------------------------------------------------
     def _compile_path(self, path_name: str, path: Dict, ref_kind: Dict[str, str],

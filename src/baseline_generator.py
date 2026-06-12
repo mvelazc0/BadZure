@@ -27,13 +27,16 @@ exclusion the legacy random mode applies to attack-path groups).
 """
 import logging
 import random
+import string
 from typing import Dict, List, Optional, Set, Tuple
 
 from src.entity_generator import EntityGenerator
 from src.primitives import (
     RANDOM, Primitive,
     EntraRoleAssignment, ApiPermission, GroupMembership, AuMembership,
+    AzureRbacAssignment, GroupOwnership, AppOwnership, AppCredential, DataInject,
 )
+from src.primitive_handlers import SCOPE_RESOURCE_TO_MAP
 from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS
 
 # Resource kinds that need a parent resource group (everything except RGs).
@@ -116,10 +119,19 @@ class BaselineGenerator:
             return []
         excluded = excluded_groups or set()
         prims: List[Primitive] = []
+        # Identity-plane (parity with the legacy random generator).
         prims += self._group_memberships(acfg.get("group_memberships", 0), entities, excluded)
         prims += self._entra_roles(acfg.get("entra_roles", 0), entities)
         prims += self._api_permissions(acfg.get("api_permissions", 0), entities)
-        prims += self._au_memberships(acfg.get("au_memberships", 0), entities)
+        prims += self._au_memberships(acfg.get("au_memberships", 0), entities, excluded)
+        # Full-primitive parity with the LLM/explicit baseline (Slice 3b): RBAC over
+        # the baseline resources, ownership of groups/apps, SP client secrets, and
+        # benign planted material in vaults/storage.
+        prims += self._azure_rbac(acfg.get("azure_rbac", 0), entities, excluded)
+        prims += self._group_ownerships(acfg.get("group_ownerships", 0), entities, excluded)
+        prims += self._app_ownerships(acfg.get("app_ownerships", 0), entities)
+        prims += self._app_credentials(acfg.get("app_credentials", 0), entities)
+        prims += self._data_injects(acfg.get("data_injects", 0), entities)
         return prims
 
     # -- noise helpers --------------------------------------------------------
@@ -153,14 +165,98 @@ class BaselineGenerator:
             for i, (a, p) in enumerate(self._sample_pairs(apps, perms, n))
         ]
 
-    def _au_memberships(self, n: int, entities: Dict[str, Dict]) -> List[Primitive]:
-        users = list(entities.get("users", {}))
+    def _au_memberships(self, n: int, entities: Dict[str, Dict],
+                        excluded: Set[str]) -> List[Primitive]:
+        # AU members may be users OR groups (carry the right principal_type).
+        principals = ([(u, "user") for u in entities.get("users", {})]
+                      + [(g, "group") for g in entities.get("groups", {}) if g not in excluded])
         aus = list(entities.get("administrative_units", {}))
         return [
             AuMembership(f"baseline_aumem_{i}", RANDOM,
-                         principal_ref=u, principal_type="user", au_ref=au)
-            for i, (u, au) in enumerate(self._sample_pairs(users, aus, n))
+                         principal_ref=p[0], principal_type=p[1], au_ref=au)
+            for i, (p, au) in enumerate(self._sample_pairs(principals, aus, n))
         ]
+
+    def _azure_rbac(self, n: int, entities: Dict[str, Dict],
+                    excluded: Set[str]) -> List[Primitive]:
+        """Random Azure RBAC over the baseline resources — what finally WIRES the
+        baseline KVs/storage/VMs that legacy random noise created but left unused.
+        Principal = user/group/SP; scope = a resource group or an individual
+        resource (with the right scope_resource_type); role from the curated
+        common-built-ins list (shared with the LLM path via vocabulary.py)."""
+        from src.vocabulary import COMMON_AZURE_RBAC_ROLES  # lazy: avoid import cycle
+        principals = ([(u, "user") for u in entities.get("users", {})]
+                      + [(g, "group") for g in entities.get("groups", {}) if g not in excluded]
+                      + [(a, "service_principal") for a in entities.get("applications", {})])
+        targets: List[Tuple] = [("resource_group", rg, None)
+                                for rg in entities.get("resource_groups", {})]
+        for rtype, attr in SCOPE_RESOURCE_TO_MAP.items():
+            for ref in entities.get(attr, {}):
+                targets.append(("resource", ref, rtype))
+        if not COMMON_AZURE_RBAC_ROLES:
+            return []
+        out: List[Primitive] = []
+        for i, (p, t) in enumerate(self._sample_pairs(principals, targets, n)):
+            scope_type, scope_ref, scope_rtype = t
+            out.append(AzureRbacAssignment(
+                f"baseline_rbac_{i}", RANDOM,
+                principal_ref=p[0], principal_type=p[1],
+                role=random.choice(COMMON_AZURE_RBAC_ROLES),
+                scope_type=scope_type, scope_ref=scope_ref,
+                scope_resource_type=scope_rtype))
+        return out
+
+    def _group_ownerships(self, n: int, entities: Dict[str, Dict],
+                          excluded: Set[str]) -> List[Primitive]:
+        owners = ([(u, "user") for u in entities.get("users", {})]
+                  + [(a, "service_principal") for a in entities.get("applications", {})])
+        groups = [g for g in entities.get("groups", {}) if g not in excluded]
+        return [
+            GroupOwnership(f"baseline_grpown_{i}", RANDOM,
+                           principal_ref=o[0], principal_type=o[1], group_ref=g)
+            for i, (o, g) in enumerate(self._sample_pairs(owners, groups, n))
+        ]
+
+    def _app_ownerships(self, n: int, entities: Dict[str, Dict]) -> List[Primitive]:
+        owners = ([(u, "user") for u in entities.get("users", {})]
+                  + [(a, "service_principal") for a in entities.get("applications", {})])
+        apps = list(entities.get("applications", {}))
+        out: List[Primitive] = []
+        for i, (o, app) in enumerate(self._sample_pairs(owners, apps, n)):
+            if o[0] == app:           # an app owning itself is meaningless
+                continue
+            out.append(AppOwnership(f"baseline_appown_{i}", RANDOM,
+                                    principal_ref=o[0], principal_type=o[1], app_ref=app))
+        return out
+
+    def _app_credentials(self, n: int, entities: Dict[str, Dict]) -> List[Primitive]:
+        apps = list(entities.get("applications", {}))
+        chosen = random.sample(apps, min(n, len(apps))) if apps and n > 0 else []
+        return [
+            AppCredential(f"baseline_appcred_{i}", RANDOM,
+                          app_ref=a, type="password", display_name="baseline-secret")
+            for i, a in enumerate(chosen)
+        ]
+
+    def _data_injects(self, n: int, entities: Dict[str, Dict]) -> List[Primitive]:
+        """Benign (FAKE) material planted in baseline vaults/storage."""
+        locations = ([("key_vault_secret", kv) for kv in entities.get("key_vaults", {})]
+                     + [("storage_blob", sa) for sa in entities.get("storage_accounts", {})])
+        if not locations or n <= 0:
+            return []
+        out: List[Primitive] = []
+        for i in range(n):
+            ltype, ref = random.choice(locations)
+            name = f"secret-{i}" if ltype == "key_vault_secret" else f"blob-{i}.txt"
+            out.append(DataInject(
+                f"baseline_inject_{i}", RANDOM, material="literal",
+                location_type=ltype, location_ref=ref, name=name,
+                literal_value=self._fake_value()))
+        return out
+
+    @staticmethod
+    def _fake_value() -> str:
+        return "FAKE-" + "".join(random.choices(string.ascii_letters + string.digits, k=16))
 
     @staticmethod
     def _sample_pairs(left: List, right: List, count: int) -> List[Tuple]:

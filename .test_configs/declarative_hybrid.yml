@@ -13,10 +13,23 @@ tenant:
   subscription_id: null
 
 # Random org-baseline noise (origin: random). Counts, not entities.
+# The count-driven baseline supports the SAME 9 primitives as the explicit/LLM
+# baseline (Slice 3b parity): identity-plane (group_memberships, entra_roles,
+# api_permissions, au_memberships) PLUS azure_rbac over the baseline resources,
+# group_ownerships, app_ownerships, app_credentials, and data_injects.
 baseline:
   identities: { users: 15, groups: 4, applications: 6, administrative_units: 2 }
   resources:  { key_vaults: 2 }                      # opt-in (real cost/time)
-  assignments: { group_memberships: 12, entra_roles: 4, api_permissions: 3 }
+  assignments:
+    group_memberships: 12
+    entra_roles: 4
+    api_permissions: 3
+    au_memberships: 2
+    azure_rbac: 6          # Reader/Contributor/etc. over the baseline RGs+resources
+    group_ownerships: 3
+    app_ownerships: 3
+    app_credentials: 4     # SP client secrets
+    data_injects: 2        # benign secrets/blobs in the baseline vaults
 
 attack_paths:
 
