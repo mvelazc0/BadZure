@@ -154,6 +154,9 @@ site/
 scenarios/
 scenarios2/
 
+# Generated attack-graph diagrams (mermaid_poc.py output — regeneratable)
+diagrams/
+
 # BadZure Python redesign: track the offline test suite and its golden fixture.
 # These hold only fake/sample data — re-included here despite the inherited
 # `tests/` rule and the broad `*.tfvars.json` secrets rule (real tfvars stay ignored).
