@@ -24,64 +24,6 @@ class OutputFormatter:
         "CosmosDBSecretTheft": ("cosmos_db", "Cosmos DB Access", "Cosmos DB Data Contributor"),
     }
 
-    def format_generic_paths(self, summaries, user_creds: Dict, domain: str) -> None:
-        """Minimal printout for macro-based techniques built via the generic layer
-        (Phase 2/4). The legacy per-technique dicts are empty for these paths, so we
-        report the essentials from each macro summary. The rich, graph-derived
-        narrative is the declarative path's job (`format_declarative_paths`).
-
-        Each macro summary may carry its own `access_lines` (technique-specific
-        narrative) + `show_target_app`; resource-theft techniques fall back to the
-        `_GENERIC_ACCESS` table.
-        """
-        if not summaries:
-            return
-        for summary in summaries:
-            technique = summary.get('technique', 'KeyVaultSecretTheft')
-            path_name = summary.get('path_name')
-            logging.info(f"Attack Path: {path_name} ({technique})")
-            logging.info(f"Attack Path ID: {summary.get('key')}")
-
-            identity_type = summary.get('identity_type')
-            principal_name = summary.get('principal_name')
-            creds = user_creds.get(path_name, {})
-            if identity_type == 'user':
-                logging.info(f"Initial Access Identity: User - {principal_name}@{domain}")
-                if 'password' in creds:
-                    logging.info(f"Password: {creds['password']}")
-            else:
-                logging.info(f"Initial Access Identity: Service Principal - {principal_name}")
-                if 'client_id' in creds:
-                    logging.info(f"Client ID: {creds['client_id']}")
-                if 'client_secret' in creds:
-                    logging.info(f"Client Secret: {creds['client_secret']}")
-
-            assignment_type = summary.get('assignment_type', 'direct')
-            if assignment_type in ('group_member', 'group_owner'):
-                label = 'Group Member (indirect)' if assignment_type == 'group_member' else 'Group Owner (indirect)'
-                logging.info(f"Assignment Type: {label}")
-                logging.info(f"Group: {summary.get('group_name')}")
-
-            # Technique-specific access narrative: macro-provided, else the table.
-            access_lines = summary.get('access_lines')
-            if access_lines is None:
-                resource_key, access_label, role_label = self._GENERIC_ACCESS.get(
-                    technique, ("key_vault", "Resource Access", "access"))
-                via = " via Group" if assignment_type in ('group_member', 'group_owner') else ""
-                access_lines = [f"{access_label}: {summary.get(resource_key)} ({role_label}{via})"]
-            for line in access_lines:
-                logging.info(line)
-
-            if summary.get('show_target_app', True):
-                logging.info(f"Target Application: {summary.get('app_name')}")
-            if summary.get('entra_role_ids'):
-                logging.info(f"Application Privileges: Entra Role(s) - {', '.join(summary['entra_role_ids'])}")
-            elif summary.get('api_perm_ids'):
-                api_type = summary.get('api_type', 'graph')
-                api_display = API_REGISTRY.get(api_type, {}).get('display_name', api_type)
-                logging.info(f"Application Privileges: {api_display} - {', '.join(summary['api_perm_ids'])}")
-            logging.info("")
-
     def format_declarative_paths(self, overlays, user_creds: Dict, domain: str) -> None:
         """Rich printout for Phase-3 declarative attack paths (Slice 5): the
         objective + capability, the reachability verdict, scenario metadata, the

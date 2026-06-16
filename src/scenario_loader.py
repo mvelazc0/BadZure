@@ -23,8 +23,8 @@ Slice 1 scope (intentionally narrow — see dev-docs/redesign/phase-3-yaml-ir.md
     borrowed baseline users keep their noise (a victim that already looks like a
     normal employee).
 
-The declarative-vs-legacy discriminator lives in cli.py (`_is_declarative_config`);
-by the time the loader runs we already know the config is the new shape.
+BadZure has ONE config shape now — this declarative graph IR. cli rejects any retired
+legacy `mode:`/`privilege_escalation:` config before the loader runs.
 """
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional

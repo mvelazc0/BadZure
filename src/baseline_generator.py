@@ -17,8 +17,9 @@ baseline:
     percentage-of-users heuristic — the declarative schema asks for an explicit
     amount, which is also how an LLM reasons about "add ~10 stray grants".
 
-This is the Phase-3 analog of assignment_manager.create_random_assignments, but it
-emits generic primitives instead of legacy dicts, and is driven by explicit counts.
+This is the generic-primitive generator for random org-baseline noise (the successor
+to the retired legacy random-mode noise generator): it emits generic primitives driven
+by explicit counts.
 
 Entities are generated here; assignments are generated in a SEPARATE call so the
 loader can run them AFTER attack-path compilation and pass the groups an attack path

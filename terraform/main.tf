@@ -110,40 +110,6 @@ resource "azuread_administrative_unit" "aunits" {
   display_name = each.value.display_name
 }
 
-resource "azuread_group_member" "group_memberships" {
-  for_each = var.user_group_assignments
-
-  group_object_id  = azuread_group.groups[each.value.group_name].object_id
-  member_object_id = azuread_user.users[each.value.user_name].object_id
-}
-resource "azuread_administrative_unit_member" "au_memberships" {
-  for_each = var.user_au_assignments
-
-  administrative_unit_object_id = azuread_administrative_unit.aunits[each.value.administrative_unit_name].object_id
-  member_object_id              = azuread_user.users[each.value.user_name].object_id
-}
-
-resource "azuread_directory_role_assignment" "user_role_assignments" {
-  for_each = var.user_role_assignments
-
-  principal_object_id = azuread_user.users[each.value.user_name].object_id
-  role_id             = each.value.role_definition_id
-}
-
-resource "azuread_directory_role_assignment" "app_role_assignments" {
-  for_each = var.app_role_assignments
-
-  principal_object_id = azuread_service_principal.spns[each.value.app_name].object_id
-  role_id             = each.value.role_id
-}
-
-resource "azuread_app_role_assignment" "app_api_permission_assignments" {
-  for_each = var.app_api_permission_assignments
-
-  app_role_id         = each.value.api_permission_id
-  principal_object_id = azuread_service_principal.spns[each.value.app_name].object_id
-  resource_object_id  = data.azuread_service_principal.microsoft_graph.object_id
-}
 resource "azurerm_resource_group" "rgroups" {
   for_each = var.resource_groups
 
