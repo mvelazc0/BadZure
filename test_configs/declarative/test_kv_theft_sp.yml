@@ -1,0 +1,26 @@
+# Declarative (schema: graph) rewrite of test_configs/legacy/test_kv_theft_sp.yml
+# Tier-1 `technique:` sugar - same chain, new shape. Live test:
+#   python badzure.py build --config test_configs/declarative/test_kv_theft_sp.yml --verbose
+#   python badzure.py destroy --verbose
+
+schema: graph
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 1
+    groups: 1
+    applications: 3
+  resources:
+    key_vaults: 1
+attack_paths:
+  kv_theft_sp:
+    technique: KeyVaultSecretTheft
+    initial_access: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role:
+    - 06b708a9-e830-4db3-a914-8e69da51d44f
+    - 19dbc75e-c2e2-444c-a770-ec69d8559fc7

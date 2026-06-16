@@ -1,0 +1,22 @@
+# Declarative (schema: graph) rewrite of test_configs/legacy/test_app_admin_multi_role.yml
+# Tier-1 `technique:` sugar - same chain, new shape. Live test:
+#   python badzure.py build --config test_configs/declarative/test_app_admin_multi_role.yml --verbose
+#   python badzure.py destroy --verbose
+
+schema: graph
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 2
+    groups: 1
+    applications: 2
+attack_paths:
+  app_admin_multi_role:
+    technique: ApplicationAdministratorAbuse
+    method: AzureADRole
+    entra_role:
+    - 62e90394-69f5-4237-9190-012177145e10
+    - 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3

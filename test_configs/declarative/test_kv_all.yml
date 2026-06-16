@@ -1,0 +1,43 @@
+# Consolidated KeyVaultSecretTheft test — all variants in ONE build
+# (user / service_principal / group_member / group_owner; AzureADRole + APIPermission).
+# KeyVaultSecretTheft has no legacy `_all`; this is the declarative consolidated fixture.
+# Live test:
+#   python badzure.py build --config test_configs/declarative/test_kv_all.yml --verbose
+#   python badzure.py destroy --verbose
+
+schema: graph
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 4
+    groups: 2
+    applications: 8
+  resources:
+    key_vaults: 5
+attack_paths:
+  kv_theft_user:
+    technique: KeyVaultSecretTheft
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
+  kv_theft_sp:
+    technique: KeyVaultSecretTheft
+    initial_access: service_principal
+    method: APIPermission
+    api_type: graph
+    app_role:
+    - 06b708a9-e830-4db3-a914-8e69da51d44f
+    - 19dbc75e-c2e2-444c-a770-ec69d8559fc7
+  kv_theft_group_member:
+    technique: KeyVaultSecretTheft
+    assignment_type: group_member
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
+  kv_theft_group_owner:
+    technique: KeyVaultSecretTheft
+    assignment_type: group_owner
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
