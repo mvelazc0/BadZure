@@ -82,6 +82,9 @@ class BuildCommand:
         path_dicts = [p for p in paths.values() if isinstance(p, dict)]
         if any('privilege_escalation' in p for p in path_dicts):
             return False
+        # A `technique:` path is the Tier-1 declarative sugar (graph IR), not legacy.
+        if any('technique' in p for p in path_dicts):
+            return True
         return any('assignments' in p for p in path_dicts)
 
     # ------------------------------------------------------------------

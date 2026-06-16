@@ -35,12 +35,14 @@ from src import reachability
 from src.entity_generator import EntityGenerator
 from src.name_resolver import NameResolver
 from src.baseline_generator import BaselineGenerator
+from src.attack_path_manager import AttackPathManager
 from src.primitives import (
     DeploymentModel, ATTACK_PATH, RANDOM,
     EntraRoleAssignment, AzureRbacAssignment, ApiPermission, AppCredential,
     DataInject, GroupMembership, GroupOwnership, AppOwnership, AuMembership,
 )
 from src.primitive_handlers import SCOPE_RESOURCE_TO_MAP, MI_SOURCE_TO_MAP
+from src.constants import VALID_TECHNIQUES
 
 
 class ScenarioConfigError(ValueError):
@@ -90,6 +92,40 @@ ASSIGNMENT_TYPES = frozenset({
 _DEFAULT_RG = "badzure-default-rg"
 _DEFAULT_RG_LOCATION = "West US"
 
+# -- Tier-1 `technique:` sugar -------------------------------------------------
+# A technique path fires a macro that wires the whole chain; the loader then
+# synthesizes a (capability, target) objective from the macro's summary so the
+# reachability gate validates it exactly like a hand-authored explicit path.
+# technique -> (objective capability, summary key naming the target).
+_TECHNIQUE_OBJECTIVES = {
+    "KeyVaultSecretTheft":           ("read_secrets",      "key_vault"),
+    "StorageCertificateTheft":       ("read_storage",      "storage_account"),
+    "CosmosDBSecretTheft":           ("read_cosmos",       "cosmos_db"),
+    "ApplicationOwnershipAbuse":     ("control_principal", "app_name"),
+    "ApplicationAdministratorAbuse": ("control_principal", "app_name"),
+    "CloudAppAdministratorAbuse":    ("control_principal", "app_name"),
+    # ManagedIdentityAbuse's capability depends on the target resource type — see
+    # _MI_TARGET_CAPABILITY (the objective targets the looted resource).
+}
+_MI_TARGET_CAPABILITY = {
+    "key_vault": "read_secrets", "storage_account": "read_storage",
+    "cosmos_db": "read_cosmos",
+}
+# Baseline entity map required (for mode=random) per resource-anchored technique.
+_TECHNIQUE_REQUIRED_RESOURCE = {
+    "KeyVaultSecretTheft":     ("key_vaults", "a key_vault"),
+    "StorageCertificateTheft": ("storage_accounts", "a storage_account"),
+    "CosmosDBSecretTheft":     ("cosmos_dbs", "a cosmos_db"),
+}
+_MI_SOURCE_MAP = {
+    "vm": "virtual_machines", "logic_app": "logic_apps",
+    "automation_account": "automation_accounts", "function_app": "function_apps",
+}
+_MI_TARGET_MAP = {
+    "key_vault": "key_vaults", "storage_account": "storage_accounts",
+    "cosmos_db": "cosmos_dbs",
+}
+
 
 @dataclass
 class AttackPathOverlay:
@@ -122,10 +158,14 @@ class ScenarioLoader:
 
     def __init__(self, entity_generator: Optional[EntityGenerator] = None,
                  name_resolver: Optional[NameResolver] = None,
-                 baseline_generator: Optional[BaselineGenerator] = None):
+                 baseline_generator: Optional[BaselineGenerator] = None,
+                 attack_path_mgr: Optional[AttackPathManager] = None):
         self.generator = entity_generator or EntityGenerator()
         self.resolver = name_resolver or NameResolver()
         self.baseline = baseline_generator or BaselineGenerator(self.generator)
+        # Drives `technique:` paths — the on-ramp tier that fires the macro library
+        # (the SAME macros the legacy mode used) instead of an explicit assignment graph.
+        self.attack_path_mgr = attack_path_mgr or AttackPathManager(self.generator)
 
     # -- public API -----------------------------------------------------------
     def load(self, config: Dict, tenant_id: str = "", domain: str = "",
@@ -178,14 +218,33 @@ class ScenarioLoader:
             self._emit_baseline_assignments(baseline_config, ref_kind, primitives)
             self._emit_baseline_credentials_and_injects(baseline_config, primitives)
 
-        # 4. Compile each path -> origin=attack_path primitives. Paths are rewritten
+        # 4. Compile each path -> origin=attack_path primitives. Two authoring tiers:
+        #    a `technique:` path fires the macro library (Tier 1, on-ramp); an explicit
+        #    `assignments:` path compiles the graph directly (Tier 2). Paths are rewritten
         #    so `from: baseline` aliases point at their real baseline keys before emit.
+        #    used_apps/used_users dedup victim/target picks across technique paths.
         overlays: List[AttackPathOverlay] = []
+        used_apps: set = set()
+        used_users: set = set()
+        technique_creds: Dict[str, Dict] = {}
         for path_name, path in attack_paths.items():
             resolved = self._resolve_aliases_in_path(path, alias)
-            overlay = self._compile_path(path_name, resolved, ref_kind, entities,
-                                         primitives, domain)
+            if "technique" in path:
+                overlay = self._compile_technique_path(
+                    path_name, resolved, ref_kind, entities, primitives, domain,
+                    used_apps, used_users)
+                technique_creds[path_name] = overlay.credentials
+            else:
+                overlay = self._compile_path(path_name, resolved, ref_kind, entities,
+                                             primitives, domain)
             overlays.append(overlay)
+
+        # 4a. Recon access for technique-path initial-access identities (parity with
+        #     legacy: Directory.Read.All for SPs + subscription Reader). Done ONCE over
+        #     all technique paths so a shared initial-access identity dedups its grants.
+        if technique_creds:
+            primitives.extend(
+                self.attack_path_mgr.build_recon_primitives(technique_creds))
 
         # 5. Baseline noise LAST: it samples baseline entities but avoids the groups
         #    the attack paths rely on (so random members don't dilute a group-based
@@ -742,3 +801,169 @@ class ScenarioLoader:
             f"{path_name}: initial_access principal_ref '{principal_ref}' must be a "
             f"declared user or application."
         )
+
+    # -- Tier-1 technique-path compilation ------------------------------------
+    def _compile_technique_path(self, path_name: str, path: Dict,
+                                ref_kind: Dict[str, str], entities: Dict[str, Dict],
+                                primitives: List, domain: str,
+                                used_apps: set, used_users: set) -> AttackPathOverlay:
+        """Compile a `technique:` path: fire the matching macro (the SAME library the
+        legacy mode used), fold its generic primitives into the model, and synthesize
+        a first-class graph overlay (objective + initial_access) so it renders and
+        validates identically to an explicit path.
+
+        Entity sourcing (decision #1): a path with inline `identities:`/`resources:`
+        runs the macro in `targeted` mode against those named entities; otherwise it
+        runs `random` and the macro picks victims/targets from the baseline."""
+        technique = path["technique"]
+        if technique not in VALID_TECHNIQUES:
+            raise ScenarioConfigError(
+                f"{path_name}: unknown technique '{technique}'. "
+                f"Valid: {', '.join(VALID_TECHNIQUES)}.")
+        has_inline = bool(path.get("identities") or path.get("resources"))
+        mode = "targeted" if has_inline else "random"
+        macro_entities = self._legacy_entities_from_path(path) if has_inline else None
+        if mode == "random":
+            self._require_baseline_entities(technique, path, entities, path_name)
+
+        result = self._dispatch_macro(
+            technique, path, entities, domain, mode, macro_entities, path_name,
+            used_apps, used_users)
+
+        primitives.extend(result["primitives"])
+        # Macro-minted attack GROUPS join the model groups map (so Terraform creates
+        # them and refs resolve) and ref_kind. They carry is_attack_path_group=True,
+        # which keeps them out of the random membership noise.
+        for gname, gspec in (result.get("groups") or {}).items():
+            entities["groups"][gname] = gspec
+            ref_kind.setdefault(gname, "groups")
+
+        summary = result["summary"]
+        if summary.get("app_name"):
+            used_apps.add(summary["app_name"])
+        if summary.get("principal_name"):
+            used_users.add(summary["principal_name"])
+
+        credentials = result["credentials"]
+        objective = self._synthesize_objective(technique, summary)
+        initial_access = {
+            "principal_ref": self._seed_from_credentials(credentials),
+            "method": credentials.get("entry_point", "compromised_identity"),
+        }
+        return AttackPathOverlay(
+            name=path_name, objective=objective, initial_access=initial_access,
+            metadata=path.get("metadata", {}), credentials=credentials,
+            summary=summary)
+
+    def _dispatch_macro(self, technique: str, attack_config: Dict,
+                        entities: Dict[str, Dict], domain: str, mode: str,
+                        macro_entities: Optional[Dict], path_name: str,
+                        used_apps: set, used_users: set) -> Dict:
+        """Dispatch to the matching macro with the entity maps it needs (mirrors the
+        legacy cli dispatch). `attack_config` is the raw path dict — macros read their
+        knobs via .get(), ignoring the technique/identities/resources keys."""
+        mgr = self.attack_path_mgr
+        E = entities
+        common = dict(mode=mode, entities=macro_entities, path_name=path_name)
+        if technique == "ApplicationOwnershipAbuse":
+            return mgr.macro_application_ownership_abuse(
+                attack_config, E["users"], E["applications"], domain,
+                used_apps=used_apps, used_users=used_users, **common)
+        if technique == "ApplicationAdministratorAbuse":
+            return mgr.macro_application_administrator_abuse(
+                attack_config, E["users"], E["applications"], domain,
+                used_apps=used_apps, used_users=used_users, **common)
+        if technique == "CloudAppAdministratorAbuse":
+            return mgr.macro_cloud_app_administrator_abuse(
+                attack_config, E["users"], E["applications"], domain,
+                used_apps=used_apps, used_users=used_users, **common)
+        if technique == "KeyVaultSecretTheft":
+            return mgr.macro_keyvault_secret_theft(
+                attack_config, E["applications"], E["key_vaults"], E["users"],
+                E["applications"], domain, used_apps=used_apps, **common)
+        if technique == "StorageCertificateTheft":
+            return mgr.macro_storage_certificate_theft(
+                attack_config, E["applications"], E["storage_accounts"], E["users"],
+                E["applications"], domain, used_apps=used_apps, **common)
+        if technique == "CosmosDBSecretTheft":
+            return mgr.macro_cosmosdb_secret_theft(
+                attack_config, E["applications"], E["cosmos_dbs"], E["users"],
+                E["applications"], domain, used_apps=used_apps, **common)
+        if technique == "ManagedIdentityAbuse":
+            return mgr.macro_managed_identity_abuse(
+                attack_config, E["applications"], E["key_vaults"],
+                E["storage_accounts"], E["users"], domain, E["virtual_machines"],
+                E["logic_apps"], E["automation_accounts"], E["function_apps"],
+                used_apps=used_apps, used_users=used_users,
+                cosmos_dbs=E["cosmos_dbs"], **common)
+        raise ScenarioConfigError(
+            f"{path_name}: unknown technique '{technique}'.")
+
+    @staticmethod
+    def _legacy_entities_from_path(path: Dict) -> Dict[str, List[Dict]]:
+        """Flatten a technique path's inline `identities:`/`resources:` into the legacy
+        `entities:` shape the macros' targeted selectors expect ({kind: [{name, ...}]}),
+        translating each entity's `ref` -> `name`. Order is preserved (the targeted
+        selectors are positional — e.g. applications[0] is the looted app)."""
+        out: Dict[str, List[Dict]] = {}
+        for section in ("identities", "resources"):
+            for kind, specs in (path.get(section) or {}).items():
+                out[kind] = [
+                    {("name" if k == "ref" else k): v
+                     for k, v in spec.items() if k != "from"}
+                    for spec in specs
+                ]
+        return out
+
+    @staticmethod
+    def _require_baseline_entities(technique: str, path: Dict,
+                                   entities: Dict[str, Dict], path_name: str) -> None:
+        """mode=random sources victims/targets from the baseline; if a required entity
+        type is absent, fail clearly (the baseline-first contract) instead of letting
+        the macro's random.choice blow up on an empty map."""
+        needs: List = [("applications", "an application")]
+        if path.get("initial_access", "user") == "user":
+            needs.append(("users", "a user"))
+        if technique in _TECHNIQUE_REQUIRED_RESOURCE:
+            needs.append(_TECHNIQUE_REQUIRED_RESOURCE[technique])
+        if technique == "ManagedIdentityAbuse":
+            src = _MI_SOURCE_MAP.get(path.get("source_type", "vm"))
+            tgt = _MI_TARGET_MAP.get(path.get("target_resource_type"))
+            if src:
+                needs.append((src, f"a {path.get('source_type', 'vm')}"))
+            if tgt:
+                needs.append((tgt, f"a {path.get('target_resource_type')}"))
+        missing = [human for attr, human in needs if not entities.get(attr)]
+        if missing:
+            raise ScenarioConfigError(
+                f"{path_name}: technique '{technique}' needs {', '.join(missing)} in "
+                f"the baseline (mode=random picks victims/targets from it). Add the "
+                f"count(s) to `baseline:` or declare the entities inline under the path."
+            )
+
+    @staticmethod
+    def _synthesize_objective(technique: str, summary: Dict) -> Dict:
+        """Build a (capability, target) objective from the macro summary so the
+        reachability gate adjudicates the technique path like an explicit one."""
+        if technique == "ManagedIdentityAbuse":
+            capability = _MI_TARGET_CAPABILITY.get(summary.get("target_resource_type"))
+            target = summary.get("target_name")
+        else:
+            capability, target_key = _TECHNIQUE_OBJECTIVES[technique]
+            target = summary.get(target_key)
+        return {
+            "name": f"{technique} ({target})" if target else technique,
+            "impact": "high",
+            "capability": capability,
+            "target_ref": target,
+        }
+
+    @staticmethod
+    def _seed_from_credentials(credentials: Dict) -> Optional[str]:
+        """The symbolic ref of the compromised initial-access identity — the
+        reachability seed. Matches the keys the macro primitives use (user = UPN local
+        part = var.users key; SP = app display_name)."""
+        if credentials.get("initial_access") == "user":
+            upn = credentials.get("user_principal_name", "")
+            return upn.split("@")[0] if "@" in upn else upn
+        return credentials.get("service_principal_name")

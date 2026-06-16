@@ -1190,7 +1190,11 @@ class AttackPathManager:
         if identity_type == "user":
             principal_name = random.choice(list(users.keys()))
         elif identity_type == "service_principal":
-            principal_name = random.choice(list(service_principals.keys()))
+            # The initial-access SP must differ from the looted app, or there is no
+            # escalation (you'd already BE the privileged app). Fall back to it only
+            # if it's the sole application available.
+            sp_keys = [k for k in service_principals.keys() if k != app_name]
+            principal_name = random.choice(sp_keys) if sp_keys else app_name
         
         return app_name, kv_name, principal_name
     
@@ -1214,7 +1218,11 @@ class AttackPathManager:
         if identity_type == "user":
             principal_name = random.choice(list(users.keys()))
         elif identity_type == "service_principal":
-            principal_name = random.choice(list(service_principals.keys()))
+            # The initial-access SP must differ from the looted app, or there is no
+            # escalation (you'd already BE the privileged app). Fall back to it only
+            # if it's the sole application available.
+            sp_keys = [k for k in service_principals.keys() if k != app_name]
+            principal_name = random.choice(sp_keys) if sp_keys else app_name
         
         return app_name, sa_name, principal_name
 
@@ -1237,7 +1245,11 @@ class AttackPathManager:
         if identity_type == "user":
             principal_name = random.choice(list(users.keys()))
         elif identity_type == "service_principal":
-            principal_name = random.choice(list(service_principals.keys()))
+            # The initial-access SP must differ from the looted app, or there is no
+            # escalation (you'd already BE the privileged app). Fall back to it only
+            # if it's the sole application available.
+            sp_keys = [k for k in service_principals.keys() if k != app_name]
+            principal_name = random.choice(sp_keys) if sp_keys else app_name
 
         return app_name, cosmos_db_name, principal_name
 

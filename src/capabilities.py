@@ -32,7 +32,10 @@ Two structural notions the reachability walk leans on:
 """
 from typing import Set
 
-from src.constants import GRAPH_API_PERMISSIONS, EXCHANGE_API_PERMISSIONS
+from src.constants import (
+    GRAPH_API_PERMISSIONS, EXCHANGE_API_PERMISSIONS,
+    APP_ADMIN_ROLE_ID, CLOUD_APP_ADMIN_ROLE_ID,
+)
 
 # Resource-type tokens here MUST match the keys of
 # primitive_handlers.SCOPE_RESOURCE_TO_MAP (key_vault, storage_account, ...).
@@ -68,8 +71,19 @@ READ_ROLES = {
     "cosmos_db": {
         "Owner", "Contributor", "Cosmos DB Account Reader Role",
         "DocumentDB Account Contributor",
+        # Cosmos DB Built-in Data Contributor — the SQL data-plane role definition
+        # GUID the Cosmos macro (and MI-abuse-to-cosmos) grants for document reads.
+        "00000000-0000-0000-0000-000000000002",
     },
 }
+
+# --- CONTROL: Entra directory roles that confer takeover of APPLICATIONS ---------
+# Application Administrator / Cloud Application Administrator can add credentials to
+# an application registration and authenticate as its service principal — i.e. take
+# the app over. Holding one (directory-wide) means you control every app; an
+# assignment scoped to a single app (directory_scope_id) controls just that app.
+# This is the basis of ApplicationAdministratorAbuse / CloudAppAdministratorAbuse.
+APP_CONTROL_ENTRA_ROLES = {APP_ADMIN_ROLE_ID, CLOUD_APP_ADMIN_ROLE_ID}
 
 # --- Capability token -> the data-resource read it checks ----------------------
 # `read_secrets`/`read_storage`/`read_cosmos` are the loot-objective tokens; each
@@ -117,6 +131,12 @@ def rbac_reads_resource(role: str, resource_type: str) -> bool:
 
 def mail_permission_guids() -> Set[str]:
     return MAIL_PERMISSION_GUIDS
+
+
+def entra_role_controls_apps(role_guid: str) -> bool:
+    """Does this Entra directory role let the holder take over applications (add
+    credentials and authenticate as the app's service principal)?"""
+    return role_guid in APP_CONTROL_ENTRA_ROLES
 
 
 # Objective capability tokens this module can adjudicate. An objective whose

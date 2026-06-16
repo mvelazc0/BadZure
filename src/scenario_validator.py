@@ -27,7 +27,21 @@ import logging
 from typing import Dict, List
 
 from src import capabilities
+from src.constants import VALID_TECHNIQUES
 from src.scenario_loader import ScenarioConfigError, ASSIGNMENT_TYPES
+
+# Tier-1 `technique:` path knob enums (the legacy per-technique knobs, now validated
+# here against the same vocabularies the macros honor).
+_TECHNIQUE_KNOB_ENUMS = {
+    "initial_access": {"user", "service_principal"},
+    "assignment_type": {"direct", "group_member", "group_owner"},
+    "method": {"AzureADRole", "APIPermission"},
+    "api_type": {"graph", "exchange"},
+    "credential_type": {"secret", "certificate"},
+    "scope": {"directory", "application"},
+}
+_MI_SOURCE_TYPES = {"vm", "logic_app", "automation_account", "function_app"}
+_MI_TARGET_TYPES = {"key_vault", "storage_account", "cosmos_db"}
 
 # Per-capability required objective fields (beyond the human-facing name/impact).
 # Capabilities not listed here (e.g. read_mail) need nothing extra.
@@ -140,12 +154,68 @@ def _validate_path(name: str, path, errors: List[str], warnings: List[str]) -> N
         errors.append(f"attack_path '{name}' must be a mapping.")
         return
 
+    # Tier-1 sugar vs Tier-2 explicit graph: a `technique:` path is validated against
+    # the macro knob vocabulary; everything else against the explicit-graph schema.
+    if "technique" in path:
+        _validate_technique_path(name, path, errors)
+        return
+
     _validate_objective(name, path.get("objective"), warnings, errors)
     _validate_initial_access(name, path.get("initial_access"), errors)
 
     assignment_ids, inject_ids, cred_refs = _validate_assignments(name, path, errors)
     _validate_steps(name, path.get("steps") or [], assignment_ids,
                     inject_ids | cred_refs, errors)
+
+
+def _validate_technique_path(name: str, path: Dict, errors: List[str]) -> None:
+    """Validate a Tier-1 `technique:` path: a known technique, mutually exclusive with
+    an explicit `assignments:` graph, and well-formed per-technique knobs."""
+    technique = path.get("technique")
+    if technique not in VALID_TECHNIQUES:
+        errors.append(
+            f"attack_path '{name}': unknown technique '{technique}'. "
+            f"Valid: {', '.join(VALID_TECHNIQUES)}.")
+
+    if "assignments" in path:
+        errors.append(
+            f"attack_path '{name}': `technique:` and `assignments:` are mutually "
+            f"exclusive — a path is either Tier-1 technique sugar OR a Tier-2 explicit "
+            f"graph, not both.")
+
+    for knob, valid in _TECHNIQUE_KNOB_ENUMS.items():
+        val = path.get(knob)
+        if val is not None and val not in valid:
+            errors.append(
+                f"attack_path '{name}': {knob} '{val}' is invalid. "
+                f"Valid: {', '.join(sorted(valid))}.")
+
+    # method, when given, needs its companion value (the looted app's privileges).
+    method = path.get("method")
+    if method == "AzureADRole" and not path.get("entra_role"):
+        errors.append(
+            f"attack_path '{name}': method 'AzureADRole' needs `entra_role` "
+            f"(a GUID, a list, or 'random').")
+    elif method == "APIPermission" and not path.get("app_role"):
+        errors.append(
+            f"attack_path '{name}': method 'APIPermission' needs `app_role` "
+            f"(a GUID, a list, or 'random').")
+
+    if technique == "ManagedIdentityAbuse":
+        src = path.get("source_type")
+        if src is not None and src not in _MI_SOURCE_TYPES:
+            errors.append(
+                f"attack_path '{name}': source_type '{src}' is invalid. "
+                f"Valid: {', '.join(sorted(_MI_SOURCE_TYPES))}.")
+        tgt = path.get("target_resource_type")
+        if not tgt:
+            errors.append(
+                f"attack_path '{name}': ManagedIdentityAbuse needs a "
+                f"`target_resource_type` ({', '.join(sorted(_MI_TARGET_TYPES))}).")
+        elif tgt not in _MI_TARGET_TYPES:
+            errors.append(
+                f"attack_path '{name}': target_resource_type '{tgt}' is invalid. "
+                f"Valid: {', '.join(sorted(_MI_TARGET_TYPES))}.")
 
 
 def _validate_objective(name, objective, warnings, errors) -> None:

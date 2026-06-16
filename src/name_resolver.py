@@ -100,6 +100,23 @@ class NameResolver:
             for api_type, perms in self.api_permissions.items()
         }
 
+        # Reverse indexes (GUID -> name) for display — built after overrides so a
+        # custom-named role/permission resolves back to its name too. The permission
+        # reverse map also folds in the HIGH-PRIVILEGED catalogs: the `random` pool
+        # draws from those, and some high-priv permissions (e.g.
+        # AppRoleAssignment.ReadWrite.All) are NOT in the general catalog — without
+        # this they'd render as a raw GUID.
+        self._entra_guid_to_name = {v: k for k, v in self.entra_roles.items()}
+        self._perm_guid_to_name = {}
+        for api_type, perms in self.api_permissions.items():
+            reverse = {}
+            for name, meta in ALL_HIGH_PRIVILEGED_PERMISSIONS.get(api_type, {}).items():
+                guid = meta.get("id") if isinstance(meta, dict) else meta
+                if guid:
+                    reverse[guid] = name
+            reverse.update({guid: name for name, guid in perms.items()})  # general wins
+            self._perm_guid_to_name[api_type] = reverse
+
     # -- catalog maintenance --------------------------------------------------
     def _load_overrides(self, path: str) -> None:
         if not path or not os.path.isfile(path):
@@ -170,6 +187,16 @@ class NameResolver:
                 f"catalog_overrides.json ({api_type}_permissions)."
             )
         return guid
+
+    # -- reverse lookups (GUID -> display name) -------------------------------
+    def entra_role_name(self, guid: str) -> str:
+        """Human name for an Entra-role GUID (the GUID itself if unknown)."""
+        return self._entra_guid_to_name.get(guid, guid)
+
+    def api_permission_name(self, guid: str, api_type: str = "graph") -> str:
+        """Human name for an API-permission GUID under `api_type` (the GUID itself
+        if unknown)."""
+        return self._perm_guid_to_name.get(api_type, {}).get(guid, guid)
 
 
 def _dedupe(items) -> List[str]:

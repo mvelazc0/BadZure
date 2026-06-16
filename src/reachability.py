@@ -225,6 +225,17 @@ class _Analyzer:
         elif isinstance(p, (GroupOwnership, GroupMembership)):
             if p.principal_ref in control:
                 return [(p.principal_ref, p.group_ref)]
+        elif isinstance(p, EntraRoleAssignment):
+            # Application / Cloud Application Administrator -> you can add credentials
+            # to applications and authenticate as them. A directory-wide assignment
+            # confers takeover of EVERY app; one scoped to a single app (scope_app_ref)
+            # confers takeover of just that app. (Other Entra roles grow nothing here —
+            # an `entra_role` objective is checked against the final control set.)
+            if p.principal_ref in control \
+                    and capabilities.entra_role_controls_apps(p.role):
+                if p.scope_app_ref:
+                    return [(p.principal_ref, p.scope_app_ref)]
+                return [(p.principal_ref, app) for app in self.model.applications]
         elif isinstance(p, AzureRbacAssignment):
             # A control-conferring RBAC role -> you own the covered compute
             # resource(s), hence their managed identity.
@@ -336,10 +347,16 @@ class _Analyzer:
                 return PathVerdict(name, INVALID,
                                    f"capability '{capability}' needs a target_ref "
                                    f"(the resource to read).")
-            if self._resource_readable(target, rtype, control):
+            # Terminal node is the READER principal (the controlled identity that can
+            # read the resource), NOT the resource itself — the resource is reached by
+            # a readability check, not a control-set edge, so it has no parent to trace.
+            # Tracing to the reader recovers the real intermediate hops (group
+            # membership inheritance, the managed-identity pivot, ...).
+            reader = self._reader_of(target, rtype, control)
+            if reader is not None:
                 return PathVerdict(name, REACHED,
                                    f"a controlled principal can read '{target}'.",
-                                   terminal_node=target)
+                                   terminal_node=reader)
             return PathVerdict(name, BLOCKED,
                                f"no controlled principal can read '{target}'.",
                                terminal_node=target)
@@ -417,8 +434,10 @@ class _Analyzer:
             "derived": True,
         }]
         for src, dst, prim in self._trace(terminal, parent, seed):
+            # The name is a human-readable phrase; the formatter renders the "-> target"
+            # arrow from target_ref (so the name must NOT embed it, or it double-arrows).
             steps.append({
-                "name": f"{_ACTIONS.get(type(prim), 'traverse')} {src} -> {dst}",
+                "name": _HOP_PHRASE.get(type(prim), "Traverse to"),
                 "source_ref": src,
                 "target_ref": dst,
                 "uses": [prim.key],
@@ -451,11 +470,22 @@ class _Analyzer:
         return chain
 
 
-# Primitive type -> the action verb used in a derived step.
+# Primitive type -> the action verb used in a derived step (machine-readable token).
 _ACTIONS = {
     AppOwnership: "app_takeover",
     GroupOwnership: "group_takeover",
     GroupMembership: "group_membership_inheritance",
     AzureRbacAssignment: "resource_control",
     DataInject: "credential_loot",
+}
+
+# Primitive type -> a human-readable phrase for the derived step's name. The hop's
+# `target_ref` (the gained node) is rendered as a "-> <node>" arrow by the formatter,
+# so the entity name is named by the arrow, not repeated here.
+_HOP_PHRASE = {
+    AppOwnership: "Take over application via ownership",
+    GroupOwnership: "Take over group via ownership",
+    GroupMembership: "Inherit access via group membership",
+    AzureRbacAssignment: "Control resource (gain its managed identity)",
+    DataInject: "Loot planted credential",
 }
