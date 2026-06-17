@@ -16,7 +16,6 @@
 # To confirm the bypass instead, run with the env var set and it will proceed past
 # the gate (then `python badzure.py destroy --verbose`):
 #   $env:BADZURE_SKIP_REACHABILITY="1"; python badzure.py build --config .test_configs/declarative_unreachable.yml --verbose
-schema: graph
 
 tenant:
   tenant_id: null

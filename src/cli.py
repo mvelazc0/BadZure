@@ -27,8 +27,8 @@ class BuildCommand:
     
     def execute(self, config_file: str, verbose: bool = False) -> None:
         """Execute the build. BadZure has ONE config shape now — the declarative
-        `schema: graph` IR. A retired legacy `mode:`/`privilege_escalation:` config is
-        rejected with guidance to convert it.
+        graph IR. A retired legacy `mode:`/`privilege_escalation:` config is rejected
+        with guidance to convert it.
 
         Args:
             config_file: Path to configuration file
@@ -40,9 +40,9 @@ class BuildCommand:
         if self._is_legacy_config(config):
             logging.error(
                 "This is a legacy 'mode:'/'privilege_escalation:' config, which is no "
-                "longer supported. Convert it to the declarative 'schema: graph' shape "
-                "(baseline: + attack_paths: with `technique:` sugar or an explicit "
-                "`assignments:` graph). See badzure.yml and docs/configuration.md."
+                "longer supported. Convert it to the declarative shape (baseline: + "
+                "attack_paths: with `technique:` sugar or an explicit `assignments:` "
+                "graph). See badzure.yml and docs/configuration.md."
             )
             return
 

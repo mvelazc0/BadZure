@@ -244,7 +244,6 @@ class OrgGenerator:
             baseline["data_injects"] = data_injects
 
         config: Dict = {
-            "schema": "graph",
             "tenant": {"tenant_id": None, "domain": None, "subscription_id": None},
             "baseline": baseline,
         }

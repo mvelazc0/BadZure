@@ -42,7 +42,6 @@
 #   python badzure.py destroy --verbose
 #
 # tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
-schema: graph
 
 tenant:
   tenant_id: null

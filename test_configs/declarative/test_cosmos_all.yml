@@ -1,9 +1,8 @@
-# Declarative (schema: graph) rewrite of test_configs/legacy/test_cosmos_all.yml
+# Declarative rewrite of test_configs/legacy/test_cosmos_all.yml
 # Tier-1 `technique:` sugar - same chain, new shape. Live test:
 #   python badzure.py build --config test_configs/declarative/test_cosmos_all.yml --verbose
 #   python badzure.py destroy --verbose
 
-schema: graph
 tenant:
   tenant_id: null
   domain: null

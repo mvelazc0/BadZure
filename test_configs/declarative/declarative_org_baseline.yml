@@ -12,7 +12,6 @@
 # Live test:
 #   python badzure.py build --config .test_configs/declarative_org_baseline.yml --verbose
 #   python badzure.py destroy --verbose
-schema: graph
 
 tenant:
   tenant_id: null

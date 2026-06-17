@@ -1,9 +1,8 @@
-# Declarative (schema: graph) rewrite of test_configs/legacy/test_app_ownership_user_role.yml
+# Declarative rewrite of test_configs/legacy/test_app_ownership_user_role.yml
 # Tier-1 `technique:` sugar - same chain, new shape. Live test:
 #   python badzure.py build --config test_configs/declarative/test_app_ownership_user_role.yml --verbose
 #   python badzure.py destroy --verbose
 
-schema: graph
 tenant:
   tenant_id: null
   domain: null

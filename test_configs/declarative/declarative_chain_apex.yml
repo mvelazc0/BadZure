@@ -70,7 +70,6 @@
 #   python badzure.py build --config .test_configs/declarative_chain_apex.yml --verbose
 #   python badzure.py destroy --verbose
 # =============================================================================
-schema: graph
 
 tenant:
   tenant_id: null

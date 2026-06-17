@@ -5,7 +5,6 @@
 #   python badzure.py build --config test_configs/declarative/test_kv_all.yml --verbose
 #   python badzure.py destroy --verbose
 
-schema: graph
 tenant:
   tenant_id: null
   domain: null

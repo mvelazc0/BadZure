@@ -189,7 +189,7 @@ def test_generate_baseline_happy_path():
     provider = _FakeProvider([json.dumps(_DESIGN)])
     og = OrgGenerator(provider, _gen())
     config = og.generate_baseline("a small SaaS startup")
-    assert config["schema"] == "graph"
+    assert "baseline" in config and "schema" not in config
     assert len(config["baseline"]["identities"]["users"]) == _TOTAL_USERS
     assert len(provider.calls) == 1
 
@@ -206,7 +206,7 @@ def test_generate_baseline_retries_with_feedback():
     provider = _FakeProvider(["not json at all", json.dumps(_DESIGN)])
     og = OrgGenerator(provider, _gen(), max_attempts=3)
     config = og.generate_baseline("startup")
-    assert config["schema"] == "graph"
+    assert "baseline" in config and "schema" not in config
     assert len(provider.calls) == 2
     assert "INVALID" in provider.calls[1]["user"]  # error fed back on the retry
 
@@ -229,7 +229,7 @@ def test_invalid_role_name_is_rejected_and_retried():
     og = OrgGenerator(provider, _gen(), max_attempts=3)
     config = og.generate_baseline("startup")
     assert len(provider.calls) == 2  # bad role name forced a retry
-    assert config["schema"] == "graph"
+    assert "baseline" in config and "schema" not in config
 
 
 # ---------------------------------------------------------------------------

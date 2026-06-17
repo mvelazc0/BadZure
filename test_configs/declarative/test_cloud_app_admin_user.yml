@@ -1,9 +1,8 @@
-# Declarative (schema: graph) rewrite of test_configs/legacy/test_cloud_app_admin_user.yml
+# Declarative rewrite of test_configs/legacy/test_cloud_app_admin_user.yml
 # Tier-1 `technique:` sugar - same chain, new shape. Live test:
 #   python badzure.py build --config test_configs/declarative/test_cloud_app_admin_user.yml --verbose
 #   python badzure.py destroy --verbose
 
-schema: graph
 tenant:
   tenant_id: null
   domain: null
