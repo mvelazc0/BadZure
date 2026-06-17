@@ -16,7 +16,7 @@ baseline:
     storage_accounts: 1
 attack_paths:
   storage_theft_group:
-    technique: StorageCertificateTheft
+    privilege_escalation: StorageCertificateTheft
     assignment_type: group_member
     method: APIPermission
     api_type: graph

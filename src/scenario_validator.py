@@ -154,9 +154,9 @@ def _validate_path(name: str, path, errors: List[str], warnings: List[str]) -> N
         errors.append(f"attack_path '{name}' must be a mapping.")
         return
 
-    # Tier-1 sugar vs Tier-2 explicit graph: a `technique:` path is validated against
-    # the macro knob vocabulary; everything else against the explicit-graph schema.
-    if "technique" in path:
+    # Tier-1 sugar vs Tier-2 explicit graph: a built-in `privilege_escalation:` path is
+    # validated against the macro knob vocabulary; everything else against the graph schema.
+    if "privilege_escalation" in path:
         _validate_technique_path(name, path, errors)
         return
 
@@ -169,19 +169,19 @@ def _validate_path(name: str, path, errors: List[str], warnings: List[str]) -> N
 
 
 def _validate_technique_path(name: str, path: Dict, errors: List[str]) -> None:
-    """Validate a Tier-1 `technique:` path: a known technique, mutually exclusive with
-    an explicit `assignments:` graph, and well-formed per-technique knobs."""
-    technique = path.get("technique")
+    """Validate a built-in `privilege_escalation:` path: a known technique, mutually
+    exclusive with an explicit `assignments:` graph, and well-formed per-technique knobs."""
+    technique = path.get("privilege_escalation")
     if technique not in VALID_TECHNIQUES:
         errors.append(
-            f"attack_path '{name}': unknown technique '{technique}'. "
+            f"attack_path '{name}': unknown privilege_escalation '{technique}'. "
             f"Valid: {', '.join(VALID_TECHNIQUES)}.")
 
     if "assignments" in path:
         errors.append(
-            f"attack_path '{name}': `technique:` and `assignments:` are mutually "
-            f"exclusive — a path is either Tier-1 technique sugar OR a Tier-2 explicit "
-            f"graph, not both.")
+            f"attack_path '{name}': `privilege_escalation:` and `assignments:` are "
+            f"mutually exclusive — a path is either a built-in privilege-escalation path "
+            f"OR a Tier-2 explicit graph, not both.")
 
     for knob, valid in _TECHNIQUE_KNOB_ENUMS.items():
         val = path.get(knob)

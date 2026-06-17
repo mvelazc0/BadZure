@@ -18,11 +18,11 @@ baseline:
     key_vaults: 5
 attack_paths:
   kv_theft_user:
-    technique: KeyVaultSecretTheft
+    privilege_escalation: KeyVaultSecretTheft
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10
   kv_theft_sp:
-    technique: KeyVaultSecretTheft
+    privilege_escalation: KeyVaultSecretTheft
     initial_access: service_principal
     method: APIPermission
     api_type: graph
@@ -30,13 +30,13 @@ attack_paths:
     - 06b708a9-e830-4db3-a914-8e69da51d44f
     - 19dbc75e-c2e2-444c-a770-ec69d8559fc7
   kv_theft_group_member:
-    technique: KeyVaultSecretTheft
+    privilege_escalation: KeyVaultSecretTheft
     assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
   kv_theft_group_owner:
-    technique: KeyVaultSecretTheft
+    privilege_escalation: KeyVaultSecretTheft
     assignment_type: group_owner
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10

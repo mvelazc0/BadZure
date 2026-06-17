@@ -14,7 +14,7 @@ baseline:
     applications: 2
 attack_paths:
   app_admin_exchange:
-    technique: ApplicationAdministratorAbuse
+    privilege_escalation: ApplicationAdministratorAbuse
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40

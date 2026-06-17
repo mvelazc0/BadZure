@@ -48,19 +48,31 @@ class BuildCommand:
 
         self._build_declarative_mode(config, verbose)
 
-    @staticmethod
-    def _is_legacy_config(config: Dict) -> bool:
-        """Detect a retired legacy config — a top-level `mode:` or any attack path
-        carrying `privilege_escalation:`. Used only to reject it with guidance."""
+    # Tenant-level entity-count keys that only the retired legacy shape used (the
+    # declarative shape puts these under `baseline:`).
+    _LEGACY_TENANT_COUNT_KEYS = (
+        'users', 'applications', 'groups', 'administrative_units', 'resource_groups',
+        'key_vaults', 'storage_accounts', 'virtual_machines', 'logic_apps',
+        'automation_accounts', 'function_apps', 'cosmos_dbs',
+    )
+
+    @classmethod
+    def _is_legacy_config(cls, config: Dict) -> bool:
+        """Detect a retired legacy `mode:` config to reject it with guidance. Legacy
+        markers absent from the declarative shape: a top-level `mode:`, `tenant:`
+        entity COUNTS, or per-path `enabled:`. NOTE: both shapes use
+        `privilege_escalation:`, so that is NOT a discriminator."""
         if not isinstance(config, dict):
             return False
         if config.get('mode') in ('random', 'targeted'):
             return True
+        tenant = config.get('tenant')
+        if isinstance(tenant, dict) and any(k in tenant for k in cls._LEGACY_TENANT_COUNT_KEYS):
+            return True
         paths = config.get('attack_paths') or {}
         if not isinstance(paths, dict):
             return False
-        return any(isinstance(p, dict) and 'privilege_escalation' in p
-                   for p in paths.values())
+        return any(isinstance(p, dict) and 'enabled' in p for p in paths.values())
 
     # ------------------------------------------------------------------
     # Phase 3: declarative graph config -> generic primitives -> deploy.

@@ -14,12 +14,12 @@ baseline:
     applications: 8
 attack_paths:
   ownership_user_role:
-    technique: ApplicationOwnershipAbuse
+    privilege_escalation: ApplicationOwnershipAbuse
     initial_access: user
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10
   ownership_sp_api:
-    technique: ApplicationOwnershipAbuse
+    privilege_escalation: ApplicationOwnershipAbuse
     initial_access: service_principal
     method: APIPermission
     api_type: graph
@@ -27,7 +27,7 @@ attack_paths:
     - 06b708a9-e830-4db3-a914-8e69da51d44f
     - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
   ownership_sp_exchange:
-    technique: ApplicationOwnershipAbuse
+    privilege_escalation: ApplicationOwnershipAbuse
     initial_access: service_principal
     method: APIPermission
     api_type: exchange

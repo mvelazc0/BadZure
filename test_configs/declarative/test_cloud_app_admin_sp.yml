@@ -14,7 +14,7 @@ baseline:
     applications: 3
 attack_paths:
   cloud_app_admin_sp:
-    technique: CloudAppAdministratorAbuse
+    privilege_escalation: CloudAppAdministratorAbuse
     initial_access: service_principal
     method: APIPermission
     api_type: graph

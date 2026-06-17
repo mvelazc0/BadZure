@@ -16,6 +16,6 @@ baseline:
     cosmos_dbs: 1
 attack_paths:
   cosmos_theft_user:
-    technique: CosmosDBSecretTheft
+    privilege_escalation: CosmosDBSecretTheft
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10

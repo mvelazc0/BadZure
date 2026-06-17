@@ -14,7 +14,7 @@ baseline:
     applications: 2
 attack_paths:
   app_ownership_user_role:
-    technique: ApplicationOwnershipAbuse
+    privilege_escalation: ApplicationOwnershipAbuse
     initial_access: user
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10

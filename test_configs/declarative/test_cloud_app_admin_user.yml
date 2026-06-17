@@ -14,6 +14,6 @@ baseline:
     applications: 2
 attack_paths:
   cloud_app_admin_user:
-    technique: CloudAppAdministratorAbuse
+    privilege_escalation: CloudAppAdministratorAbuse
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10

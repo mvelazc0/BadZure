@@ -14,7 +14,7 @@ baseline:
     applications: 3
 attack_paths:
   app_admin_sp_scoped:
-    technique: ApplicationAdministratorAbuse
+    privilege_escalation: ApplicationAdministratorAbuse
     initial_access: service_principal
     scope: application
     method: AzureADRole

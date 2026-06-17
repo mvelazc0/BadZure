@@ -16,7 +16,7 @@ baseline:
     key_vaults: 1
 attack_paths:
   kv_theft_group_owner:
-    technique: KeyVaultSecretTheft
+    privilege_escalation: KeyVaultSecretTheft
     assignment_type: group_owner
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10

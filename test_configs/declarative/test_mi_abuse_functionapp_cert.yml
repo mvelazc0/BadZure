@@ -17,7 +17,7 @@ baseline:
     function_apps: 1
 attack_paths:
   mi_abuse_functionapp_cert:
-    technique: ManagedIdentityAbuse
+    privilege_escalation: ManagedIdentityAbuse
     source_type: function_app
     target_resource_type: key_vault
     credential_type: certificate

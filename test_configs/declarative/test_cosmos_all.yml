@@ -16,25 +16,25 @@ baseline:
     cosmos_dbs: 6
 attack_paths:
   cosmos_user:
-    technique: CosmosDBSecretTheft
+    privilege_escalation: CosmosDBSecretTheft
     initial_access: user
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10
   cosmos_sp:
-    technique: CosmosDBSecretTheft
+    privilege_escalation: CosmosDBSecretTheft
     initial_access: service_principal
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
   cosmos_group_member:
-    technique: CosmosDBSecretTheft
+    privilege_escalation: CosmosDBSecretTheft
     initial_access: user
     assignment_type: group_member
     method: APIPermission
     api_type: graph
     app_role: random
   cosmos_group_owner:
-    technique: CosmosDBSecretTheft
+    privilege_escalation: CosmosDBSecretTheft
     initial_access: user
     assignment_type: group_owner
     method: APIPermission

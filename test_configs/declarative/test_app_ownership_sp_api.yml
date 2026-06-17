@@ -14,7 +14,7 @@ baseline:
     applications: 3
 attack_paths:
   app_ownership_sp_api:
-    technique: ApplicationOwnershipAbuse
+    privilege_escalation: ApplicationOwnershipAbuse
     initial_access: service_principal
     method: APIPermission
     api_type: graph

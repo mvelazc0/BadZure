@@ -16,6 +16,6 @@ baseline:
     storage_accounts: 1
 attack_paths:
   storage_theft_user:
-    technique: StorageCertificateTheft
+    privilege_escalation: StorageCertificateTheft
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10

@@ -78,9 +78,8 @@ _TECHNIQUE_CASES = {
 
 def _technique_config(technique, knobs):
     return {
-        "schema": "graph",
         "baseline": _FULL_BASELINE,
-        "attack_paths": {"path1": {"technique": technique, **knobs}},
+        "attack_paths": {"path1": {"privilege_escalation": technique, **knobs}},
     }
 
 
@@ -131,11 +130,10 @@ def test_inline_entities_run_targeted():
     # Inline identities/resources -> the macro runs in targeted mode against the
     # named entities (the scenarios2 shape: MI logic_app -> key_vault, SP access).
     config = {
-        "schema": "graph",
         "baseline": {"identities": {"users": 4, "applications": 4}},
         "attack_paths": {
             "mi_inline": {
-                "technique": "ManagedIdentityAbuse",
+                "privilege_escalation": "ManagedIdentityAbuse",
                 "source_type": "logic_app", "target_resource_type": "key_vault",
                 "credential_type": "secret", "initial_access": "service_principal",
                 "method": "APIPermission", "api_type": "exchange",
@@ -207,11 +205,10 @@ def test_mixed_technique_and_explicit_paths():
     # A Tier-1 technique path and a Tier-2 explicit path side by side (the
     # on-ramp-then-graduate story) compile together.
     config = {
-        "schema": "graph",
         "baseline": {"identities": {"users": 6, "applications": 4},
                      "resources": {"key_vaults": 1}},
         "attack_paths": {
-            "sugar": {"technique": "KeyVaultSecretTheft", "method": "AzureADRole",
+            "sugar": {"privilege_escalation": "KeyVaultSecretTheft", "method": "AzureADRole",
                       "entra_role": "random"},
             "explicit": {
                 "objective": {"name": "GA via owned app", "impact": "critical",
@@ -239,12 +236,11 @@ def test_mixed_technique_and_explicit_paths():
 
 def test_technique_xor_assignments_is_rejected():
     config = {
-        "schema": "graph",
         "baseline": {"identities": {"users": 3, "applications": 2},
                      "resources": {"key_vaults": 1}},
         "attack_paths": {
             "bad": {
-                "technique": "KeyVaultSecretTheft",
+                "privilege_escalation": "KeyVaultSecretTheft",
                 "assignments": [{"id": "a1", "type": "entra_role",
                                  "principal_ref": "x", "role": "random"}],
             }
@@ -259,23 +255,21 @@ def test_technique_xor_assignments_is_rejected():
 
 def test_unknown_technique_is_rejected():
     config = {
-        "schema": "graph",
         "baseline": {"identities": {"users": 3, "applications": 2}},
-        "attack_paths": {"bad": {"technique": "NotARealTechnique"}},
+        "attack_paths": {"bad": {"privilege_escalation": "NotARealTechnique"}},
     }
     try:
         _load(config)
         assert False, "expected error for unknown technique"
     except ScenarioConfigError as e:
-        assert "unknown technique" in str(e)
+        assert "unknown privilege_escalation" in str(e)
 
 
 def test_missing_baseline_entity_errors_clearly():
     # mode=random KeyVaultSecretTheft with no key_vault in the baseline.
     config = {
-        "schema": "graph",
         "baseline": {"identities": {"users": 3, "applications": 2}},
-        "attack_paths": {"kv": {"technique": "KeyVaultSecretTheft",
+        "attack_paths": {"kv": {"privilege_escalation": "KeyVaultSecretTheft",
                                 "method": "AzureADRole", "entra_role": "random"}},
     }
     try:
@@ -373,10 +367,9 @@ def test_sp_resource_theft_principal_differs_from_looted_app():
     for technique, resources in cases:
         for _ in range(8):  # random pick — exercise it a few times
             scenario = _load({
-                "schema": "graph",
                 "baseline": {"identities": {"applications": 2}, "resources": resources},
                 "attack_paths": {"p": {
-                    "technique": technique, "initial_access": "service_principal",
+                    "privilege_escalation": technique, "initial_access": "service_principal",
                     "method": "AzureADRole", "entra_role": "random"}},
             })
             summary = scenario.attack_paths[0].summary

@@ -229,7 +229,7 @@ class ScenarioLoader:
         technique_creds: Dict[str, Dict] = {}
         for path_name, path in attack_paths.items():
             resolved = self._resolve_aliases_in_path(path, alias)
-            if "technique" in path:
+            if "privilege_escalation" in path:
                 overlay = self._compile_technique_path(
                     path_name, resolved, ref_kind, entities, primitives, domain,
                     used_apps, used_users)
@@ -815,7 +815,7 @@ class ScenarioLoader:
         Entity sourcing (decision #1): a path with inline `identities:`/`resources:`
         runs the macro in `targeted` mode against those named entities; otherwise it
         runs `random` and the macro picks victims/targets from the baseline."""
-        technique = path["technique"]
+        technique = path["privilege_escalation"]
         if technique not in VALID_TECHNIQUES:
             raise ScenarioConfigError(
                 f"{path_name}: unknown technique '{technique}'. "

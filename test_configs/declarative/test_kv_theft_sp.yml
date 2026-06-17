@@ -16,7 +16,7 @@ baseline:
     key_vaults: 1
 attack_paths:
   kv_theft_sp:
-    technique: KeyVaultSecretTheft
+    privilege_escalation: KeyVaultSecretTheft
     initial_access: service_principal
     method: APIPermission
     api_type: graph

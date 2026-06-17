@@ -16,7 +16,7 @@ baseline:
     cosmos_dbs: 1
 attack_paths:
   cosmos_theft_group:
-    technique: CosmosDBSecretTheft
+    privilege_escalation: CosmosDBSecretTheft
     assignment_type: group_member
     method: APIPermission
     api_type: graph

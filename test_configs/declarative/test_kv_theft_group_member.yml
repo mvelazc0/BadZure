@@ -16,7 +16,7 @@ baseline:
     key_vaults: 1
 attack_paths:
   kv_theft_group_member:
-    technique: KeyVaultSecretTheft
+    privilege_escalation: KeyVaultSecretTheft
     assignment_type: group_member
     method: APIPermission
     api_type: graph
