@@ -58,10 +58,11 @@ class BuildCommand:
 
     @classmethod
     def _is_legacy_config(cls, config: Dict) -> bool:
-        """Detect a retired legacy `mode:` config to reject it with guidance. Legacy
-        markers absent from the declarative shape: a top-level `mode:`, `tenant:`
-        entity COUNTS, or per-path `enabled:`. NOTE: both shapes use
-        `privilege_escalation:`, so that is NOT a discriminator."""
+        """Detect a retired legacy `mode:` config to reject it with guidance. The only
+        markers absent from the declarative shape are a top-level `mode:` or `tenant:`
+        entity COUNTS (the declarative shape puts counts under `baseline:`). NOTE:
+        `privilege_escalation:` AND `enabled:` are both valid in the new shape, so
+        neither is a discriminator."""
         if not isinstance(config, dict):
             return False
         if config.get('mode') in ('random', 'targeted'):
@@ -69,10 +70,7 @@ class BuildCommand:
         tenant = config.get('tenant')
         if isinstance(tenant, dict) and any(k in tenant for k in cls._LEGACY_TENANT_COUNT_KEYS):
             return True
-        paths = config.get('attack_paths') or {}
-        if not isinstance(paths, dict):
-            return False
-        return any(isinstance(p, dict) and 'enabled' in p for p in paths.values())
+        return False
 
     # ------------------------------------------------------------------
     # Phase 3: declarative graph config -> generic primitives -> deploy.

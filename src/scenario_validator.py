@@ -63,6 +63,10 @@ def validate(config: Dict) -> None:
 
     _validate_baseline(config.get("baseline"), errors)
     for name, path in attack_paths.items():
+        # `enabled: false` parks a path — skip validation so a half-finished or
+        # intentionally-broken parked path doesn't block the build.
+        if isinstance(path, dict) and path.get("enabled") is False:
+            continue
         _validate_path(str(name), path, errors, warnings)
 
     for w in warnings:

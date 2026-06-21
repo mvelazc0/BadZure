@@ -377,6 +377,28 @@ def test_sp_resource_theft_principal_differs_from_looted_app():
                 f"{technique}: looted app == initial-access SP ({summary['app_name']})"
 
 
+def test_enabled_false_parks_a_path():
+    # enabled: false -> the path is defined but NOT deployed (no entities, no edges),
+    # and a parked path may even be half-broken without blocking the build.
+    cfg = {
+        "tenant": {"tenant_id": None},
+        "baseline": {"identities": {"users": 4, "applications": 4},
+                     "resources": {"key_vaults": 1}},
+        "attack_paths": {
+            "active": {"privilege_escalation": "KeyVaultSecretTheft",
+                       "method": "AzureADRole", "entra_role": "random"},
+            "parked": {"enabled": False,
+                       "privilege_escalation": "NotARealTechnique"},  # broken but parked
+            "explicit_on": {"enabled": True,
+                            "privilege_escalation": "ApplicationOwnershipAbuse",
+                            "method": "AzureADRole", "entra_role": "random"},
+        },
+    }
+    scenario = _load(cfg)                       # must NOT raise on the broken parked path
+    names = {ov.name for ov in scenario.attack_paths}
+    assert names == {"active", "explicit_on"}, names   # parked skipped; enabled:true kept
+
+
 def _main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

@@ -179,10 +179,17 @@ class ScenarioLoader:
         scenario_validator.validate(config)
 
         baseline_config = config.get("baseline") or {}
-        attack_paths = config.get("attack_paths") or {}
+        # `enabled: false` parks a path (defined but not deployed); default is true.
+        # Disabled paths are dropped HERE so they build no entities and emit no edges.
+        attack_paths = {
+            name: path
+            for name, path in (config.get("attack_paths") or {}).items()
+            if not (isinstance(path, dict) and path.get("enabled") is False)
+        }
         if not attack_paths and not baseline_config:
             raise ScenarioConfigError(
-                "Declarative config declares neither a baseline nor any attack_paths."
+                "Declarative config declares neither a baseline nor any (enabled) "
+                "attack_paths."
             )
 
         # 1. The org-baseline. Built FIRST so attack paths can pick from it.
