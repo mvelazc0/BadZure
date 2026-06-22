@@ -113,23 +113,27 @@ BadZure automatically handles certificate lifecycle:
 
 ## Configuration Examples
 
-User with direct storage access, application has Global Administrator role:
+User with direct storage access, application has Global Administrator role. A complete minimal config:
 
 ```yaml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+baseline:
+  identities: { users: 2, applications: 2 }
+  resources:  { storage_accounts: 1 }
 attack_paths:
   storage_theft_basic:
-    enabled: true
     privilege_escalation: StorageCertificateTheft
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
+
+The remaining examples show just the `attack_paths:` entry — add them to a config with the baseline above.
 
 Service principal with Graph API permissions:
 
 ```yaml
 attack_paths:
   storage_theft_sp:
-    enabled: true
     privilege_escalation: StorageCertificateTheft
     initial_access: service_principal
     method: APIPermission
@@ -144,7 +148,6 @@ Group-based assignment:
 ```yaml
 attack_paths:
   storage_theft_group:
-    enabled: true
     privilege_escalation: StorageCertificateTheft
     assignment_type: group_member
     method: APIPermission
@@ -153,7 +156,7 @@ attack_paths:
 ```
 
 !!! tip
-    Make sure your tenant configuration includes at least one Storage Account (`storage_accounts: 1`) when using this attack path.
+    Make sure your `baseline.resources` includes at least one Storage Account (`storage_accounts: 1`) when using this technique.
 
 ## Further Reading
 

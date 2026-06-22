@@ -1,33 +1,44 @@
 # Configuration Guide
 
-BadZure is configured through a YAML file that defines your tenant settings, the entities to create, and the attack paths to configure. By default, BadZure looks for `badzure.yml` in the project root.
+BadZure is configured through a YAML file that defines your tenant, a **baseline** organization, and the **attack paths** to layer on top. By default, BadZure looks for `badzure.yml` in the project root; use `--config` to point at another file.
 
 ## How It Works
 
-You define the number of entities to create and the attack paths to configure. BadZure creates the specified entities with realistic names and **randomly assigns** them to attack paths. You define counts and attack path types, and BadZure handles the rest.
+A BadZure YAML configuration file has two parts:
+
+- **`baseline:`** defines the realistic background organization: benign users, groups, apps, resources, and everyday assignments. It is the environment the attack paths are applied to.
+- **`attack_paths:`** defines the deliberate misconfigurations added on top of the baseline.
+
+Each attack path is authored with one of two methods:
+
+- **atomic:** specifies a single **`privilege_escalation:`** technique and a few options. BadZure builds the full chain and randomly selects the victim and target identities from the baseline.
+- **chained:** defines the attack path explicitly using primitives. This method supports creating multi privilege escalation attack paths that span several steps.
+
+A minimal config looks like this:
 
 ```yaml
+
 tenant:
   tenant_id: YOUR-TENANT-GUID
   domain: yourdomain.onmicrosoft.com
   subscription_id: YOUR-SUBSCRIPTION-GUID
-  users: 30
-  applications: 10
-  groups: 10
+
+baseline:
+  identities: { users: 5, applications: 3, groups: 2 }
+  resources:  { key_vaults: 1 }
 
 attack_paths:
-  path_1:
-    enabled: true
-    privilege_escalation: ApplicationOwnershipAbuse
+  kv_theft:
+    privilege_escalation: KeyVaultSecretTheft
     method: AzureADRole
-    entra_role: random
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
+
+Each path is active by default. To keep a path defined in the file but not deploy it, set `enabled: false`.
 
 ## Tenant Settings
 
-The `tenant` section defines your Azure environment and resource counts.
-
-### Required Settings
+The `tenant` section identifies your Azure environment.
 
 | Setting | Description |
 |---|---|
@@ -36,48 +47,81 @@ The `tenant` section defines your Azure environment and resource counts.
 | `subscription_id` | Azure subscription GUID for provisioning resources |
 
 !!! tip
-    These values can also be set via environment variables in a `.env` file. See `.env.example` for the template.
+    These can also be set via environment variables in a `.env` file (`BADZURE_TENANT_ID`, `BADZURE_DOMAIN`, `BADZURE_SUBSCRIPTION_ID`). Leave the YAML values `null` to use them. See `.env.example`.
 
-### Entra ID Entities
+## Baseline — the Background Organization
+
+The `baseline:` section populates the lab with benign background entities such as users, groups, applications, Azure resources, and the routine assignments between them, so the tenant looks like a real organization. They exist to provide realism: in a tenant containing only attack path resources, every object an operator enumerates is part of the solution. The baseline buries those paths in benign noise, so they have to be uncovered through real reconnaissance instead of by listing every object in the tenant.
+
+The baseline has three sub-sections.
+
+### `baseline.identities` — Entra entities
 
 | Setting | Description |
 |---|---|
 | `users` | Number of user accounts to create |
-| `applications` | Number of application registrations to create |
-| `groups` | Number of security groups to create |
-| `administrative_units` | Number of administrative units to create |
+| `applications` | Number of application registrations / service principals |
+| `groups` | Number of security groups |
+| `administrative_units` | Number of administrative units |
 
-### Azure Resources
+### `baseline.resources` — Azure resources
 
-| Setting | Description | Required By |
+| Setting | Description | Needed by |
 |---|---|---|
-| `resource_groups` | Number of resource groups | All Azure resources |
-| `key_vaults` | Number of Key Vaults | KeyVaultSecretTheft, ManagedIdentityAbuse (key_vault target) |
-| `storage_accounts` | Number of Storage Accounts | StorageCertificateTheft, ManagedIdentityAbuse (storage_account target) |
-| `virtual_machines` | Number of Linux VMs (with networking) | ManagedIdentityAbuse (vm source) |
-| `logic_apps` | Number of Logic Apps (with system-assigned managed identities) | ManagedIdentityAbuse (logic_app source) |
-| `automation_accounts` | Number of Automation Accounts (with system-assigned managed identities) | ManagedIdentityAbuse (automation_account source) |
-| `function_apps` | Number of Function Apps (with system-assigned managed identities) | ManagedIdentityAbuse (function_app source) |
-| `cosmos_dbs` | Number of Cosmos DB accounts (serverless, SQL API) | CosmosDBSecretTheft, ManagedIdentityAbuse (cosmos_db target) |
+| `key_vaults` | Key Vaults | KeyVaultSecretTheft, ManagedIdentityAbuse |
+| `storage_accounts` | Storage Accounts | StorageCertificateTheft, ManagedIdentityAbuse |
+| `virtual_machines` | Windows or Linux VMs | ManagedIdentityAbuse |
+| `logic_apps` | Logic Apps | ManagedIdentityAbuse |
+| `automation_accounts` | Automation Accounts | ManagedIdentityAbuse  |
+| `function_apps` | Function Apps | ManagedIdentityAbuse  |
+| `cosmos_dbs` | Cosmos DB accounts | CosmosDBSecretTheft, ManagedIdentityAbuse |
 
-!!! warning
-    Make sure resource counts match your attack path requirements. For example, if you enable a ManagedIdentityAbuse path with `source_type: vm`, you need at least `virtual_machines: 1`.
+Resource groups are created automatically.
 
-## Attack Path Options
+### `baseline.assignments` — (optional)
 
-Each attack path is a named entry under `attack_paths`. The name is arbitrary — use something descriptive.
+Realistic everyday assignments that recreate how access is distributed across a real organization: users added to groups, groups granted access to resources, applications holding permissions accumulated over time. Modeling that structure is what makes the tenant look authentic, so the seeded attack paths blend into believable access patterns instead of standing out as the only relationships present.
 
-### Common Options
+```yaml
+baseline:
+  identities: { users: 15, groups: 4, applications: 6, administrative_units: 2 }
+  resources:  { key_vaults: 2, storage_accounts: 1 }
+  assignments:
+    group_memberships: 12   # users/groups added to groups
+    entra_roles: 4          # low-priv directory roles on users/apps
+    api_permissions: 3      # benign Graph permissions on apps
+    au_memberships: 2       # users/groups in administrative units
+    azure_rbac: 6           # Reader/Contributor/... over the baseline resources
+    group_ownerships: 3     # users owning groups
+    app_ownerships: 3       # users owning app registrations
+    app_credentials: 4      # client secrets on service principals
+    data_injects: 2         # benign secrets/blobs in the baseline vaults/storage
+```
 
-These options are available for **all** attack path types:
+## Attack Paths
+
+The `attack_paths:` section defines the attack paths BadZure builds into the tenant. Each named entry is a single attack path.
+
+A path is defined with one of two methods.
+
+
+**Atomic** generates a path from a single privilege escalation technique. You select a technique from the supported list and set the options that control how it is built. An atomic path contains one escalation step.
+
+**Chained** defines a path as an explicit tenat posture graph written directly in YAML under assignments:. You declare the entities and the relationships between them as primitives. This lets you combine multiple privilege escalation techniques into a single path and form an attack chain of several steps.
+
+The rest of this section documents Tier-1 **atomic**; [Authoring an Explicit Graph](#authoring-an-explicit-graph-chained) covers **chained**.
+
+### Common Options (atomic)
+
+These options are available for **all** technique types:
 
 | Option | Values | Default | Description |
 |---|---|---|---|
-| `enabled` | `true`, `false` | — | Whether this attack path is active |
-| `privilege_escalation` | See below | — | The escalation technique |
+| `enabled` | `true`, `false` | `true` | Set `false` to park the path (defined but not deployed). Applies to any path, atomic or chained |
+| `privilege_escalation` | See below | — | The privilege-escalation technique |
 | `method` | `AzureADRole`, `APIPermission` | — | How the target app gets its privileges |
 | `initial_access` | `user`, `service_principal` | `user` | Type of initial access identity |
-| `assignment_type` | `direct`, `group_member`, `group_owner` | `direct` | Direct assignment, via group membership, or via group ownership |
+| `assignment_type` | `direct`, `group_member`, `group_owner` | `direct` | Direct, via group membership, or via group ownership |
 
 ### Option Details
 
@@ -98,9 +142,9 @@ For detailed descriptions of each technique, see the [Attack Paths](attack-paths
 - **`user`** — A regular user account (default). Simulates compromised employee, developer, or administrator accounts
 - **`service_principal`** — An application's service principal. Simulates compromised CI/CD pipelines, automation accounts, or third-party integrations
 
-All attack paths support both identity types:
+All techniques support both identity types:
 
-| Attack Path | User | Service Principal |
+| Technique | User | Service Principal |
 |---|---|---|
 | ApplicationOwnershipAbuse | User as application owner | SP as application owner |
 | ApplicationAdministratorAbuse | User with App Admin role | SP with App Admin role |
@@ -113,7 +157,7 @@ All attack paths support both identity types:
 **`assignment_type`** — How permissions are granted to the initial access identity:
 
 - **`direct`** — Permissions assigned directly to the identity (default). The user or service principal has explicit permissions.
-- **`group_member`** — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This creates attack scenarios that mirror enterprise configurations where permissions are managed through groups.
+- **`group_member`** — Permissions assigned to a security group. The identity is added as a member of the group and inherits permissions through group membership. This mirrors enterprise configurations where permissions are managed through groups.
 - **`group_owner`** — The identity is added as an owner of a security group that has permissions. This simulates scenarios where group ownership is leveraged to control privileged groups.
 
 ### Privilege Assignment
@@ -175,65 +219,41 @@ How the target application receives its high privileges.
 
 ## Per-Technique Options
 
+Each technique adds its own knobs. The required field is always `privilege_escalation: <Name>`.
+
 ### ApplicationOwnershipAbuse
 
-**Required fields:**
+**Required:** `privilege_escalation: ApplicationOwnershipAbuse`, `method` (`AzureADRole` or `APIPermission`), and the matching `entra_role`/`app_role`.
 
-- `privilege_escalation: ApplicationOwnershipAbuse`
-- `method`: `AzureADRole` or `APIPermission`
-- `entra_role` or `app_role`: The privileges assigned to the application
+**Optional:** `initial_access` (`user` default, or `service_principal`).
 
-**Optional fields:**
-
-- `initial_access`: `user` (default) or `service_principal`
+!!! warning
+    This technique only supports `direct` assignment. Azure AD does not allow security groups to own applications, so `group_member`/`group_owner` fall back to `direct`.
 
 ### ApplicationAdministratorAbuse
 
-**Required fields:**
+**Required:** `privilege_escalation: ApplicationAdministratorAbuse`, `method`, and the matching `entra_role`/`app_role`.
 
-- `privilege_escalation: ApplicationAdministratorAbuse`
-- `method`: `AzureADRole` or `APIPermission`
-- `entra_role` or `app_role`: The privileges assigned to the target application
-
-**Optional fields:**
-
-- `initial_access`: `user` (default) or `service_principal`
-- `scope`: `directory` (default) or `application`
+**Optional:** `initial_access`, `assignment_type`, `scope`.
 
 **`scope`** — Controls whether the Application Administrator role is assigned tenant-wide or scoped to a specific application:
 
-- **`directory`** — The role applies to **all** applications in the tenant (default, existing behavior)
-- **`application`** — The role is scoped to only the **target application**. This uses Azure Entra ID's `directory_scope_id` to restrict the role assignment. More realistic for least-privilege environments where admins are scoped to specific apps.
+- **`directory`** — The role applies to **all** applications in the tenant (default)
+- **`application`** — The role is scoped to only the **target application** (uses Entra ID's `directory_scope_id`). More realistic for least-privilege environments.
 
 ### CloudAppAdministratorAbuse
 
-**Required fields:**
+**Required:** `privilege_escalation: CloudAppAdministratorAbuse`, `method`, and the matching `entra_role`/`app_role`.
 
-- `privilege_escalation: CloudAppAdministratorAbuse`
-- `method`: `AzureADRole` or `APIPermission`
-- `entra_role` or `app_role`: The privileges assigned to the target application
+**Optional:** `initial_access`, `assignment_type`, `scope`.
 
-**Optional fields:**
-
-- `initial_access`: `user` (default) or `service_principal`
-- `scope`: `directory` (default) or `application`
-
-This technique is identical to `ApplicationAdministratorAbuse` in configuration, but uses the **Cloud Application Administrator** role (`158c047a-c907-4556-b7ef-446551a6b5f7`) instead. The Cloud Application Administrator role has a narrower scope — it cannot manage applications with certain sensitive permissions. See [CloudAppAdministratorAbuse](attack-paths/cloud-app-administrator-abuse.md) for details.
+Identical to `ApplicationAdministratorAbuse` in configuration, but uses the **Cloud Application Administrator** role (`158c047a-c907-4556-b7ef-446551a6b5f7`) — a narrower role that cannot manage applications with certain sensitive permissions. See [CloudAppAdministratorAbuse](attack-paths/cloud-app-administrator-abuse.md).
 
 ### ManagedIdentityAbuse
 
-**Required fields:**
+**Required:** `privilege_escalation: ManagedIdentityAbuse`, `source_type`, `target_resource_type`, `method`, and the matching `entra_role`/`app_role`.
 
-- `privilege_escalation: ManagedIdentityAbuse`
-- `source_type`: The Azure resource with the managed identity
-- `target_resource_type`: The resource storing the application credentials
-- `method`: `AzureADRole` or `APIPermission`
-- `entra_role` or `app_role`: The privileges assigned to the application
-
-**Optional fields:**
-
-- `initial_access`: `user` (default) or `service_principal`
-- `credential_type`: `secret` (default) or `certificate`
+**Optional:** `initial_access`, `assignment_type`, `credential_type`.
 
 **`source_type`** — The Azure resource with the managed identity:
 
@@ -254,57 +274,77 @@ This technique is identical to `ApplicationAdministratorAbuse` in configuration,
 
 **`credential_type`** — The type of credential stored in the target resource:
 
-- **`secret`** — Application uses client ID and secret for authentication (default). Easier to implement but secrets can be logged or cached.
-- **`certificate`** — Application uses X.509 certificate-based authentication. More secure and harder to detect in logs, but requires certificate management. Applies to both `key_vault` and `storage_account` targets.
+- **`secret`** — Client ID + secret authentication (default).
+- **`certificate`** — X.509 certificate-based authentication. Applies to `key_vault` and `storage_account` targets.
+
+Ensure your baseline contains the source compute and target resource (e.g. `virtual_machines: 1` + `key_vaults: 1`), or declare them inline on the path.
 
 ### KeyVaultSecretTheft
 
-**Required fields:**
+**Required:** `privilege_escalation: KeyVaultSecretTheft`, `method`, and the matching `entra_role`/`app_role`.
 
-- `privilege_escalation: KeyVaultSecretTheft`
-- `method`: `AzureADRole` or `APIPermission`
-- `entra_role` or `app_role`: The privileges assigned to the application
+**Optional:** `initial_access`, `assignment_type`.
 
-**Optional fields:**
-
-- `initial_access`: `user` (default) or `service_principal`
+Ensure your baseline includes `key_vaults: 1` (or more).
 
 !!! note
-    For scenarios involving managed identity token theft to access Key Vault, use `ManagedIdentityAbuse` with `target_resource_type: key_vault` instead.
+    For managed-identity token theft to access Key Vault, use `ManagedIdentityAbuse` with `target_resource_type: key_vault` instead.
 
 ### StorageCertificateTheft
 
-**Required fields:**
+**Required:** `privilege_escalation: StorageCertificateTheft`, `method`, and the matching `entra_role`/`app_role`.
 
-- `privilege_escalation: StorageCertificateTheft`
-- `method`: `AzureADRole` or `APIPermission`
-- `entra_role` or `app_role`: The privileges assigned to the application
+**Optional:** `initial_access`, `assignment_type`.
 
-**Optional fields:**
-
-- `initial_access`: `user` (default) or `service_principal`
-
-!!! note
-    For scenarios involving managed identity token theft to access Storage Account, use `ManagedIdentityAbuse` with `target_resource_type: storage_account` instead.
+Ensure your baseline includes `storage_accounts: 1` (or more).
 
 ### CosmosDBSecretTheft
 
-**Required fields:**
+**Required:** `privilege_escalation: CosmosDBSecretTheft`, `method`, and the matching `entra_role`/`app_role`.
 
-- `privilege_escalation: CosmosDBSecretTheft`
-- `method`: `AzureADRole` or `APIPermission`
-- `entra_role` or `app_role`: The privileges assigned to the application
+**Optional:** `initial_access`, `assignment_type`.
 
-**Optional fields:**
+Ensure your baseline includes `cosmos_dbs: 1` (or more).
 
-- `initial_access`: `user` (default) or `service_principal`
+## Authoring an Explicit Graph (chained)
 
-!!! note
-    For scenarios involving managed identity token theft to access Cosmos DB, use `ManagedIdentityAbuse` with `target_resource_type: cosmos_db` instead.
+A chained path is built from primitives rather than from a named `privilege_escalation:` technique, which supports custom attack chains that span several steps. A chained path declares an objective, an initial access point, the entities it uses (declared inline), the assignments that form the chain, and any credentials it creates and data_injects it places. `privilege_escalation:` and `assignments:` are mutually exclusive within a path.
+
+```yaml
+attack_paths:
+  explicit_kv_to_ga:
+    objective:
+      name: "Global Administrator via Key Vault"
+      impact: critical
+      capability: entra_role          # what the attacker ultimately gains
+      role: "Global Administrator"
+    initial_access: { method: compromised_identity, principal_ref: priya }
+    identities:
+      users:        [{ ref: priya }]
+      applications: [{ ref: billing-sync-app }]
+    resources:
+      # ref doubles as the real Key Vault name -> globally unique, 3-24 chars
+      key_vaults:   [{ ref: badzure-ref-kv-01 }]
+    assignments:
+      - { id: a1, type: azure_rbac, principal_ref: priya,
+          role: "Key Vault Contributor", scope_ref: badzure-ref-kv-01 }
+      - { id: a2, type: entra_role, principal_ref: billing-sync-app,
+          role: "Global Administrator" }
+    credentials:
+      - { ref: app_secret, app_ref: billing-sync-app, type: password }
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: badzure-ref-kv-01,
+          name: client-secret-billing-sync-app }
+```
+
+The chain reads: `priya` holds **Key Vault Contributor** on the vault → reads the planted secret → authenticates as `billing-sync-app`, which holds **Global Administrator**. 
+
+The nine assignment `type`s are `entra_role`, `azure_rbac`, `api_permission`, `group_membership`, `group_ownership`, `app_ownership`, `au_membership` (plus `credentials` and `data_injects` as their own blocks). A chained path can also borrow entities from the baseline with `{ ref: victim, from: baseline }`. See `test_configs/declarative/declarative_hybrid.yml` for a worked hybrid example.
 
 ## Group-Based Assignment
 
-All privilege escalation techniques support group-based assignment using `assignment_type: group_member` or `assignment_type: group_owner`. When using `group_member`, permissions are assigned to a security group and the initial access identity is added as a member of that group, inheriting permissions through group membership. When using `group_owner`, the identity is added as an owner of the group instead.
+All identity- and resource-based techniques (except ApplicationOwnershipAbuse) support group-based assignment via `assignment_type: group_member` or `group_owner`. With `group_member`, the privilege is assigned to a security group and the initial-access identity is added as a **member**; with `group_owner`, the identity is added as an **owner** of the group instead.
 
 This creates more realistic attack scenarios that mirror enterprise configurations where:
 
@@ -312,45 +352,43 @@ This creates more realistic attack scenarios that mirror enterprise configuratio
 - Attack paths require discovering group memberships to understand privilege chains
 - Detection requires correlating group membership with resource access
 
-Groups created for attack paths use realistic names from the `entity_data/group-names.txt` file (e.g., "IT Security", "Cloud Infrastructure", "DevOps") with a random suffix for uniqueness.
+Groups created for attack paths use realistic names from `entity_data/group-names.txt` (e.g., "IT Security", "Cloud Infrastructure", "DevOps") with a random suffix for uniqueness.
 
 ### Group Assignment Examples
 
 === "ApplicationOwnershipAbuse"
 
     !!! warning
-        `ApplicationOwnershipAbuse` only supports `direct` assignment. Azure AD does not allow security groups to be application owners, so `group_member` and `group_owner` are **not supported** for this technique and will automatically fall back to `direct`. See [ApplicationOwnershipAbuse](attack-paths/app-ownership-abuse.md) for details.
+        `ApplicationOwnershipAbuse` only supports `direct` assignment — Azure AD does not allow security groups to own applications, so `group_member`/`group_owner` fall back to `direct`.
 
 === "ApplicationAdministratorAbuse"
 
-    User inherits Application Administrator role through group membership:
+    User inherits Application Administrator through group membership:
 
     ```yaml
-    attack_path_admin_group:
-      enabled: true
-
-      privilege_escalation: ApplicationAdministratorAbuse
-      initial_access: user
-      assignment_type: group_member
-      method: APIPermission
-      api_type: graph
-      app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+    attack_paths:
+      app_admin_group:
+        privilege_escalation: ApplicationAdministratorAbuse
+        initial_access: user
+        assignment_type: group_member
+        method: APIPermission
+        api_type: graph
+        app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
     ```
 
 === "CloudAppAdministratorAbuse"
 
-    User inherits Cloud Application Administrator role through group membership:
+    User inherits Cloud Application Administrator through group membership:
 
     ```yaml
-    attack_path_cloud_admin_group:
-      enabled: true
-
-      privilege_escalation: CloudAppAdministratorAbuse
-      initial_access: user
-      assignment_type: group_member
-      method: APIPermission
-      api_type: graph
-      app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+    attack_paths:
+      cloud_admin_group:
+        privilege_escalation: CloudAppAdministratorAbuse
+        initial_access: user
+        assignment_type: group_member
+        method: APIPermission
+        api_type: graph
+        app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
     ```
 
 === "ManagedIdentityAbuse"
@@ -358,18 +396,16 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     User inherits VM Contributor through group membership:
 
     ```yaml
-    attack_path_mi_group:
-      enabled: true
-
-      privilege_escalation: ManagedIdentityAbuse
-      source_type: vm
-      target_resource_type: key_vault
-
-      initial_access: user
-      assignment_type: group_member
-      method: APIPermission
-      api_type: graph
-      app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    attack_paths:
+      mi_group:
+        privilege_escalation: ManagedIdentityAbuse
+        source_type: vm
+        target_resource_type: key_vault
+        initial_access: user
+        assignment_type: group_member
+        method: APIPermission
+        api_type: graph
+        app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
     ```
 
 === "KeyVaultSecretTheft"
@@ -377,15 +413,14 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     User inherits Key Vault Contributor through group membership:
 
     ```yaml
-    attack_path_kv_group:
-      enabled: true
-
-      privilege_escalation: KeyVaultSecretTheft
-      initial_access: user
-      assignment_type: group_member
-      method: APIPermission
-      api_type: graph
-      app_role: random
+    attack_paths:
+      kv_group:
+        privilege_escalation: KeyVaultSecretTheft
+        initial_access: user
+        assignment_type: group_member
+        method: APIPermission
+        api_type: graph
+        app_role: random
     ```
 
 === "StorageCertificateTheft"
@@ -393,15 +428,14 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     User inherits Storage Blob Data Reader through group membership:
 
     ```yaml
-    attack_path_storage_group:
-      enabled: true
-
-      privilege_escalation: StorageCertificateTheft
-      initial_access: user
-      assignment_type: group_member
-      method: APIPermission
-      api_type: graph
-      app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    attack_paths:
+      storage_group:
+        privilege_escalation: StorageCertificateTheft
+        initial_access: user
+        assignment_type: group_member
+        method: APIPermission
+        api_type: graph
+        app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
     ```
 
 === "CosmosDBSecretTheft"
@@ -409,69 +443,54 @@ Groups created for attack paths use realistic names from the `entity_data/group-
     User inherits Cosmos DB Data Contributor through group membership:
 
     ```yaml
-    attack_path_cosmos_group:
-      enabled: true
-
-      privilege_escalation: CosmosDBSecretTheft
-      initial_access: user
-      assignment_type: group_member
-      method: APIPermission
-      api_type: graph
-      app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    attack_paths:
+      cosmos_group:
+        privilege_escalation: CosmosDBSecretTheft
+        initial_access: user
+        assignment_type: group_member
+        method: APIPermission
+        api_type: graph
+        app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
     ```
 
 ## Full Example
 
-A complete configuration demonstrating multiple attack path types:
+A complete configuration: a small baseline (with a little org noise), a Tier-1 technique path per scenario, and one Tier-2 explicit path.
 
 ```yaml
+
 tenant:
   tenant_id: your-tenant-guid
   domain: contoso.onmicrosoft.com
   subscription_id: your-subscription-guid
 
-  users: 20
-  applications: 10
-  groups: 5
-  administrative_units: 3
-
-  resource_groups: 2
-  key_vaults: 2
-  storage_accounts: 1
-  virtual_machines: 1
-  logic_apps: 1
-  automation_accounts: 1
-  function_apps: 1
-  cosmos_dbs: 1
+baseline:
+  identities: { users: 12, applications: 8, groups: 4, administrative_units: 2 }
+  resources:  { key_vaults: 2, storage_accounts: 1, virtual_machines: 1, cosmos_dbs: 1 }
+  assignments:
+    group_memberships: 8
+    entra_roles: 3
+    azure_rbac: 5
+    app_credentials: 3
 
 attack_paths:
 
-  # Identity: User owns app with Global Admin
+  # Identity: user owns an app with Global Admin
   ownership_abuse:
-    enabled: true
     privilege_escalation: ApplicationOwnershipAbuse
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10
 
   # Identity: SP with App Admin targets Exchange
   admin_abuse:
-    enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
     initial_access: service_principal
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40
 
-  # Identity: User with Cloud App Admin targets Global Admin
-  cloud_admin_abuse:
-    enabled: true
-    privilege_escalation: CloudAppAdministratorAbuse
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
-
-  # Resource: VM → Key Vault → privileged app
+  # Resource: VM -> Key Vault -> privileged app
   vm_to_keyvault:
-    enabled: true
     privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: key_vault
@@ -479,26 +498,35 @@ attack_paths:
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
 
-  # Resource: Direct Key Vault access via group
+  # Resource: Key Vault access via group, random high-priv role
   keyvault_group:
-    enabled: true
     privilege_escalation: KeyVaultSecretTheft
     assignment_type: group_member
     method: AzureADRole
     entra_role: random
 
-  # Resource: Direct storage access with certs
-  storage_certs:
-    enabled: true
-    privilege_escalation: StorageCertificateTheft
-    method: APIPermission
-    api_type: graph
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
-
-  # Resource: Direct Cosmos DB access
-  cosmos_secrets:
-    enabled: true
-    privilege_escalation: CosmosDBSecretTheft
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+  # chained: explicit graph — user with Key Vault Contributor -> GA app
+  explicit_kv_to_ga:
+    objective:
+      name: "Global Administrator via Key Vault"
+      impact: critical
+      capability: entra_role
+      role: "Global Administrator"
+    initial_access: { method: compromised_identity, principal_ref: dana }
+    identities:
+      users:        [{ ref: dana }]
+      applications: [{ ref: reporting-app }]
+    resources:
+      key_vaults:   [{ ref: badzure-ref-kv-02 }]
+    assignments:
+      - { id: a1, type: azure_rbac, principal_ref: dana,
+          role: "Key Vault Contributor", scope_ref: badzure-ref-kv-02 }
+      - { id: a2, type: entra_role, principal_ref: reporting-app,
+          role: "Global Administrator" }
+    credentials:
+      - { ref: app_secret, app_ref: reporting-app, type: password }
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: badzure-ref-kv-02,
+          name: client-secret-reporting-app }
 ```

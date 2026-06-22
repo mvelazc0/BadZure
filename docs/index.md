@@ -24,7 +24,7 @@ The key advantage of BadZure is its ability to quickly populate and purge tenant
 
 ## How It Works
 
-BadZure reads a YAML configuration file, generates Entra ID entities and Azure resources via Terraform, and configures privilege escalation paths between them. Every attack path starts with a compromised identity (user or service principal) and ends at a high-privilege target.
+BadZure reads a YAML configuration file with two parts: a **`baseline`** that builds a realistic background organization (benign users, apps, resources, and everyday assignments), and **`attack_paths`** that layer the deliberate misconfigurations on top. It generates the Entra ID entities and Azure resources via Terraform and wires the attack paths between them. Every attack path starts with a compromised identity (user or service principal) and ends at a high-privilege target.
 
 ``` mermaid
 graph LR

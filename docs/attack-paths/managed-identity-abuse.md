@@ -206,12 +206,15 @@ graph TD
 
 ## Configuration Examples
 
-VM to Key Vault with Graph API permissions:
+VM to Key Vault with Graph API permissions. A complete minimal config (the baseline must include the source compute + target resource):
 
 ```yaml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+baseline:
+  identities: { users: 2, applications: 2 }
+  resources:  { virtual_machines: 1, key_vaults: 1 }
 attack_paths:
   mi_vm_keyvault:
-    enabled: true
     privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: key_vault
@@ -222,12 +225,13 @@ attack_paths:
       - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 ```
 
+The remaining examples show just the `attack_paths:` entry — make sure the baseline declares the matching `source_type` compute and `target_resource_type` resource.
+
 Logic App to Storage Account with service principal:
 
 ```yaml
 attack_paths:
   mi_logicapp_storage:
-    enabled: true
     privilege_escalation: ManagedIdentityAbuse
     source_type: logic_app
     target_resource_type: storage_account
@@ -241,7 +245,6 @@ Function App with certificate-based credentials:
 ```yaml
 attack_paths:
   mi_functionapp_cert:
-    enabled: true
     privilege_escalation: ManagedIdentityAbuse
     source_type: function_app
     target_resource_type: key_vault
@@ -256,7 +259,6 @@ Automation Account with group-based assignment:
 ```yaml
 attack_paths:
   mi_automation_group:
-    enabled: true
     privilege_escalation: ManagedIdentityAbuse
     source_type: automation_account
     target_resource_type: key_vault
@@ -271,7 +273,6 @@ VM to Cosmos DB with Graph API permissions:
 ```yaml
 attack_paths:
   mi_vm_cosmos:
-    enabled: true
     privilege_escalation: ManagedIdentityAbuse
     source_type: vm
     target_resource_type: cosmos_db

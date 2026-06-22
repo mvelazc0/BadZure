@@ -83,23 +83,24 @@ graph LR
 
 ## Configuration Examples
 
-Basic — user owns an application with Global Administrator role:
+Basic — user owns an application with Global Administrator role. A complete minimal config:
 
 ```yaml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+baseline:
+  identities: { users: 2, applications: 2 }
 attack_paths:
   app_ownership_basic:
-    enabled: true
     privilege_escalation: ApplicationOwnershipAbuse
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
-Service principal with API permissions:
+Service-principal owner with multiple Graph API permissions (just the `attack_paths:` entry — add it to a config with a baseline like the one above):
 
 ```yaml
 attack_paths:
   app_ownership_sp:
-    enabled: true
     privilege_escalation: ApplicationOwnershipAbuse
     initial_access: service_principal
     method: APIPermission

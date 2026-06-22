@@ -29,23 +29,26 @@ graph LR
 
 ## Configuration Examples
 
-User with Cloud Application Administrator targeting an app with an Entra ID role:
+User with Cloud Application Administrator targeting an app with an Entra ID role. A complete minimal config:
 
 ```yaml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+baseline:
+  identities: { users: 2, applications: 2, groups: 1 }
 attack_paths:
   cloud_app_admin_role:
-    enabled: true
     privilege_escalation: CloudAppAdministratorAbuse
     method: AzureADRole
     entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
+
+The remaining examples show just the `attack_paths:` entry — add them to a config with a baseline like the one above.
 
 Application-scoped role assignment:
 
 ```yaml
 attack_paths:
   cloud_app_admin_scoped:
-    enabled: true
     privilege_escalation: CloudAppAdministratorAbuse
     scope: application
     method: AzureADRole
@@ -57,7 +60,6 @@ Group-based assignment with API permissions:
 ```yaml
 attack_paths:
   cloud_app_admin_group:
-    enabled: true
     privilege_escalation: CloudAppAdministratorAbuse
     assignment_type: group_member
     method: APIPermission

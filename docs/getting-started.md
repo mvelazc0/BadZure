@@ -107,43 +107,32 @@ python badzure.py destroy --verbose
 
 ## Configuration Overview
 
-BadZure uses a YAML file to define what to create and which attack paths to configure. The file has two main sections:
-
-**`tenant`** — Defines your Azure tenant details and how many entities/resources to create:
+BadZure uses a single declarative YAML config with three parts: your `tenant` identifiers, a **`baseline`** (the realistic background organization the attack lands in), and **`attack_paths`** (the misconfigurations layered on top).
 
 ```yaml
+
 tenant:
   tenant_id: YOUR-TENANT-GUID
   domain: yourdomain.onmicrosoft.com
   subscription_id: YOUR-SUBSCRIPTION-GUID
 
-  users: 10
-  applications: 5
-  groups: 3
-  administrative_units: 2
+# The background org: benign users/apps/groups the attack lands in.
+baseline:
+  identities: 
+    users: 10
+    applications: 5
+    groups: 3 
 
-  resource_groups: 1
-  key_vaults: 1
-  storage_accounts: 1
-  virtual_machines: 1
-  cosmos_dbs: 1
-```
-
-**`attack_paths`** — Defines the privilege escalation paths to configure:
-
-```yaml
+# The deliberate misconfiguration. Pick a privilege_escalation technique.
 attack_paths:
   my_attack_path:
-    enabled: true
     privilege_escalation: ApplicationOwnershipAbuse
     method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
-
-See the [Configuration Guide](configuration.md) for the full reference of all options and parameters.
 
 ## What's Next?
 
 - Browse the [Attack Paths](attack-paths/index.md) to understand the seven privilege escalation techniques BadZure supports
 - Read the [Configuration Guide](configuration.md) to customize your environment
-- Check out the example configurations in the `scenarios/` directory
+- Check out the annotated reference config `badzure.yml` and the example configs in `test_configs/declarative/`

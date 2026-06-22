@@ -122,24 +122,27 @@ graph LR
 
 ## Configuration Examples
 
-User with Application Administrator targeting an app with Exchange permissions:
+User with Application Administrator targeting an app with Exchange permissions. A complete minimal config:
 
 ```yaml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+baseline:
+  identities: { users: 2, applications: 2, groups: 1 }
 attack_paths:
   app_admin_exchange:
-    enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
     method: APIPermission
     api_type: exchange
     app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
 ```
 
+The remaining examples show just the `attack_paths:` entry — add them to a config with a baseline like the one above.
+
 Service principal with Application Administrator targeting Global Admin role:
 
 ```yaml
 attack_paths:
   app_admin_sp:
-    enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
     initial_access: service_principal
     method: AzureADRole
@@ -151,7 +154,6 @@ Group-based assignment with Graph API permissions:
 ```yaml
 attack_paths:
   app_admin_group:
-    enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
     assignment_type: group_member
     method: APIPermission
@@ -164,7 +166,6 @@ Application-scoped role assignment (role only applies to the target application)
 ```yaml
 attack_paths:
   app_admin_scoped:
-    enabled: true
     privilege_escalation: ApplicationAdministratorAbuse
     scope: application
     method: AzureADRole
