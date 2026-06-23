@@ -140,3 +140,13 @@ variable "cosmos_dbs" {
   }))
   default = {}
 }
+
+# Cosmos accounts targeted by a cosmos_document data inject — the ONLY accounts
+# whose master key the cosmos_db_connections output surfaces to the Python
+# data-plane phase. Baseline Cosmos accounts with no inject are omitted, so their
+# keys are never read back through `terraform output`.
+variable "cosmos_dataplane_refs" {
+  description = "Subset of cosmos_dbs keys whose connection info the data-plane phase needs"
+  type        = list(string)
+  default     = []
+}

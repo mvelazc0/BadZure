@@ -342,6 +342,8 @@ The chain reads: `priya` holds **Key Vault Contributor** on the vault → reads 
 
 The nine assignment `type`s are `entra_role`, `azure_rbac`, `api_permission`, `group_membership`, `group_ownership`, `app_ownership`, `au_membership` (plus `credentials` and `data_injects` as their own blocks). A chained path can also borrow entities from the baseline with `{ ref: victim, from: baseline }`. See `test_configs/declarative/declarative_hybrid.yml` for a worked hybrid example.
 
+A `data_inject` places material into a resource an attacker can read. Its `location_type` selects the resource family: `key_vault_secret` and `key_vault_certificate` (a Key Vault), `storage_blob` (a Storage account container), and `cosmos_document` (a Cosmos DB container). The `material` is `app_secret` (bound to a declared credential via `credential_ref`), `app_client_id` (the client id of an application via `source_ref`), `app_certificate` (a certificate file via `file_path`), or `literal` (arbitrary content via `literal_value`). Key Vault and Storage injects are written by Terraform; `cosmos_document` injects are planted by the data-plane phase that runs after the Terraform apply, using the Cosmos account key to upsert one document per inject. See `test_configs/declarative/declarative_cosmos_inject.yml` for a worked Cosmos example.
+
 ## Group-Based Assignment
 
 All identity- and resource-based techniques (except ApplicationOwnershipAbuse) support group-based assignment via `assignment_type: group_member` or `group_owner`. With `group_member`, the privilege is assigned to a security group and the initial-access identity is added as a **member**; with `group_owner`, the identity is added as an **owner** of the group instead.

@@ -72,7 +72,15 @@ INJECT_LOCATION_TO_MAP = {
     "key_vault_secret": "key_vaults",
     "key_vault_certificate": "key_vaults",
     "storage_blob": "storage_accounts",
+    # Data-plane-only (no Terraform resource): planted by the Python post-apply
+    # data-plane phase (src/dataplane.py), not generic.tf. Listed here so
+    # location_ref still ref-validates against the cosmos_dbs entity map.
+    "cosmos_document": "cosmos_dbs",
 }
+
+# location_types that have NO Terraform resource — the builder keeps them out of
+# the data_injects tfvars families, and src/dataplane.py plants them after apply.
+DATAPLANE_LOCATION_TYPES = frozenset({"cosmos_document"})
 
 
 @dataclass(frozen=True)

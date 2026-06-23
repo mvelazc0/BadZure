@@ -24,6 +24,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.entity_generator import EntityGenerator  # noqa: E402
 from src.scenario_loader import ScenarioLoader, ScenarioConfigError  # noqa: E402
 from src.terraform_builder import build_tfvars  # noqa: E402
+import src.dataplane as dataplane  # noqa: E402
 
 GA_ROLE = "62e90394-69f5-4237-9190-012177145e10"  # Global Administrator
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
@@ -118,6 +119,83 @@ def test_kv_theft_chain_compiles_to_generic_families():
     assert cred["initial_access"] == "user"
     assert cred["user_principal_name"] == "alice@contoso.com"
     assert cred["password"] == model.users["alice"]["password"]
+
+
+# ---------------------------------------------------------------------------
+# Tier 2 explicit graph — cosmos_document injects (app_secret + arbitrary literal).
+# In approach 2 these are DATA-PLANE-ONLY: they compile into the model's primitives
+# and the Python data-plane phase plants them, but the builder keeps them OUT of the
+# Terraform data_injects family. Exercises the loader -> planner -> resolver path.
+# ---------------------------------------------------------------------------
+_COSMOS_THEFT = {
+    "schema": "graph",
+    "attack_paths": {
+        "cosmos_theft": {
+            "objective": {"capability": "read_cosmos", "target_ref": "cos01"},
+            "initial_access": {"method": "compromised_identity", "principal_ref": "alice"},
+            "identities": {
+                "users": [{"ref": "alice"}],
+                "applications": [{"ref": "app_highpriv"}],
+            },
+            "resources": {"cosmos_dbs": [{"ref": "cos01"}]},
+            "assignments": [
+                {"id": "a1", "type": "azure_rbac", "principal_ref": "alice",
+                 "role": "00000000-0000-0000-0000-000000000002", "scope_ref": "cos01",
+                 "scope_resource_type": "cosmos_db", "data_plane": "cosmos_sql"},
+                {"id": "a2", "type": "entra_role", "principal_ref": "app_highpriv",
+                 "role": GA_ROLE},
+            ],
+            "credentials": [
+                {"ref": "app_secret", "app_ref": "app_highpriv", "type": "password"},
+            ],
+            "data_injects": [
+                {"id": "d1", "material": "app_secret", "credential_ref": "app_secret",
+                 "location_type": "cosmos_document", "location_ref": "cos01",
+                 "name": "client-secret-app_highpriv"},
+                {"id": "d2", "material": "literal", "literal_value": '{"k":"v"}',
+                 "location_type": "cosmos_document", "location_ref": "cos01",
+                 "name": "seed-doc"},
+            ],
+        }
+    },
+}
+
+
+def test_explicit_cosmos_document_injects_compile_offline():
+    scenario = _load(_COSMOS_THEFT)
+    model = scenario.model
+    out = build_tfvars(model)  # also runs ref-validation
+
+    # cosmos_document injects are data-plane-only: NOT in the TF data_injects family.
+    assert not out.get("attack_path_data_injects")
+
+    # but they DO compile into the model's primitives, and the planner picks them up
+    # with coordinates resolved from the synthesized cosmos entity.
+    items = dataplane.collect_dataplane_injects(model)
+    by_name = {it.inject.name: it for it in items}
+    assert set(by_name) == {"client-secret-app_highpriv", "seed-doc"}
+    secret_item = by_name["client-secret-app_highpriv"]
+    assert secret_item.account_ref == "cos01"
+    assert secret_item.database_name and secret_item.container_name
+    assert secret_item.partition_key_path == "/id"
+
+    # the cosmos data-plane RBAC grant still resolves against the cosmos_dbs map
+    rbac = out["attack_path_azure_rbac_assignments"]["cosmos_theft__a1"]
+    assert rbac["scope_resource_type"] == "cosmos_db" and rbac["scope_ref"] == "cos01"
+    assert rbac["data_plane"] == "cosmos_sql"
+
+    # value resolution: literal verbatim; app_secret via the SAME origin-prefixed
+    # credential key the builder/TF output use.
+    cred_origin = dataplane.credential_origin_map(model)
+    literal_item = by_name["seed-doc"]
+    assert dataplane.resolve_value(literal_item.inject, {}, cred_origin) == '{"k":"v"}'
+    fake_outputs = {"generic_app_credentials":
+                    {"ap:cosmos_theft__app_secret": {"client_secret": "S3cr3t!"}}}
+    assert dataplane.resolve_value(secret_item.inject, fake_outputs, cred_origin) == "S3cr3t!"
+
+    # build_document shape: {id, <pk field 'id'>, content}
+    assert dataplane.build_document(literal_item, '{"k":"v"}') == \
+        {"id": "seed-doc", "content": '{"k":"v"}'}
 
 
 # ---------------------------------------------------------------------------

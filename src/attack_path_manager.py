@@ -455,8 +455,9 @@ class AttackPathManager:
     def _mi_data_injects(self, key, target_type, target_name, app_name, credential_type,
                          app_cred_key, cert_paths):
         """The data_injects that plant the looted app's credential into the MI's
-        target (parity names with legacy main.tf). Cosmos plants nothing (TF can't
-        write Cosmos items)."""
+        target (parity names with legacy main.tf). Cosmos plants the credential as
+        documents in the container via the Python post-apply data-plane phase
+        (location_type=cosmos_document is data-plane-only — not a Terraform resource)."""
         injects = []
         if target_type == 'key_vault':
             if credential_type == 'certificate':
@@ -503,7 +504,23 @@ class AttackPathManager:
                     f"{key}_sa_secret", ATTACK_PATH, material="app_secret",
                     location_type="storage_blob", location_ref=target_name,
                     name=f"{app_name}-secret.txt", credential_ref=app_cred_key))
-        # cosmos_db: no inject — TF can't write Cosmos items.
+        elif target_type == 'cosmos_db':
+            # Planted as documents in the container by the Python data-plane phase.
+            if credential_type == 'certificate':
+                injects.append(DataInject(
+                    f"{key}_cosmos_cert", ATTACK_PATH, material="app_certificate",
+                    location_type="cosmos_document", location_ref=target_name,
+                    name=f"mi-certificate-{app_name}", source_ref=app_name,
+                    file_path=cert_paths["cert"]))
+            else:
+                injects.append(DataInject(
+                    f"{key}_cosmos_secret", ATTACK_PATH, material="app_secret",
+                    location_type="cosmos_document", location_ref=target_name,
+                    name=f"mi-client-secret-{app_name}", credential_ref=app_cred_key))
+            injects.append(DataInject(
+                f"{key}_cosmos_id", ATTACK_PATH, material="app_client_id",
+                location_type="cosmos_document", location_ref=target_name,
+                name=f"mi-client-id-{app_name}", source_ref=app_name))
         return injects
 
     def macro_keyvault_secret_theft(
@@ -906,19 +923,22 @@ class AttackPathManager:
     ) -> Dict:
         """CosmosDBSecretTheft expressed as generic building blocks (Phase 4 macro).
 
-        Emits generic primitives. Unlike KV/Storage there is NO data_inject:
-        Terraform can't write items into
-        Cosmos, so the looted app's secret is minted but not planted (the operator
-        places it). The escalation is the Cosmos DATA-PLANE grant.
+        Emits generic primitives. The looted app's client secret is planted as a
+        document in the Cosmos container (location_type=cosmos_document), so the
+        attacker who reaches the data plane can query it — parity with KV/Storage.
+        The document is written by the Python post-apply data-plane phase
+        (location_type=cosmos_document is data-plane-only, not a Terraform resource).
 
         The chain, as building blocks:
           1. AppCredential(password) — mint the looted (high-priv) app's client secret.
-          2. AzureRbacAssignment(data_plane=cosmos_sql) — grant the compromised
+          2. DataInject      — plant that secret as a Cosmos document named
+                               'client-secret-<app>' (material=app_secret).
+          3. AzureRbacAssignment(data_plane=cosmos_sql) — grant the compromised
                                principal (or its group) 'Cosmos DB Built-in Data
                                Contributor' on the Cosmos account.
-          3. EntraRoleAssignment / ApiPermission — the looted app's privileges.
-          4. GroupMembership / GroupOwnership — for indirect (group-based) access.
-          5. AppCredential (no inject) — for service_principal initial access, mint the
+          4. EntraRoleAssignment / ApiPermission — the looted app's privileges.
+          5. GroupMembership / GroupOwnership — for indirect (group-based) access.
+          6. AppCredential (no inject) — for service_principal initial access, mint the
                                SP's own secret; surfaced via the generic_app_credentials
                                TF output.
 
@@ -958,13 +978,20 @@ class AttackPathManager:
         groups = {}
         entry_point = attack_config.get('entry_point', 'compromised_identity')
 
-        # 1. Mint the looted app's client secret (NOT planted — no Cosmos inject).
+        # 1. Mint the looted app's client secret + 2. plant it as a Cosmos document.
+        cred_key = f"{key}_app_secret"
         primitives.append(AppCredential(
-            f"{key}_app_secret", ATTACK_PATH, app_ref=app_name, type="password",
+            cred_key, ATTACK_PATH, app_ref=app_name, type="password",
             display_name="BadZureClientSecret",
         ))
+        primitives.append(DataInject(
+            f"{key}_cosmos_doc", ATTACK_PATH,
+            material="app_secret", location_type="cosmos_document",
+            location_ref=cosmos_db_name, name=f"client-secret-{app_name}",
+            credential_ref=cred_key,
+        ))
 
-        # 2. Cosmos DB Built-in Data Contributor (data-plane) — to the principal
+        # 3. Cosmos DB Built-in Data Contributor (data-plane) — to the principal
         #    directly, or to the group for indirect (group_member / group_owner) access.
         if assignment_type in ('group_member', 'group_owner'):
             if assignment_type == 'group_owner':
@@ -1005,7 +1032,7 @@ class AttackPathManager:
                 data_plane="cosmos_sql",
             ))
 
-        # 3. The looted app's privileges. Reuse the legacy resolver, then translate.
+        # 4. The looted app's privileges. Reuse the legacy resolver, then translate.
         legacy_roles, legacy_perms = {}, {}
         self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
         entra_role_ids, api_perm_ids, api_type = [], [], None
@@ -1026,7 +1053,7 @@ class AttackPathManager:
                     principal_ref=app_name, permission_id=perm_id, api_type=api_type,
                 ))
 
-        # 4. Initial-access credentials for the operator.
+        # 5. Initial-access credentials for the operator.
         if identity_type == 'user':
             credentials = {
                 "initial_access": "user",
