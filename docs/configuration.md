@@ -109,7 +109,7 @@ A path is defined with one of two methods.
 
 **Chained** defines a path as an explicit tenat posture graph written directly in YAML under assignments:. You declare the entities and the relationships between them as primitives. This lets you combine multiple privilege escalation techniques into a single path and form an attack chain of several steps.
 
-The rest of this section documents Tier-1 **atomic**; [Authoring an Explicit Graph](#authoring-an-explicit-graph-chained) covers **chained**.
+The rest of this section documents **atomic**; [Authoring an Explicit Graph](#authoring-an-explicit-graph-chained) covers **chained**.
 
 ### Common Options (atomic)
 
@@ -457,7 +457,7 @@ Groups created for attack paths use realistic names from `entity_data/group-name
 
 ## Full Example
 
-A complete configuration: a small baseline (with a little org noise), a Tier-1 technique path per scenario, and one Tier-2 explicit path.
+A complete configuration: a small baseline (with a little org noise), an atomic technique path per scenario, and one chained explicit path.
 
 ```yaml
 
