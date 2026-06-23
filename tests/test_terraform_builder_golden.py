@@ -275,6 +275,66 @@ def test_credential_ref_is_origin_prefixed():
     assert injected["credential_ref"] == "ap:automation_secret"
 
 
+def test_cosmos_document_inject_is_filtered_from_tf_families():
+    """cosmos_document is a data-plane-only inject: the builder still ref-validates
+    it but must NOT emit it into any data_injects family (the Python data-plane
+    phase plants it after apply). A regular storage_blob inject still emits."""
+    model = DeploymentModel(
+        domain="contoso.com",
+        storage_accounts={"sa01": {"name": "sa01", "resource_group_name": "rg1"}},
+        cosmos_dbs={"cos01": {"name": "cos01", "resource_group_name": "rg1",
+                              "database_name": "db", "container_name": "c",
+                              "partition_key_path": "/id"}},
+        primitives=[
+            DataInject("cosdoc", ATTACK_PATH, material="literal",
+                       location_type="cosmos_document", location_ref="cos01",
+                       name="seed", literal_value="{}"),
+            DataInject("blob", ATTACK_PATH, material="literal",
+                       location_type="storage_blob", location_ref="sa01",
+                       name="loot.txt", literal_value="x"),
+        ],
+    )
+    out = build_tfvars(model)  # validate() still runs over the cosmos inject
+    injects = out.get("attack_path_data_injects", {})
+    assert "cosdoc" not in injects        # cosmos_document filtered out
+    assert "blob" in injects              # storage_blob still emitted
+
+
+def test_cosmos_dataplane_refs_scopes_to_targeted_accounts_only():
+    """cosmos_dataplane_refs (which accounts' master key the output surfaces) must
+    list ONLY the Cosmos accounts an inject targets — baseline accounts are out."""
+    model = DeploymentModel(
+        domain="contoso.com",
+        cosmos_dbs={
+            "looted": {"name": "looted", "resource_group_name": "rg1",
+                       "database_name": "db", "container_name": "c",
+                       "partition_key_path": "/id"},
+            "baseline_noise": {"name": "baseline-noise", "resource_group_name": "rg1",
+                               "database_name": "db", "container_name": "c",
+                               "partition_key_path": "/id"},
+        },
+        primitives=[
+            DataInject("cosdoc", ATTACK_PATH, material="literal",
+                       location_type="cosmos_document", location_ref="looted",
+                       name="seed", literal_value="{}"),
+        ],
+    )
+    out = build_tfvars(model)
+    assert out["cosmos_dataplane_refs"] == ["looted"]   # baseline_noise excluded
+
+
+def test_cosmos_dataplane_refs_empty_without_injects():
+    """No cosmos_document inject -> empty allowlist -> the output surfaces nothing."""
+    model = DeploymentModel(
+        domain="contoso.com",
+        cosmos_dbs={"baseline_noise": {"name": "bn", "resource_group_name": "rg1",
+                                       "database_name": "db", "container_name": "c",
+                                       "partition_key_path": "/id"}},
+        primitives=[],
+    )
+    assert build_tfvars(model)["cosmos_dataplane_refs"] == []
+
+
 # ---------------------------------------------------------------------------
 # Self-runner (no pytest required)
 # ---------------------------------------------------------------------------

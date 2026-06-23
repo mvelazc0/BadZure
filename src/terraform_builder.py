@@ -37,7 +37,7 @@ from src.primitives import (
     DeploymentModel, Primitive, EntraRoleAssignment, AppCredential, DataInject,
     RANDOM, ATTACK_PATH, value_fields,
 )
-from src.primitive_handlers import handler_for, CREDENTIAL
+from src.primitive_handlers import handler_for, CREDENTIAL, DATAPLANE_LOCATION_TYPES
 
 
 class LabValidationError(ValueError):
@@ -46,6 +46,24 @@ class LabValidationError(ValueError):
 
 _ORIGIN_FAMILY_PREFIX = {RANDOM: "random", ATTACK_PATH: "attack_path"}
 _ORIGIN_KEY_PREFIX = {RANDOM: "random:", ATTACK_PATH: "ap:"}
+
+
+def origin_prefixed_key(bare_key: str, origin: str) -> str:
+    """Origin-prefix a credential key the way generic.tf keys credentials (and the
+    TF generic_app_credentials output): 'foo' + attack_path -> 'ap:foo'. Shared so
+    the Python data-plane phase (src/dataplane.py) resolves an app_secret inject
+    against the SAME key the builder writes."""
+    return _ORIGIN_KEY_PREFIX[origin] + bare_key
+
+
+def credential_origin_map(model: DeploymentModel) -> Dict[str, str]:
+    """Map of bare AppCredential key -> origin, for credential_ref prefixing.
+    Shared between the builder and the data-plane resolver."""
+    out: Dict[str, str] = {}
+    for p in model.primitives:
+        if isinstance(p, AppCredential):
+            out[p.key] = p.origin
+    return out
 
 # Required companion field for each data_inject material.
 _MATERIAL_REQUIRES = {
@@ -88,7 +106,22 @@ class TerraformBuilder:
         for attr in DeploymentModel.ENTITY_MAPS:
             tfvars[attr] = groups if attr == "groups" else getattr(self.model, attr)
         tfvars.update(families)
+        # Only the Cosmos accounts a cosmos_document inject targets need their
+        # master key surfaced to the data-plane phase; the cosmos_db_connections
+        # output iterates exactly this allowlist (baseline accounts are excluded).
+        tfvars["cosmos_dataplane_refs"] = self._cosmos_dataplane_refs()
         return tfvars
+
+    def _cosmos_dataplane_refs(self) -> List[str]:
+        """Sorted cosmos_db refs targeted by a cosmos_document inject — the only
+        accounts whose endpoint+master key the data-plane phase reads back. Baseline
+        Cosmos accounts with no inject are left out of the connections output."""
+        refs = {
+            p.location_ref
+            for p in self.model.primitives
+            if isinstance(p, DataInject) and p.location_type == "cosmos_document"
+        }
+        return sorted(refs)
 
     # -- step 1: is_attack_path_group derivation ------------------------------
     def _role_assignable_groups(self) -> set:
@@ -161,13 +194,19 @@ class TerraformBuilder:
     def _build_families(self) -> Dict[str, Dict]:
         families: Dict[str, Dict] = {}
         for p in self.model.primitives:
+            # Data-plane-only injects (e.g. cosmos_document) have no Terraform
+            # resource — they're planted by src/dataplane.py after apply, so keep
+            # them out of the tfvars families. They are still ref-validated above.
+            if isinstance(p, DataInject) and p.location_type in DATAPLANE_LOCATION_TYPES:
+                continue
+
             base = handler_for(p).base_family
             family = f"{_ORIGIN_FAMILY_PREFIX[p.origin]}_{base}"
             value = {f: getattr(p, f) for f in value_fields(type(p))}
 
             if isinstance(p, DataInject) and p.material == "app_secret" and p.credential_ref:
                 cred_origin = self._credential_origin[p.credential_ref]
-                value["credential_ref"] = _ORIGIN_KEY_PREFIX[cred_origin] + p.credential_ref
+                value["credential_ref"] = origin_prefixed_key(p.credential_ref, cred_origin)
 
             bucket = families.setdefault(family, {})
             if p.key in bucket:

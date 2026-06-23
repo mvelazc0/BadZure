@@ -3,9 +3,10 @@ test_macro_cosmosdb_secret_theft.py — offline test of the Phase-4 macro.
 
 Drives the real `macro_cosmosdb_secret_theft` (no Azure) through the Terraform
 builder and asserts the emitted generic families model the Cosmos-secret-theft
-chain correctly across its variants. Unlike KV/Storage there is NO data_inject
-(Terraform can't write Cosmos items) — the escalation is the Cosmos DATA-PLANE
-RBAC grant (data_plane=cosmos_sql) plus the minted app secret.
+chain correctly across its variants. The looted secret is planted as a
+cosmos_document DataInject, but that is a data-plane-only inject: the builder
+keeps it OUT of the Terraform data_injects family (the Python post-apply
+data-plane phase plants it), so it lives on the model's primitives instead.
 
 Runs two ways:
     python tests/test_macro_cosmosdb_secret_theft.py
@@ -60,12 +61,24 @@ def test_user_direct_azureadrole():
     result = _run_macro(cfg)
     out = build_tfvars(_model(result["primitives"], result["groups"]))
 
-    # one password app_credential on the looted app; NO data_inject (TF can't plant in Cosmos)
+    # one password app_credential on the looted app
     creds = out["attack_path_app_credentials"]
     assert len(creds) == 1
-    cred = next(iter(creds.values()))
+    cred_key, cred = next(iter(creds.items()))
     assert cred["app_ref"] == "app-highpriv" and cred["type"] == "password"
+
+    # the secret is planted as a cosmos_document inject — but as a data-plane-only
+    # inject it is NOT emitted into the Terraform data_injects family; it lives on
+    # the model's primitives for the Python data-plane phase to plant after apply.
     assert not out.get("attack_path_data_injects")
+    injects = [p for p in result["primitives"]
+               if getattr(p, "location_type", None) == "cosmos_document"]
+    assert len(injects) == 1
+    inj = injects[0]
+    assert inj.material == "app_secret"
+    assert inj.location_ref == "cosmosfixture"
+    assert inj.name == "client-secret-app-highpriv"
+    assert inj.credential_ref == cred_key
 
     # Cosmos data-plane grant to the user directly
     rbac = next(iter(out["attack_path_azure_rbac_assignments"].values()))

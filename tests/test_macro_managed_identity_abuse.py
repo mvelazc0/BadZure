@@ -4,8 +4,9 @@ test_macro_managed_identity_abuse.py — offline test of the Phase-4 MI macro.
 Drives the real `macro_managed_identity_abuse` (no Azure) through the Terraform
 builder and asserts the emitted generic families model the chain: source-Contributor
 -> the source's managed identity -> grants on the target -> the looted app's
-credential planted there. Covers KV (secret + certificate), storage, cosmos (no
-inject), group assignment, and SP initial access.
+credential planted there. Covers KV (secret + certificate), storage, cosmos
+(data-plane-only document injects, kept out of the TF data_injects family), group
+assignment, and SP initial access.
 
 The cert generator is monkeypatched (no file I/O).
 
@@ -115,15 +116,38 @@ def test_vm_to_storage_secret():
     assert all(i["location_type"] == "storage_blob" for i in injects.values())
 
 
-def test_vm_to_cosmos_has_no_inject():
+def _cosmos_document_injects(result):
+    return [p for p in result["primitives"]
+            if getattr(p, "location_type", None) == "cosmos_document"]
+
+
+def test_vm_to_cosmos_plants_secret_documents():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "cosmos_db", "initial_access": "user",
            "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
     result, out = _run(cfg)
     mi = [r for r in _rbac(out) if r["principal_type"] == "managed_identity"]
     assert len(mi) == 1 and mi[0]["role"] == COSMOS_ROLE and mi[0]["data_plane"] == "cosmos_sql"
-    assert not out.get("attack_path_data_injects")             # TF can't write Cosmos items
+    # cosmos_document injects are data-plane-only — kept OUT of the TF family; the
+    # Python data-plane phase plants secret + client id as documents after apply.
+    assert not out.get("attack_path_data_injects")
+    injects = _cosmos_document_injects(result)
+    assert {p.material for p in injects} == {"app_secret", "app_client_id"}
+    assert {p.name for p in injects} == {"mi-client-secret-app-hp", "mi-client-id-app-hp"}
     assert next(iter(out["attack_path_app_credentials"].values()))["type"] == "password"
+
+
+def test_vm_to_cosmos_cert_plants_certificate_document():
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
+           "target_resource_type": "cosmos_db", "initial_access": "user",
+           "credential_type": "certificate", "method": "AzureADRole", "entra_role": GA_ROLE}
+    result, out = _run(cfg)
+    assert not out.get("attack_path_data_injects")
+    injects = _cosmos_document_injects(result)
+    assert {p.material for p in injects} == {"app_certificate", "app_client_id"}
+    cert = next(p for p in injects if p.material == "app_certificate")
+    assert cert.file_path and cert.name == "mi-certificate-app-hp"   # the PEM the phase uploads
+    assert next(iter(out["attack_path_app_credentials"].values()))["type"] == "certificate"
 
 
 def test_group_member_routes_source_contributor_to_group():

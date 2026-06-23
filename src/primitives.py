@@ -94,13 +94,15 @@ class AppCredential(Primitive):
 
 @dataclass
 class DataInject(Primitive):
-    """-> azurerm_key_vault_secret / _certificate / storage_blob. Plant material
-    an attacker can loot. The app_secret join references an AppCredential by
+    """-> azurerm_key_vault_secret / _certificate / storage_blob, OR (for
+    location_type=cosmos_document) a document planted by the Python post-apply
+    data-plane phase (src/dataplane.py) rather than Terraform. Plant material an
+    attacker can loot. The app_secret join references an AppCredential by
     credential_ref (BARE key here; the builder origin-prefixes it to match
-    g_inject_value indexing in generic.tf)."""
+    g_inject_value indexing in generic.tf / the data-plane resolver)."""
     material: str                              # app_secret | app_certificate | app_client_id | literal
-    location_type: str                         # key_vault_secret | key_vault_certificate | storage_blob
-    location_ref: str                          # key_vault ref or storage_account ref
+    location_type: str                         # key_vault_secret | key_vault_certificate | storage_blob | cosmos_document
+    location_ref: str                          # key_vault / storage_account / cosmos_db ref
     name: str                                  # secret / certificate / blob name
     source_ref: Optional[str] = None           # app_ref for app_client_id / app_certificate
     credential_ref: Optional[str] = None       # AppCredential key for material=app_secret (bare)

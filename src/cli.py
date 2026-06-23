@@ -13,6 +13,7 @@ from src.terraform_manager import TerraformManager
 from src.output_formatter import OutputFormatter
 from src.terraform_builder import build_tfvars
 from src.scenario_loader import ScenarioLoader
+import src.dataplane as dataplane
 import src.utils as utils
 
 
@@ -137,10 +138,18 @@ class BuildCommand:
                 logging.error(stderr)
             return
 
+        # Read Terraform outputs once, then use them for both the SP-secret
+        # read-back and the post-apply data-plane phase.
+        outputs = self.terraform_mgr.get_outputs()
+
         # Surface SP secrets minted via the generic layer (same read-back the
         # Phase-2 macro path uses).
         user_creds = {ov.name: ov.credentials for ov in scenario.attack_paths}
-        self._apply_generic_sp_credentials(user_creds)
+        self._apply_generic_sp_credentials(user_creds, outputs)
+
+        # Post-apply data-plane phase: plant injects Terraform can't (cosmos_document
+        # today). Warn-and-continue — failures don't abort the build.
+        self._inject_dataplane(model, outputs)
 
         logging.info("Azure AD tenant setup completed with assigned permissions and configurations!")
         self.output_formatter.write_users_file(model.users, domain)
@@ -158,7 +167,7 @@ class BuildCommand:
 
         logging.info("Good bye.")
 
-    def _apply_generic_sp_credentials(self, user_creds: Dict) -> None:
+    def _apply_generic_sp_credentials(self, user_creds: Dict, outputs: Dict) -> None:
         """Read SP secrets minted via the generic layer back into user_creds.
 
         Initial-access service principals get their secret from the
@@ -169,13 +178,31 @@ class BuildCommand:
                   for ap, c in user_creds.items() if c.get('generic_credential_key')}
         if not needed:
             return
-        outputs = self.terraform_mgr.get_outputs()
         generic_creds = outputs.get('generic_app_credentials', {})
         for ap_name, cred_key in needed.items():
             entry = generic_creds.get(cred_key)
             if entry:
                 user_creds[ap_name]['client_id'] = entry.get('client_id')
                 user_creds[ap_name]['client_secret'] = entry.get('client_secret')
+
+    def _inject_dataplane(self, model, outputs: Dict) -> None:
+        """Run the post-apply data-plane phase: plant injects Terraform can't
+        deploy (cosmos_document today) by calling the data-plane APIs directly,
+        using values read from the Terraform outputs."""
+        items = dataplane.collect_dataplane_injects(model)
+        if not items:
+            return
+        logging.info(f"Planting {len(items)} data-plane inject(s) after apply")
+        result = dataplane.execute(
+            items, outputs, model, self.terraform_mgr.terraform_dir)
+        if result.failures:
+            logging.warning(
+                f"Data-plane phase: {result.planted} planted, "
+                f"{len(result.failures)} failed:")
+            for line in result.failures:
+                logging.warning(f"  - {line}")
+        else:
+            logging.info(f"Data-plane phase: {result.planted} inject(s) planted")
 
     # Building-block class name -> human label, in display order. AppCredential /
     # DataInject aren't "assignments" but they ARE deployed edges/material, so we

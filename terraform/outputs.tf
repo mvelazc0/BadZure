@@ -37,3 +37,29 @@ output "generic_app_credentials" {
   }
   sensitive = true
 }
+
+# Cosmos account connection info (endpoint + master key) so the Python post-apply
+# data-plane phase can upsert cosmos_document data injects. Sensitive: the master
+# key grants full data-plane access. Scoped to cosmos_dataplane_refs — only the
+# accounts an inject targets — so baseline Cosmos accounts' keys are NOT surfaced
+# here. (Note: tfstate still holds every account's primary_key as a resource
+# attribute; this scopes the OUTPUT channel, not state.)
+output "cosmos_db_connections" {
+  description = "Endpoint + primary key for inject-targeted Cosmos accounts only"
+  value = {
+    for k in var.cosmos_dataplane_refs : k => {
+      endpoint    = azurerm_cosmosdb_account.cosmos_dbs[k].endpoint
+      primary_key = azurerm_cosmosdb_account.cosmos_dbs[k].primary_key
+    }
+  }
+  sensitive = true
+}
+
+# app ref -> client_id, so the data-plane phase can resolve app_client_id-material
+# injects (the client id is non-sensitive public metadata).
+output "application_client_ids" {
+  description = "Symbolic app ref -> application (client) id"
+  value = {
+    for k, v in azuread_application_registration.spns : k => v.client_id
+  }
+}
