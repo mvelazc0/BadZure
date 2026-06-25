@@ -4,7 +4,7 @@ Handles formatting and writing of attack path details and user files.
 """
 import logging
 from typing import Dict, Optional
-from src.constants import API_REGISTRY
+from src.constants import API_REGISTRY, RESOURCE_FOOTHOLD_VECTORS, FOOTHOLD_VECTOR_PROTOCOL
 from src.name_resolver import NameResolver
 
 
@@ -81,6 +81,21 @@ class OutputFormatter:
     @staticmethod
     def _declarative_initial_access(creds: Dict) -> None:
         identity_type = creds.get('initial_access')
+        if identity_type in RESOURCE_FOOTHOLD_VECTORS:
+            proto = FOOTHOLD_VECTOR_PROTOCOL.get(identity_type, {})
+            label = proto.get('protocol', identity_type)
+            host = creds.get('foothold_resource', 'N/A')
+            logging.info(f"Initial Access: Exposed-host foothold ({label}) on VM - {host}")
+            if creds.get('public_ip'):
+                scope = ('Internet (0.0.0.0/0)' if creds.get('expose_to_internet')
+                         else 'operator IP only')
+                port = proto.get('port', '')
+                logging.info(f"Foothold Endpoint: {creds['public_ip']}:{port} ({scope})")
+            if creds.get('admin_username'):
+                logging.info(f"Admin Username: {creds['admin_username']}")
+            if creds.get('admin_password'):
+                logging.info(f"Admin Password: {creds['admin_password']}")
+            return
         if identity_type == 'user':
             logging.info(f"Initial Access Identity: User - {creds.get('user_principal_name', 'N/A')}")
             if 'password' in creds:

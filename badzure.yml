@@ -92,8 +92,10 @@ baseline:
 #   TIER 2 (explicit graph):   hand-author `objective` + `assignments` + `data_injects`
 #                              for arbitrary multi-hop chains. See the last path.
 #
-# Tier-1 knobs (shared):
-#   initial_access:  user (default) | service_principal
+# Atomic knobs (shared):
+#   initial_access:  user (default) | service_principal       (compromised identity)
+#                    exposed_rdp | exposed_ssh                 (ManagedIdentityAbuse + source_type: vm only:
+#                                                               brute-force an internet-exposed VM -> code exec)
 #   assignment_type: direct (default) | group_member | group_owner
 #   method:          AzureADRole  -> entra_role: <GUID> | [GUIDs] | random
 #                    APIPermission -> api_type: graph (default) | exchange
@@ -182,6 +184,26 @@ attack_paths:
     source_type: vm
     target_resource_type: key_vault
     credential_type: secret
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All
+
+  # 7b. ManagedIdentityAbuse reached via an EXPOSED-HOST foothold (initial access).
+  #     Instead of a compromised identity, the attacker brute-forces an internet-
+  #     exposed VM (RDP/SSH), gains code execution, and pivots through the VM's
+  #     managed identity. The foothold VM is the MI source, so source_type must be vm.
+  #     expose_to_internet (default false): keep RDP/SSH open to the operator IP only;
+  #       set true to add a 0.0.0.0/0 rule (reachable + brute-forceable from anywhere).
+  #     credential (default known): keep the strong generated password; set weak for a
+  #       brute-forceable one. The build surfaces the VM public IP + admin credentials.
+  # ---------------------------------------------------------------------------
+  mi_abuse_exposed_rdp:
+    privilege_escalation: ManagedIdentityAbuse
+    initial_access: exposed_rdp
+    source_type: vm
+    target_resource_type: key_vault
+    expose_to_internet: false            # set true to open RDP/SSH to 0.0.0.0/0
+    credential: known                    # set weak for a brute-forceable password
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All

@@ -32,8 +32,8 @@ variable "groups" {
   type = map(object({
     display_name         = string
     is_attack_path_group = optional(bool, false)  # If true, group will be role-assignable for Entra ID roles
-    owner_name           = optional(string, null)  # Optional owner for group_owner assignment type
-    owner_type           = optional(string, null)  # "user" or "service_principal"
+    owner_name           = optional(string, null) # Optional owner for group_owner assignment type
+    owner_type           = optional(string, null) # "user" or "service_principal"
   }))
 }
 
@@ -66,32 +66,37 @@ variable "resource_groups" {
 
 variable "key_vaults" {
   type = map(object({
-    name     = string
-    location = string
+    name                = string
+    location            = string
     resource_group_name = string
-    sku_name = string
+    sku_name            = string
   }))
 }
 
 variable "storage_accounts" {
   type = map(object({
-    name                  = string
-    location              = string
-    resource_group_name   = string
-    account_tier          = string
+    name                     = string
+    location                 = string
+    resource_group_name      = string
+    account_tier             = string
     account_replication_type = string
   }))
 }
 
 variable "virtual_machines" {
   type = map(object({
-    name                  = string
-    location              = string
-    resource_group_name   = string
-    vm_size               = string
-    admin_username        = string
-    admin_password        = string
-    os_type               = string # "Windows" or "Linux"
+    name                = string
+    location            = string
+    resource_group_name = string
+    vm_size             = string
+    admin_username      = string
+    admin_password      = string
+    os_type             = string # "Windows" or "Linux"
+    # Exposed-host initial-access foothold knob (projected by the builder from an
+    # InitialAccessVector). false (default): RDP/SSH open to the operator IP only.
+    # true: also add a 0.0.0.0/0 (Internet) allow rule so the host is reachable —
+    # and brute-forceable — from the public internet.
+    expose_to_internet = optional(bool, false)
   }))
 }
 
@@ -121,7 +126,7 @@ variable "function_apps" {
     name                = string
     location            = string
     resource_group_name = string
-    os_type             = string  # "linux" or "windows"
+    os_type             = string # "linux" or "windows"
   }))
   default = {}
 }
@@ -147,6 +152,15 @@ variable "cosmos_dbs" {
 # keys are never read back through `terraform output`.
 variable "cosmos_dataplane_refs" {
   description = "Subset of cosmos_dbs keys whose connection info the data-plane phase needs"
+  type        = list(string)
+  default     = []
+}
+
+# VMs that are an exposed-host initial-access foothold — the ONLY VMs whose public
+# IP + admin credentials the vm_foothold_access output surfaces to the operator.
+# (The public IP is only known after apply, so it must come back through an output.)
+variable "foothold_vm_refs" {
+  description = "Subset of virtual_machines keys that are an exposed-host foothold"
   type        = list(string)
   default     = []
 }

@@ -13,7 +13,8 @@ from src.constants import (
     API_REGISTRY,
     APP_ADMIN_ROLE_ID,
     CLOUD_APP_ADMIN_ROLE_ID,
-    RECON_DIRECTORY_READ_ALL_ID
+    RECON_DIRECTORY_READ_ALL_ID,
+    RESOURCE_FOOTHOLD_VECTORS,
 )
 from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
@@ -27,6 +28,7 @@ from src.primitives import (
     GroupMembership,
     GroupOwnership,
     AppOwnership,
+    InitialAccessVector,
 )
 
 
@@ -159,6 +161,20 @@ class AttackPathManager:
             "service_principal_name": principal_name,
             "entry_point": entry_point,
             "generic_credential_key": f"ap:{sp_cred_key}",
+        }
+
+    @staticmethod
+    def _foothold_credentials(vector, source_name, source_type):
+        """Operator artifact for an exposed-host foothold: the VM the attacker lands
+        on. The public IP + admin credentials are filled in after apply from the
+        vm_foothold_access Terraform output (keyed by foothold_resource), since the
+        IP is only allocated at apply time. `foothold_resource` is also the
+        reachability seed (see scenario_loader._seed_from_credentials)."""
+        return {
+            "initial_access": vector,          # e.g. exposed_rdp / exposed_ssh
+            "foothold_resource": source_name,  # the VM ref (seed + output key)
+            "foothold_type": source_type,
+            "entry_point": vector,
         }
 
     def _attack_group(self, assignment_type, principal_name, identity_type):
@@ -331,7 +347,7 @@ class AttackPathManager:
         logic_apps: Dict, automation_accounts: Dict, function_apps: Dict,
         mode: str = 'random', entities: Optional[Dict] = None, path_name: Optional[str] = None,
         used_apps: Optional[set] = None, used_users: Optional[set] = None,
-        cosmos_dbs: Optional[Dict] = None
+        cosmos_dbs: Optional[Dict] = None, used_sources: Optional[set] = None
     ) -> Dict:
         """ManagedIdentityAbuse as generic building blocks (Phase 4 macro).
 
@@ -356,7 +372,13 @@ class AttackPathManager:
         source_type = attack_config.get('source_type', 'vm')
         target_resource_type = attack_config.get('target_resource_type')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
-        identity_type = attack_config.get('initial_access', 'user')
+        ia_vector = attack_config.get('initial_access', 'user')
+        # Exposed-host foothold (exposed_rdp/exposed_ssh): the attacker is dropped onto
+        # the source VM directly (code execution), so there is no compromised identity
+        # and no source-Contributor grant. identity_type only steers the (then unused)
+        # principal pick during selection, so 'user' is a harmless placeholder there.
+        is_foothold = ia_vector in RESOURCE_FOOTHOLD_VECTORS
+        identity_type = 'user' if is_foothold else ia_vector
         credential_type = attack_config.get('credential_type', 'secret')
         assignment_type = attack_config.get('assignment_type', 'direct')
 
@@ -365,7 +387,8 @@ class AttackPathManager:
             app_name, target_name, source_name, principal_name = self._select_random_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, source_type, target_resource_type,
-                identity_type, used_apps, used_users, cosmos_dbs=cosmos_dbs)
+                identity_type, used_apps, used_users, cosmos_dbs=cosmos_dbs,
+                used_sources=used_sources)
         else:
             app_name, target_name, source_name, principal_name = self._select_targeted_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
@@ -374,10 +397,23 @@ class AttackPathManager:
 
         primitives, groups = [], {}
 
-        # 1. Source-specific Contributor to the initial-access principal (or group).
+        # 1. Initial access onto the source resource.
         src_role = self.SOURCE_CONTRIBUTOR_ROLE.get(source_type, 'Contributor')
         src_scope_rtype = self.SOURCE_SCOPE_RESOURCE_TYPE.get(source_type, 'virtual_machine')
-        if assignment_type in ('group_member', 'group_owner'):
+        if is_foothold:
+            # Exposed-host foothold: drop straight onto the source VM (code execution).
+            # The reachability seed becomes the VM, and controlling it already implies
+            # controlling its managed identity — so steps 2+ continue unchanged.
+            group_name = None
+            principal_name = None
+            primitives.append(InitialAccessVector(
+                f"{key}_foothold", ATTACK_PATH, method=ia_vector,
+                target_ref=source_name, target_type='virtual_machine',
+                grants='code_execution',
+                expose_to_internet=bool(attack_config.get('expose_to_internet', False)),
+                credential=attack_config.get('credential', 'known')))
+        elif assignment_type in ('group_member', 'group_owner'):
+            # Source-specific Contributor to the initial-access principal's group.
             group_spec = self._attack_group(assignment_type, principal_name, identity_type)
             group_name = group_spec['display_name']
             groups[group_name] = group_spec
@@ -388,6 +424,7 @@ class AttackPathManager:
             primitives.append(self._group_link_primitive(
                 assignment_type, key, principal_name, identity_type, group_name))
         else:
+            # Source-specific Contributor to the compromised principal directly.
             group_name = None
             primitives.append(AzureRbacAssignment(
                 f"{key}_src_contrib", ATTACK_PATH, principal_ref=principal_name,
@@ -434,8 +471,14 @@ class AttackPathManager:
         priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
             attack_config, app_name, key)
         primitives.extend(priv_prims)
-        credentials = self._initial_access_credentials(
-            identity_type, principal_name, users, domain, entry_point, key, primitives)
+        if is_foothold:
+            credentials = self._foothold_credentials(ia_vector, source_name, source_type)
+            source_line = (f"Source Resource: {source_type} - {source_name} "
+                           f"(exposed-host foothold via {ia_vector})")
+        else:
+            credentials = self._initial_access_credentials(
+                identity_type, principal_name, users, domain, entry_point, key, primitives)
+            source_line = f"Source Resource: {source_type} - {source_name} (with {src_role})"
 
         summary = {
             "path_name": path_name, "key": key, "technique": "ManagedIdentityAbuse",
@@ -443,8 +486,9 @@ class AttackPathManager:
             "assignment_type": assignment_type, "group_name": group_name, "app_name": app_name,
             "source_type": source_type, "source_name": source_name,
             "target_resource_type": target_resource_type, "target_name": target_name,
+            "initial_access_vector": ia_vector if is_foothold else None,
             "access_lines": [
-                f"Source Resource: {source_type} - {source_name} (with {src_role})",
+                source_line,
                 f"Managed Identity → Target: {target_resource_type} - {target_name}",
             ],
             "show_target_app": True,
@@ -1285,7 +1329,7 @@ class AttackPathManager:
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
         source_type: str, target_resource_type: str, identity_type: str,
         used_apps: set = None, used_users: set = None,
-        cosmos_dbs: Dict = None
+        cosmos_dbs: Dict = None, used_sources: set = None
     ) -> Tuple[str, str, str, str]:
         """Select random entities for Managed Identity Theft.
 
@@ -1317,19 +1361,22 @@ class AttackPathManager:
                 app_keys = available_apps
         
         app_name = random.choice(app_keys)
-        
-        # Select source based on type
-        if source_type == 'vm':
-            source_name = random.choice(list(virtual_machines.keys()))
-        elif source_type == 'logic_app':
-            source_name = random.choice(list(logic_apps.keys()))
-        elif source_type == 'automation_account':
-            source_name = random.choice(list(automation_accounts.keys()))
-        elif source_type == 'function_app':
-            source_name = random.choice(list(function_apps.keys()))
-        else:
-            # Default to VM for unknown types
-            source_name = random.choice(list(virtual_machines.keys()))
+
+        # Select source based on type. Exclude sources already taken by another MI
+        # path: two paths sharing a source grant its managed identity the same roles
+        # on the same target -> identical Azure role assignments -> 409 on apply. Fall
+        # back to the full pool when exhausted (the loader then fails with a clear
+        # "not enough distinct sources" message instead of colliding).
+        source_pool = {
+            'vm': virtual_machines, 'logic_app': logic_apps,
+            'automation_account': automation_accounts, 'function_app': function_apps,
+        }.get(source_type, virtual_machines)
+        source_keys = list(source_pool.keys())
+        if used_sources:
+            available_sources = [s for s in source_keys if s not in used_sources]
+            if available_sources:
+                source_keys = available_sources
+        source_name = random.choice(source_keys)
         
         # Select target resource
         if target_resource_type == 'key_vault':

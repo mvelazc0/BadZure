@@ -2549,6 +2549,37 @@ VALID_TECHNIQUES = [
     'CosmosDBSecretTheft'
 ]
 
+# Initial-access vectors — HOW an attacker first gains a foothold (distinct from
+# WHICH identity/resource they land on). The identity-based vectors are the
+# historical default: `user` / `service_principal` mean "the attacker holds this
+# identity's credentials". The resource-foothold vectors land the attacker on a
+# compute resource (code execution on the host), from which managed-identity and
+# (later) filesystem-secret chains continue. The `initial_access` knob accepts any
+# of these. See dev-docs/redesign/initial-access-vectors.md.
+INITIAL_ACCESS_VECTORS = [
+    'user',                # compromised credentials of a user
+    'service_principal',   # compromised credentials of a service principal
+    'exposed_rdp',         # internet-reachable RDP, brute-forced -> code execution
+    'exposed_ssh',         # internet-reachable SSH, brute-forced -> code execution
+]
+
+# The subset that lands on a compute resource rather than an identity. These seed
+# the reachability walk with the HOST node — controlling a compute resource already
+# means controlling its managed identity, so existing MI chains continue unchanged.
+RESOURCE_FOOTHOLD_VECTORS = ['exposed_rdp', 'exposed_ssh']
+
+# Per-vector protocol/port + the OS it implies, for operator output + NSG narration.
+FOOTHOLD_VECTOR_PROTOCOL = {
+    'exposed_rdp': {'protocol': 'RDP', 'port': 3389, 'os_type': 'Windows'},
+    'exposed_ssh': {'protocol': 'SSH', 'port': 22, 'os_type': 'Linux'},
+}
+
+# A deliberately weak local-admin password for `credential: weak` exposed-host
+# footholds, so the host is genuinely brute-forceable in a red-team exercise. The
+# default `credential: known` keeps the strong generated password (operator-known,
+# surfaced in the build output so the operator can log in directly).
+WEAK_FOOTHOLD_PASSWORD = "Password123!"
+
 # Role ID constants for admin role abuse techniques
 APP_ADMIN_ROLE_ID = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
 CLOUD_APP_ADMIN_ROLE_ID = "158c047a-c907-4556-b7ef-446551a6b5f7"

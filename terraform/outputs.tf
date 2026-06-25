@@ -55,6 +55,25 @@ output "cosmos_db_connections" {
   sensitive = true
 }
 
+# Exposed-host foothold access — public IP + admin credentials for the VMs that are
+# an InitialAccessVector entry point, so the operator can log in (RDP/SSH) and pivot
+# to the host's managed identity. Scoped to foothold_vm_refs (only intentional
+# footholds), and sensitive (carries the admin password). The public IP is only
+# allocated at apply time, hence surfaced here rather than read from the tfvars.
+output "vm_foothold_access" {
+  description = "Public IP + admin credentials for exposed-host foothold VMs"
+  value = {
+    for k in var.foothold_vm_refs : k => {
+      public_ip          = azurerm_public_ip.vm_public_ips[k].ip_address
+      admin_username     = var.virtual_machines[k].admin_username
+      admin_password     = var.virtual_machines[k].admin_password
+      os_type            = var.virtual_machines[k].os_type
+      expose_to_internet = var.virtual_machines[k].expose_to_internet
+    }
+  }
+  sensitive = true
+}
+
 # app ref -> client_id, so the data-plane phase can resolve app_client_id-material
 # injects (the client id is non-sensitive public metadata).
 output "application_client_ids" {

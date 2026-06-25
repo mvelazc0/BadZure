@@ -27,13 +27,14 @@ import logging
 from typing import Dict, List
 
 from src import capabilities
-from src.constants import VALID_TECHNIQUES
+from src.constants import VALID_TECHNIQUES, RESOURCE_FOOTHOLD_VECTORS
 from src.scenario_loader import ScenarioConfigError, ASSIGNMENT_TYPES
 
-# Tier-1 `technique:` path knob enums (the legacy per-technique knobs, now validated
-# here against the same vocabularies the macros honor).
+# Atomic `privilege_escalation:` path knob enums (the per-technique knobs, validated
+# here against the same vocabularies the macros honor). `initial_access` accepts the
+# identity vectors (user/service_principal) plus the exposed-host footholds.
 _TECHNIQUE_KNOB_ENUMS = {
-    "initial_access": {"user", "service_principal"},
+    "initial_access": {"user", "service_principal"} | set(RESOURCE_FOOTHOLD_VECTORS),
     "assignment_type": {"direct", "group_member", "group_owner"},
     "method": {"AzureADRole", "APIPermission"},
     "api_type": {"graph", "exchange"},
@@ -205,6 +206,20 @@ def _validate_technique_path(name: str, path: Dict, errors: List[str]) -> None:
             f"attack_path '{name}': method 'APIPermission' needs `app_role` "
             f"(a GUID, a list, or 'random').")
 
+    # Exposed-host footholds (exposed_rdp/exposed_ssh) drop the attacker onto a VM —
+    # only ManagedIdentityAbuse with a VM source can currently consume that foothold.
+    ia = path.get("initial_access")
+    if ia in RESOURCE_FOOTHOLD_VECTORS:
+        if technique != "ManagedIdentityAbuse":
+            errors.append(
+                f"attack_path '{name}': initial_access '{ia}' (an exposed-host "
+                f"foothold) is only supported with ManagedIdentityAbuse.")
+        elif path.get("source_type", "vm") != "vm":
+            errors.append(
+                f"attack_path '{name}': initial_access '{ia}' requires source_type "
+                f"'vm' (the attacker lands on the VM); got "
+                f"'{path.get('source_type')}'.")
+
     if technique == "ManagedIdentityAbuse":
         src = path.get("source_type")
         if src is not None and src not in _MI_SOURCE_TYPES:
@@ -260,10 +275,24 @@ def _validate_initial_access(name, ia, errors) -> None:
     if not isinstance(ia, dict):
         errors.append(f"attack_path '{name}': initial_access must be a mapping.")
         return
+    # Two shapes: an exposed-host foothold (`vector:` + `target_ref:`) or a
+    # compromised identity (`principal_ref:`).
+    vector = ia.get("vector")
+    if vector is not None:
+        if vector not in RESOURCE_FOOTHOLD_VECTORS:
+            errors.append(
+                f"attack_path '{name}': initial_access vector '{vector}' is invalid. "
+                f"Valid: {', '.join(sorted(RESOURCE_FOOTHOLD_VECTORS))}.")
+        if not ia.get("target_ref"):
+            errors.append(
+                f"attack_path '{name}': initial_access vector '{vector}' needs a "
+                f"`target_ref` (the host the attacker lands on).")
+        return
     if not ia.get("principal_ref"):
         errors.append(
             f"attack_path '{name}': initial_access has no `principal_ref` "
-            f"(the identity the attacker starts from)."
+            f"(the identity the attacker starts from) or `vector`/`target_ref` "
+            f"(an exposed-host foothold)."
         )
 
 

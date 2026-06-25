@@ -146,6 +146,7 @@ class BuildCommand:
         # Phase-2 macro path uses).
         user_creds = {ov.name: ov.credentials for ov in scenario.attack_paths}
         self._apply_generic_sp_credentials(user_creds, outputs)
+        self._apply_foothold_access(user_creds, outputs)
 
         # Post-apply data-plane phase: plant injects Terraform can't (cosmos_document
         # today). Warn-and-continue — failures don't abort the build.
@@ -184,6 +185,27 @@ class BuildCommand:
             if entry:
                 user_creds[ap_name]['client_id'] = entry.get('client_id')
                 user_creds[ap_name]['client_secret'] = entry.get('client_secret')
+
+    def _apply_foothold_access(self, user_creds: Dict, outputs: Dict) -> None:
+        """Fill exposed-host foothold paths' operator creds with the VM's public IP
+        and admin credentials, read from the vm_foothold_access TF output (keyed by
+        the foothold_resource the loader/macro recorded). The public IP is only known
+        after apply, so it can't be set at planning time."""
+        needed = {name: c['foothold_resource']
+                  for name, c in user_creds.items() if c.get('foothold_resource')}
+        if not needed:
+            return
+        foothold = outputs.get('vm_foothold_access', {})
+        for name, vm_ref in needed.items():
+            entry = foothold.get(vm_ref)
+            if entry:
+                user_creds[name].update({
+                    'public_ip': entry.get('public_ip'),
+                    'admin_username': entry.get('admin_username'),
+                    'admin_password': entry.get('admin_password'),
+                    'os_type': entry.get('os_type'),
+                    'expose_to_internet': entry.get('expose_to_internet'),
+                })
 
     def _inject_dataplane(self, model, outputs: Dict) -> None:
         """Run the post-apply data-plane phase: plant injects Terraform can't

@@ -55,6 +55,7 @@ from src.primitives import (
     GroupMembership, GroupOwnership, AppOwnership, EntraRoleAssignment, ApiPermission,
 )
 from src.primitive_handlers import SCOPE_RESOURCE_TO_MAP, INJECT_LOCATION_TO_MAP
+from src.constants import RESOURCE_FOOTHOLD_VECTORS
 
 # Flip to False (or export BADZURE_SKIP_REACHABILITY=1) to deploy chains without
 # the reachability gate. Analysis still runs and still derives steps — only the
@@ -426,10 +427,16 @@ class _Analyzer:
         """Reconstruct an ordered step list from the walk: the initial-access hop,
         then each edge from seed to the terminal node, then a final 'gain' note."""
         ia = overlay.initial_access or {}
+        method = ia.get("method", "compromised_identity")
+        if method in RESOURCE_FOOTHOLD_VECTORS:
+            # Exposed-host foothold: the seed is the host, not an identity.
+            first_name = f"Initial access via {method}: code execution on {seed}"
+        else:
+            first_name = f"Compromise {seed}"
         steps: List[Dict] = [{
-            "name": f"Compromise {seed}",
+            "name": first_name,
             "source_ref": seed,
-            "action": ia.get("method", "compromised_identity"),
+            "action": method,
             "mitre": ia.get("mitre"),
             "derived": True,
         }]

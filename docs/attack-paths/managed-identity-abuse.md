@@ -169,6 +169,38 @@ graph TD
         MI -->|"access"| TGT(("Target<br/>Resource"))
     ```
 
+### By Initial Access Vector
+
+By default the attacker starts from a **compromised identity** (user or service principal) that already holds contributor access to the source resource. With a VM source the chain can instead start from an **exposed-host foothold**: an internet-reachable VM whose RDP or SSH the attacker brute-forces to gain code execution on the host directly. There is no compromised identity and no separate contributor grant. The attacker lands on the VM and pivots straight through its managed identity.
+
+These vectors apply only to `source_type: vm` (the foothold host is the managed-identity source). The foothold host's OS is set to match the vector — `exposed_rdp` forces a Windows VM, `exposed_ssh` a Linux VM — so the open port is consistent with the box. The build surfaces the VM public IP and admin credentials so the operator can log in and continue the chain.
+
+=== "Exposed RDP"
+
+    An internet-reachable VM with RDP open, brute-forced to gain code execution.
+
+    - **Config value:** `initial_access: exposed_rdp`
+    - **Requires:** `source_type: vm`
+
+    ``` mermaid
+    graph LR
+        A(("Attacker")) -->|"brute-force RDP"| RES(("Virtual<br/>Machine"))
+        RES -->|"has"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Target<br/>Resource"))
+    ```
+
+=== "Exposed SSH"
+
+    An internet-reachable VM with SSH open, brute-forced to gain code execution.
+
+    - **Config value:** `initial_access: exposed_ssh`
+    - **Requires:** `source_type: vm`
+
+**Exposure knobs:**
+
+- `expose_to_internet` (default `false`) — keep RDP/SSH open to the operator IP only, or set `true` to add a `0.0.0.0/0` rule so the host is reachable and brute-forceable from anywhere.
+- `credential` (default `known`) — keep the strong generated admin password (operator logs in directly), or set `weak` for a brute-forceable password.
+
 ### By Assignment Type
 
 === "Direct (default)"
@@ -281,6 +313,22 @@ attack_paths:
     app_role:
       - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
       - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
+```
+
+Exposed-host foothold (exposed RDP) to Key Vault. The attacker brute-forces an internet-exposed VM and pivots through its managed identity:
+
+```yaml
+attack_paths:
+  mi_exposed_rdp_keyvault:
+    privilege_escalation: ManagedIdentityAbuse
+    initial_access: exposed_rdp
+    source_type: vm
+    target_resource_type: key_vault
+    expose_to_internet: false   # set true to open RDP/SSH to 0.0.0.0/0
+    credential: known           # set weak for a brute-forceable password
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 ## Further Reading

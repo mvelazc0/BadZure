@@ -1,0 +1,56 @@
+# Chained (explicit-graph) exposed-host foothold.
+# The attacker brute-forces an internet-exposed VM (exposed RDP) and lands with code
+# execution on the host; the host's managed identity can read a Key Vault, where a
+# high-privilege app's secret is planted. Demonstrates the InitialAccessVector
+# `vector:` shape feeding a hand-authored chain.
+#
+# Live test:
+#   python badzure.py build --config test_configs/declarative/declarative_exposed_rdp_chain.yml --verbose
+#   python badzure.py destroy --verbose
+#
+# kv-replace-me must be a GLOBALLY UNIQUE Key Vault name (3-24 chars, lowercase
+# alphanumerics + hyphens) — change it in all three places below.
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  exposed_rdp_chain:
+    objective:
+      name: "Key Vault secrets via an internet-exposed RDP host"
+      capability: read_secrets
+      target_ref: kv-replace-me
+      impact: high
+      description: "Brute-force an exposed VM, then use its managed identity to read a vault secret."
+    metadata:
+      complexity: low
+      tags: [initial-access, managed-identity]
+      mitre: [T1190, T1078, T1552]
+
+    initial_access:
+      vector: exposed_rdp
+      target_ref: vm-foothold
+      expose_to_internet: true   # flip to true to open RDP/SSH to 0.0.0.0/0
+      credential: weak            # a brute-forceable local admin password
+
+    identities:
+      applications: [{ ref: app_highpriv }]
+    resources:
+      virtual_machines: [{ ref: vm-foothold, os_type: Windows }]
+      key_vaults:       [{ ref: kv-replace-me }]
+
+    assignments:
+      # the foothold VM's managed identity can read the vault's secrets
+      - { id: a1, type: azure_rbac, principal_ref: vm-foothold,
+          principal_type: managed_identity, mi_source_type: vm,
+          role: "Key Vault Secrets User", scope_ref: kv-replace-me }
+
+    credentials:
+      - { ref: app_secret, app_ref: app_highpriv, type: password }
+
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-replace-me,
+          name: client-secret-app-highpriv }

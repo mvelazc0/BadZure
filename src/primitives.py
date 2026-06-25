@@ -143,6 +143,37 @@ class AppOwnership(Primitive):
     app_ref: str
 
 
+@dataclass
+class InitialAccessVector(Primitive):
+    """The attacker's ENTRY point — how they first land in the lab. Unlike the
+    nine edge primitives above, this one does NOT map to a generic.tf variable
+    family: for the resource-foothold methods (exposed_rdp/exposed_ssh) it is
+    consumed by the Terraform builder as a PROJECTION onto the target VM's spec
+    (an `expose_to_internet` flag + optional weak admin password the existing
+    main.tf NSG reads), the same way is_attack_path_group is derived onto groups.
+    It also seeds the reachability walk: the seed node is `target_ref` (a compute
+    resource for footholds), and controlling that host already implies controlling
+    its managed identity, so existing MI chains continue from it unchanged.
+
+    The identity methods (compromised_credentials) are the historical default and
+    do not emit this primitive — the seed is simply the identity. This primitive is
+    minted only for the non-credential vectors. See
+    dev-docs/redesign/initial-access-vectors.md.
+    """
+    method: str                          # exposed_rdp | exposed_ssh | vulnerable_web_app
+                                         #   | exposed_credentials | compromised_credentials
+    target_ref: str                      # node the attacker lands on (a VM for rdp/ssh)
+    target_type: str                     # virtual_machine | function_app | storage_account
+                                         #   | user | service_principal
+    grants: str                          # capability at the foothold: code_execution
+                                         #   | read_blob | control_principal
+    variant: Optional[str] = None        # future per-method sub-type (windows|linux, sqli|lfi|rce)
+    expose_to_internet: bool = False     # False -> NSG source = operator IP (default, safe)
+                                         #   True -> add a 0.0.0.0/0 (Internet) allow rule
+    credential: str = "known"            # known (strong, operator-known) | weak (brute-forceable)
+    loot_ref: Optional[str] = None       # exposed_credentials: the DataInject this reads
+
+
 # =============================================================================
 # Deployment model — a whole lab: its entities + the building blocks between them.
 # =============================================================================

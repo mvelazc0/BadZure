@@ -80,8 +80,8 @@ resource "azuread_group" "groups" {
       local.g_group_owner_ids_by_group[each.key],
       lookup(each.value, "owner_name", null) != null ? [
         lookup(each.value, "owner_type", "user") == "user" ?
-          azuread_user.users[each.value.owner_name].object_id :
-          azuread_service_principal.spns[each.value.owner_name].object_id
+        azuread_user.users[each.value.owner_name].object_id :
+        azuread_service_principal.spns[each.value.owner_name].object_id
       ] : []
     )) : null
   )
@@ -332,6 +332,40 @@ resource "azurerm_network_security_group" "vm_nsg" {
     destination_address_prefix = "*"
   }
 
+  # Exposed-host foothold (InitialAccessVector with expose_to_internet=true): open
+  # RDP + SSH to the whole internet so the host is reachable — and brute-forceable —
+  # from anywhere. Inline dynamic rules (not a standalone azurerm_network_security_rule)
+  # so they don't conflict with the operator-IP rules above. Off unless opted in.
+  dynamic "security_rule" {
+    for_each = each.value.expose_to_internet ? [1] : []
+    content {
+      name                       = "Allow-RDP-Internet"
+      priority                   = 1002
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "3389"
+      source_address_prefix      = "Internet"
+      destination_address_prefix = "*"
+    }
+  }
+
+  dynamic "security_rule" {
+    for_each = each.value.expose_to_internet ? [1] : []
+    content {
+      name                       = "Allow-SSH-Internet"
+      priority                   = 1003
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = "Internet"
+      destination_address_prefix = "*"
+    }
+  }
+
   depends_on = [azurerm_resource_group.rgroups]
 }
 
@@ -455,8 +489,8 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
 
   # App settings for deployment storage connection string
   app_settings = {
-    "DEPLOYMENT_STORAGE_CONNECTION_STRING"     = azurerm_storage_account.function_storage[each.key].primary_connection_string
-    "APPLICATIONINSIGHTS_CONNECTION_STRING"    = azurerm_application_insights.function_insights[each.key].connection_string
+    "DEPLOYMENT_STORAGE_CONNECTION_STRING"       = azurerm_storage_account.function_storage[each.key].primary_connection_string
+    "APPLICATIONINSIGHTS_CONNECTION_STRING"      = azurerm_application_insights.function_insights[each.key].connection_string
     "ApplicationInsightsAgent_EXTENSION_VERSION" = "~3"
   }
 

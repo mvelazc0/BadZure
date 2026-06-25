@@ -40,9 +40,10 @@ from src.primitives import (
     DeploymentModel, ATTACK_PATH, RANDOM,
     EntraRoleAssignment, AzureRbacAssignment, ApiPermission, AppCredential,
     DataInject, GroupMembership, GroupOwnership, AppOwnership, AuMembership,
+    InitialAccessVector,
 )
 from src.primitive_handlers import SCOPE_RESOURCE_TO_MAP, MI_SOURCE_TO_MAP
-from src.constants import VALID_TECHNIQUES
+from src.constants import VALID_TECHNIQUES, RESOURCE_FOOTHOLD_VECTORS
 
 
 class ScenarioConfigError(ValueError):
@@ -229,17 +230,19 @@ class ScenarioLoader:
         #    a `technique:` path fires the macro library (Tier 1, on-ramp); an explicit
         #    `assignments:` path compiles the graph directly (Tier 2). Paths are rewritten
         #    so `from: baseline` aliases point at their real baseline keys before emit.
-        #    used_apps/used_users dedup victim/target picks across technique paths.
+        #    used_apps/used_users/used_sources dedup victim/target/source picks across
+        #    technique paths (two MI paths sharing a source collide on apply).
         overlays: List[AttackPathOverlay] = []
         used_apps: set = set()
         used_users: set = set()
+        used_sources: set = set()
         technique_creds: Dict[str, Dict] = {}
         for path_name, path in attack_paths.items():
             resolved = self._resolve_aliases_in_path(path, alias)
             if "privilege_escalation" in path:
                 overlay = self._compile_technique_path(
                     path_name, resolved, ref_kind, entities, primitives, domain,
-                    used_apps, used_users)
+                    used_apps, used_users, used_sources)
                 technique_creds[path_name] = overlay.credentials
             else:
                 overlay = self._compile_path(path_name, resolved, ref_kind, entities,
@@ -621,19 +624,66 @@ class ScenarioLoader:
                 pfx_password=d.get("pfx_password", ""),
             ))
 
-        credentials = self._operator_credentials(
-            path_name, path, ref_kind, entities, primitives, cred_ref_to_key, domain
-        )
+        # initial_access: an exposed-host foothold (`vector:`) emits an
+        # InitialAccessVector + seeds the walk at the host; otherwise it names a
+        # compromised identity whose operator credentials we surface.
+        foothold = self._compile_initial_access_vector(path_name, path, entities, primitives)
+        if foothold is not None:
+            initial_access, credentials = foothold
+        else:
+            initial_access = path.get("initial_access", {})
+            credentials = self._operator_credentials(
+                path_name, path, ref_kind, entities, primitives, cred_ref_to_key, domain
+            )
         return AttackPathOverlay(
             name=path_name,
             objective=path.get("objective", {}),
-            initial_access=path.get("initial_access", {}),
+            initial_access=initial_access,
             metadata=path.get("metadata", {}),
             steps=path.get("steps", []),
             credentials=credentials,
             summary={"path_name": path_name,
-                     "objective": path.get("objective", {}).get("name")},
+                     "objective": path.get("objective", {}).get("name"),
+                     "initial_access_vector": initial_access.get("vector")},
         )
+
+    def _compile_initial_access_vector(self, path_name: str, path: Dict,
+                                       entities: Dict[str, Dict], primitives: List):
+        """If a chained path's `initial_access:` declares a `vector:` (an exposed-host
+        foothold), emit the InitialAccessVector primitive and return
+        (normalized_initial_access, operator_credentials). The seed (`principal_ref`)
+        is set to the foothold host so the reachability walk starts there. Returns
+        None for the identity (compromised-credentials) shape — handled the old way."""
+        ia = path.get("initial_access") or {}
+        vector = ia.get("vector")
+        if not vector:
+            return None
+        if vector not in RESOURCE_FOOTHOLD_VECTORS:
+            raise ScenarioConfigError(
+                f"{path_name}: initial_access vector '{vector}' is not implemented "
+                f"(supported: {', '.join(RESOURCE_FOOTHOLD_VECTORS)}).")
+        target = ia.get("target_ref")
+        if not target:
+            raise ScenarioConfigError(
+                f"{path_name}: initial_access vector '{vector}' needs a `target_ref` "
+                f"(the host the attacker lands on).")
+        target_type = ia.get("target_type", "virtual_machine")
+        primitives.append(InitialAccessVector(
+            self._key(path_name, "foothold"), ATTACK_PATH, method=vector,
+            target_ref=target, target_type=target_type,
+            grants=ia.get("grants", "code_execution"),
+            variant=ia.get("variant"),
+            expose_to_internet=bool(ia.get("expose_to_internet", False)),
+            credential=ia.get("credential", "known")))
+        # Seed the walk at the host; keep `vector`/`target_ref` for the narrative.
+        initial_access = {**ia, "principal_ref": target, "method": vector}
+        credentials = {
+            "initial_access": vector,
+            "foothold_resource": target,
+            "foothold_type": target_type,
+            "entry_point": vector,
+        }
+        return initial_access, credentials
 
     @staticmethod
     def _key(path_name: str, local: str) -> str:
@@ -813,7 +863,8 @@ class ScenarioLoader:
     def _compile_technique_path(self, path_name: str, path: Dict,
                                 ref_kind: Dict[str, str], entities: Dict[str, Dict],
                                 primitives: List, domain: str,
-                                used_apps: set, used_users: set) -> AttackPathOverlay:
+                                used_apps: set, used_users: set,
+                                used_sources: set) -> AttackPathOverlay:
         """Compile a `technique:` path: fire the matching macro (the SAME library the
         legacy mode used), fold its generic primitives into the model, and synthesize
         a first-class graph overlay (objective + initial_access) so it renders and
@@ -835,7 +886,7 @@ class ScenarioLoader:
 
         result = self._dispatch_macro(
             technique, path, entities, domain, mode, macro_entities, path_name,
-            used_apps, used_users)
+            used_apps, used_users, used_sources)
 
         primitives.extend(result["primitives"])
         # Macro-minted attack GROUPS join the model groups map (so Terraform creates
@@ -850,6 +901,22 @@ class ScenarioLoader:
             used_apps.add(summary["app_name"])
         if summary.get("principal_name"):
             used_users.add(summary["principal_name"])
+        # ManagedIdentityAbuse random paths must each take a DISTINCT source resource:
+        # two paths sharing one grant its managed identity the same roles on the same
+        # target -> identical Azure role assignments -> 409 on apply. The selector
+        # prefers an unused source; if it was forced to reuse one (baseline too small),
+        # fail clearly here instead of mid-apply.
+        source_name = summary.get("source_name")
+        if source_name:
+            if mode == "random" and source_name in used_sources:
+                src_type = summary.get("source_type", "source")
+                count_knob = _MI_SOURCE_MAP.get(src_type, src_type)
+                raise ScenarioConfigError(
+                    f"{path_name}: not enough distinct '{src_type}' resources in the "
+                    f"baseline for the number of ManagedIdentityAbuse paths. Each path "
+                    f"needs its own source (sharing one collides on apply). Increase the "
+                    f"baseline '{count_knob}' count or reduce the number of MI paths.")
+            used_sources.add(source_name)
 
         credentials = result["credentials"]
         objective = self._synthesize_objective(technique, summary)
@@ -865,7 +932,8 @@ class ScenarioLoader:
     def _dispatch_macro(self, technique: str, attack_config: Dict,
                         entities: Dict[str, Dict], domain: str, mode: str,
                         macro_entities: Optional[Dict], path_name: str,
-                        used_apps: set, used_users: set) -> Dict:
+                        used_apps: set, used_users: set,
+                        used_sources: set) -> Dict:
         """Dispatch to the matching macro with the entity maps it needs (mirrors the
         legacy cli dispatch). `attack_config` is the raw path dict — macros read their
         knobs via .get(), ignoring the technique/identities/resources keys."""
@@ -901,7 +969,7 @@ class ScenarioLoader:
                 attack_config, E["applications"], E["key_vaults"],
                 E["storage_accounts"], E["users"], domain, E["virtual_machines"],
                 E["logic_apps"], E["automation_accounts"], E["function_apps"],
-                used_apps=used_apps, used_users=used_users,
+                used_apps=used_apps, used_users=used_users, used_sources=used_sources,
                 cosmos_dbs=E["cosmos_dbs"], **common)
         raise ScenarioConfigError(
             f"{path_name}: unknown technique '{technique}'.")
@@ -967,10 +1035,15 @@ class ScenarioLoader:
 
     @staticmethod
     def _seed_from_credentials(credentials: Dict) -> Optional[str]:
-        """The symbolic ref of the compromised initial-access identity — the
-        reachability seed. Matches the keys the macro primitives use (user = UPN local
-        part = var.users key; SP = app display_name)."""
-        if credentials.get("initial_access") == "user":
+        """The symbolic ref of the initial-access node — the reachability seed.
+        For an exposed-host foothold it's the host the attacker lands on (controlling
+        it already implies controlling its managed identity). For the credential
+        vectors it's the compromised identity (user = UPN local part = var.users key;
+        SP = app display_name)."""
+        ia = credentials.get("initial_access")
+        if ia in RESOURCE_FOOTHOLD_VECTORS:
+            return credentials.get("foothold_resource")
+        if ia == "user":
             upn = credentials.get("user_principal_name", "")
             return upn.split("@")[0] if "@" in upn else upn
         return credentials.get("service_principal_name")

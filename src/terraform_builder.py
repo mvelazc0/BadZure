@@ -35,9 +35,12 @@ from typing import Dict, List
 
 from src.primitives import (
     DeploymentModel, Primitive, EntraRoleAssignment, AppCredential, DataInject,
-    RANDOM, ATTACK_PATH, value_fields,
+    InitialAccessVector, RANDOM, ATTACK_PATH, value_fields,
 )
 from src.primitive_handlers import handler_for, CREDENTIAL, DATAPLANE_LOCATION_TYPES
+from src.constants import (
+    RESOURCE_FOOTHOLD_VECTORS, WEAK_FOOTHOLD_PASSWORD, FOOTHOLD_VECTOR_PROTOCOL,
+)
 
 
 class LabValidationError(ValueError):
@@ -94,6 +97,7 @@ class TerraformBuilder:
         """Validate the lab and produce the full terraform.tfvars.json dict."""
         self.validate()
         groups = self._derive_attack_path_groups()
+        exposed_vms = self._derive_exposed_vms()
         families = self._build_families()
 
         tfvars: Dict = {
@@ -104,12 +108,20 @@ class TerraformBuilder:
             "azure_config_dir": self.model.azure_config_dir,
         }
         for attr in DeploymentModel.ENTITY_MAPS:
-            tfvars[attr] = groups if attr == "groups" else getattr(self.model, attr)
+            if attr == "groups":
+                tfvars[attr] = groups
+            elif attr == "virtual_machines":
+                tfvars[attr] = exposed_vms
+            else:
+                tfvars[attr] = getattr(self.model, attr)
         tfvars.update(families)
         # Only the Cosmos accounts a cosmos_document inject targets need their
         # master key surfaced to the data-plane phase; the cosmos_db_connections
         # output iterates exactly this allowlist (baseline accounts are excluded).
         tfvars["cosmos_dataplane_refs"] = self._cosmos_dataplane_refs()
+        # VMs that are an exposed-host foothold — the vm_foothold_access output
+        # surfaces exactly these (public IP + creds the operator logs in with).
+        tfvars["foothold_vm_refs"] = self._foothold_vm_refs()
         return tfvars
 
     def _cosmos_dataplane_refs(self) -> List[str]:
@@ -144,13 +156,70 @@ class TerraformBuilder:
             out[gkey] = entry
         return out
 
+    # -- step 1b: exposed-host foothold projection ----------------------------
+    def _derive_exposed_vms(self) -> Dict:
+        """A fresh virtual_machines map with exposed-host footholds projected onto
+        the target VM spec: an `expose_to_internet` flag (read by the main.tf NSG)
+        and, for credential=weak, a brute-forceable admin password. The host OS is
+        coerced to match the vector (exposed_rdp -> Windows, exposed_ssh -> Linux) so
+        the open port is consistent with the box — baseline VMs are always generated
+        Linux, so without this an exposed_rdp foothold would land on a Linux host.
+        Mirrors _derive_attack_path_groups — an InitialAccessVector is consumed here,
+        NOT as a generic.tf family. Does not mutate the model; VMs that no foothold
+        targets are copied through unchanged (so the golden fixture stays untouched)."""
+        out: Dict = {k: dict(v) for k, v in self.model.virtual_machines.items()}
+        for p in self.model.primitives:
+            if not (isinstance(p, InitialAccessVector)
+                    and p.method in RESOURCE_FOOTHOLD_VECTORS):
+                continue
+            vm = out.get(p.target_ref)
+            if vm is None:  # ref-validated in validate(); defensive
+                continue
+            vm["expose_to_internet"] = bool(p.expose_to_internet)
+            os_type = FOOTHOLD_VECTOR_PROTOCOL.get(p.method, {}).get("os_type")
+            if os_type:
+                vm["os_type"] = os_type
+            if p.credential == "weak":
+                vm["admin_password"] = WEAK_FOOTHOLD_PASSWORD
+        return out
+
+    def _foothold_vm_refs(self) -> List[str]:
+        """Sorted VM refs that are an exposed-host foothold — the vm_foothold_access
+        output iterates exactly these (its public IP is only known after apply)."""
+        return sorted({
+            p.target_ref for p in self.model.primitives
+            if isinstance(p, InitialAccessVector) and p.method in RESOURCE_FOOTHOLD_VECTORS
+        })
+
     # -- step 2: reference checking -------------------------------------------
     def validate(self) -> None:
         credential_keys = set(self._credential_origin.keys())
         for p in self.model.primitives:
+            if isinstance(p, InitialAccessVector):
+                self._validate_initial_access_vector(p)
+                continue
             self._validate_refs(p, credential_keys)
             if isinstance(p, DataInject):
                 self._validate_inject_material(p)
+
+    def _validate_initial_access_vector(self, p: InitialAccessVector) -> None:
+        """An InitialAccessVector has no generic.tf handler, so ref-check it here.
+        Slice 1 implements only the exposed-host footholds (target_type=virtual_machine)."""
+        if p.method not in RESOURCE_FOOTHOLD_VECTORS:
+            raise LabValidationError(
+                f"InitialAccessVector '{p.key}': method '{p.method}' is not "
+                f"implemented yet (supported: {', '.join(RESOURCE_FOOTHOLD_VECTORS)})."
+            )
+        if p.target_type != "virtual_machine":
+            raise LabValidationError(
+                f"InitialAccessVector '{p.key}': method '{p.method}' requires "
+                f"target_type 'virtual_machine' (got '{p.target_type}')."
+            )
+        if p.target_ref not in self.model.entity_keys("virtual_machines"):
+            raise LabValidationError(
+                f"InitialAccessVector '{p.key}': target_ref '{p.target_ref}' is not "
+                f"a declared virtual_machine."
+            )
 
     def _validate_refs(self, p: Primitive, credential_keys: set) -> None:
         for ref in handler_for(p).refs(p):
@@ -198,6 +267,10 @@ class TerraformBuilder:
             # resource — they're planted by src/dataplane.py after apply, so keep
             # them out of the tfvars families. They are still ref-validated above.
             if isinstance(p, DataInject) and p.location_type in DATAPLANE_LOCATION_TYPES:
+                continue
+            # InitialAccessVector has no generic.tf family — it is projected onto the
+            # target VM spec by _derive_exposed_vms, not emitted as a primitive var.
+            if isinstance(p, InitialAccessVector):
                 continue
 
             base = handler_for(p).base_family

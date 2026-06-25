@@ -120,8 +120,10 @@ These options are available for **all** technique types:
 | `enabled` | `true`, `false` | `true` | Set `false` to park the path (defined but not deployed). Applies to any path, atomic or chained |
 | `privilege_escalation` | See below | — | The privilege-escalation technique |
 | `method` | `AzureADRole`, `APIPermission` | — | How the target app gets its privileges |
-| `initial_access` | `user`, `service_principal` | `user` | Type of initial access identity |
+| `initial_access` | `user`, `service_principal`, `exposed_rdp`, `exposed_ssh` | `user` | How the attacker first gains a foothold |
 | `assignment_type` | `direct`, `group_member`, `group_owner` | `direct` | Direct, via group membership, or via group ownership |
+| `expose_to_internet` | `true`, `false` | `false` | Exposed-host footholds only. `true` adds a `0.0.0.0/0` allow rule so RDP/SSH is reachable from the public internet |
+| `credential` | `known`, `weak` | `known` | Exposed-host footholds only. `weak` sets a brute-forceable local admin password; `known` keeps the strong generated one |
 
 ### Option Details
 
@@ -137,12 +139,21 @@ These options are available for **all** technique types:
 
 For detailed descriptions of each technique, see the [Attack Paths](attack-paths/index.md) section.
 
-**`initial_access`** — The type of identity used for initial access:
+**`initial_access`** — How the attacker first gains a foothold. Two kinds: a compromised identity, or an exposed host.
+
+Compromised-identity vectors (supported by every technique):
 
 - **`user`** — A regular user account (default). Simulates compromised employee, developer, or administrator accounts
 - **`service_principal`** — An application's service principal. Simulates compromised CI/CD pipelines, automation accounts, or third-party integrations
 
-All techniques support both identity types:
+Exposed-host foothold vectors (ManagedIdentityAbuse with `source_type: vm` only):
+
+- **`exposed_rdp`** — An internet-reachable VM with RDP open, brute-forced to gain code execution on the host
+- **`exposed_ssh`** — An internet-reachable VM with SSH open, brute-forced to gain code execution on the host
+
+With an exposed-host foothold the attacker lands directly on the VM (no compromised identity), then pivots through the VM's managed identity to reach the target resource. The foothold VM is the managed-identity source, so `source_type` must be `vm`. The foothold host's OS follows the vector (`exposed_rdp` forces a Windows VM, `exposed_ssh` a Linux VM) so the open port matches the box. The build surfaces the VM public IP and admin credentials so the operator can log in and continue the chain. Tune the exposure with `expose_to_internet` and `credential`.
+
+The compromised-identity vectors are supported by every technique:
 
 | Technique | User | Service Principal |
 |---|---|---|
@@ -153,6 +164,10 @@ All techniques support both identity types:
 | KeyVaultSecretTheft | User with Key Vault access | SP with Key Vault access |
 | StorageCertificateTheft | User with Storage access | SP with Storage access |
 | CosmosDBSecretTheft | User with Cosmos DB access | SP with Cosmos DB access |
+
+**`expose_to_internet`** *(exposed-host footholds)* — Default `false`: RDP and SSH stay open to the operator IP only (the machine running BadZure), so the operator can still reach the host. Set `true` to also add a `0.0.0.0/0` (Internet) allow rule, making the host reachable — and brute-forceable — from anywhere.
+
+**`credential`** *(exposed-host footholds)* — Default `known`: the VM keeps its strong generated admin password, surfaced to the operator so they can log in directly. Set `weak` to assign a brute-forceable local admin password for a realistic credential-guessing exercise.
 
 **`assignment_type`** — How permissions are granted to the initial access identity:
 
@@ -339,6 +354,30 @@ attack_paths:
 ```
 
 The chain reads: `priya` holds **Key Vault Contributor** on the vault → reads the planted secret → authenticates as `billing-sync-app`, which holds **Global Administrator**. 
+
+### Initial access (chained)
+
+`initial_access` declares where the attacker starts. It takes one of two shapes:
+
+- A compromised identity: `{ method: compromised_identity, principal_ref: <user or app ref> }`. The walk seeds at that identity.
+- An exposed-host foothold: `{ vector: exposed_rdp, target_ref: <vm ref> }`. The attacker lands on the VM with code execution; the walk seeds at the host, so any assignment that grants the VM's managed identity access continues the chain. Optional `expose_to_internet` (default `false`) and `credential` (default `known`) tune the exposure exactly as in atomic paths.
+
+```yaml
+    initial_access:
+      vector: exposed_rdp
+      target_ref: vm_foothold
+      expose_to_internet: false   # flip to true to open RDP/SSH to 0.0.0.0/0
+      credential: weak            # a brute-forceable local admin password
+    resources:
+      virtual_machines: [{ ref: vm_foothold, os_type: Windows }]
+    assignments:
+      # the foothold VM's managed identity can read the vault's secrets
+      - { id: a1, type: azure_rbac, principal_ref: vm_foothold,
+          principal_type: managed_identity, mi_source_type: vm,
+          role: "Key Vault Secrets User", scope_ref: badzure-ref-kv-01 }
+```
+
+See `test_configs/declarative/declarative_exposed_rdp_chain.yml` for a worked example.
 
 The nine assignment `type`s are `entra_role`, `azure_rbac`, `api_permission`, `group_membership`, `group_ownership`, `app_ownership`, `au_membership` (plus `credentials` and `data_injects` as their own blocks). A chained path can also borrow entities from the baseline with `{ ref: victim, from: baseline }`. See `test_configs/declarative/declarative_hybrid.yml` for a worked hybrid example.
 
