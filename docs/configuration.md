@@ -76,6 +76,8 @@ The baseline has three sub-sections.
 | `function_apps` | Function Apps | ManagedIdentityAbuse  |
 | `cosmos_dbs` | Cosmos DB accounts | CosmosDBSecretTheft, ManagedIdentityAbuse |
 
+Baseline VMs are private — they get no public IP. Only an exposed-host foothold VM (an `exposed_rdp` / `exposed_ssh` initial-access vector) is allocated a public IP so the operator can log in.
+
 Resource groups are created automatically.
 
 ### `baseline.assignments` — (optional)

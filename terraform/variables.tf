@@ -97,6 +97,11 @@ variable "virtual_machines" {
     # true: also add a 0.0.0.0/0 (Internet) allow rule so the host is reachable —
     # and brute-forceable — from the public internet.
     expose_to_internet = optional(bool, false)
+    # Whether to allocate a public IP for this VM. false (default): baseline VMs
+    # are private (no public IP — saves cost and reduces attack surface). The
+    # builder sets this true only for exposed-host foothold VMs (the ones whose
+    # public IP + creds the operator needs to log in via RDP/SSH).
+    assign_public_ip = optional(bool, false)
   }))
 }
 

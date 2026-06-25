@@ -244,7 +244,9 @@ resource "azurerm_windows_virtual_machine" "windows_vms" {
 }
 
 resource "azurerm_public_ip" "vm_public_ips" {
-  for_each = var.virtual_machines
+  # Only VMs flagged assign_public_ip (the exposed-host footholds) get a public
+  # IP. Baseline VMs are private — no public IP allocated.
+  for_each = { for k, v in var.virtual_machines : k => v if v.assign_public_ip }
 
   name                = "${each.key}-public-ip"
   location            = each.value.location
@@ -266,7 +268,9 @@ resource "azurerm_network_interface" "vm_nics" {
     name                          = "internal"
     subnet_id                     = azurerm_subnet.vm_subnets[each.key].id
     private_ip_address_allocation = "Dynamic"
-    public_ip_address_id          = azurerm_public_ip.vm_public_ips[each.key].id
+    # Only foothold VMs (assign_public_ip) have an allocated public IP; baseline
+    # VMs stay private (null = no public IP attached to the NIC).
+    public_ip_address_id          = each.value.assign_public_ip ? azurerm_public_ip.vm_public_ips[each.key].id : null
 
   }
 

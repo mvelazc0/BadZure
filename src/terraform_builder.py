@@ -159,8 +159,10 @@ class TerraformBuilder:
     # -- step 1b: exposed-host foothold projection ----------------------------
     def _derive_exposed_vms(self) -> Dict:
         """A fresh virtual_machines map with exposed-host footholds projected onto
-        the target VM spec: an `expose_to_internet` flag (read by the main.tf NSG)
-        and, for credential=weak, a brute-forceable admin password. The host OS is
+        the target VM spec: an `expose_to_internet` flag (read by the main.tf NSG),
+        an `assign_public_ip` flag (footholds are the only VMs given a public IP —
+        baseline VMs stay private) and, for credential=weak, a brute-forceable admin
+        password. The host OS is
         coerced to match the vector (exposed_rdp -> Windows, exposed_ssh -> Linux) so
         the open port is consistent with the box — baseline VMs are always generated
         Linux, so without this an exposed_rdp foothold would land on a Linux host.
@@ -176,6 +178,9 @@ class TerraformBuilder:
             if vm is None:  # ref-validated in validate(); defensive
                 continue
             vm["expose_to_internet"] = bool(p.expose_to_internet)
+            # Foothold VMs are the only VMs that get a public IP — the operator
+            # needs it to reach the host (RDP/SSH). Baseline VMs stay private.
+            vm["assign_public_ip"] = True
             os_type = FOOTHOLD_VECTOR_PROTOCOL.get(p.method, {}).get("os_type")
             if os_type:
                 vm["os_type"] = os_type

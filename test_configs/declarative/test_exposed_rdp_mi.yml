@@ -18,7 +18,7 @@ baseline:
     applications: 2
   resources:
     key_vaults: 1
-    virtual_machines: 5
+    virtual_machines: 6
 attack_paths:
   exposed_rdp_to_keyvault:
     privilege_escalation: ManagedIdentityAbuse

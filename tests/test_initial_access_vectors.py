@@ -107,6 +107,8 @@ def test_atomic_foothold_builds_and_projects_vm_flags():
     assert out["foothold_vm_refs"] == [vm_ref]
     assert out["virtual_machines"][vm_ref]["expose_to_internet"] is True
     assert out["virtual_machines"][vm_ref]["admin_password"] == WEAK_FOOTHOLD_PASSWORD
+    # Foothold VMs are the only VMs given a public IP (operator reaches them via RDP/SSH).
+    assert out["virtual_machines"][vm_ref]["assign_public_ip"] is True
 
     # The InitialAccessVector is NOT emitted as a generic.tf family.
     assert not any("initial_access" in fam for fam in out)
@@ -174,6 +176,32 @@ def test_atomic_foothold_defaults_are_safe():
     vm = out["virtual_machines"][vm_ref]
     assert vm["expose_to_internet"] is False
     assert vm["admin_password"] != WEAK_FOOTHOLD_PASSWORD
+
+
+def test_baseline_vm_gets_no_public_ip():
+    # A VM that is NOT an exposed-host foothold (pure baseline noise) must not be
+    # flagged assign_public_ip — baseline VMs stay private (no public IP allocated).
+    cfg = {
+        "baseline": {"identities": {"users": 2, "applications": 2},
+                     "resources": {"key_vaults": 1, "virtual_machines": 2}},
+        "attack_paths": {
+            "p": {"privilege_escalation": "ManagedIdentityAbuse",
+                  "initial_access": "exposed_rdp", "source_type": "vm",
+                  "target_resource_type": "key_vault", "method": "APIPermission",
+                  "api_type": "graph",
+                  "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
+        },
+    }
+    scenario = _load(cfg)
+    out = build_tfvars(scenario.model)
+    foothold = set(out["foothold_vm_refs"])
+    assert foothold, "expected one exposed-host foothold VM"
+    for vm_ref, vm in out["virtual_machines"].items():
+        if vm_ref in foothold:
+            assert vm["assign_public_ip"] is True, vm_ref
+        else:
+            # baseline VM: no public IP (flag absent -> TF optional default false)
+            assert vm.get("assign_public_ip", False) is False, vm_ref
 
 
 # ---------------------------------------------------------------------------
