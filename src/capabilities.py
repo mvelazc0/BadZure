@@ -52,6 +52,7 @@ CONTROL_ROLES = {
     "logic_app": {"Owner", "Contributor", "Logic App Contributor"},
     "automation_account": {"Owner", "Contributor", "Automation Contributor"},
     "function_app": {"Owner", "Contributor", "Website Contributor"},
+    "app_service": {"Owner", "Contributor", "Website Contributor"},
 }
 
 # --- READ: roles that let you read the secrets/data OUT of a data resource ------

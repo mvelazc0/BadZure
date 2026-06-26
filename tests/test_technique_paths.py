@@ -50,7 +50,7 @@ _FULL_BASELINE = {
     "identities": {"users": 8, "groups": 3, "applications": 6},
     "resources": {
         "key_vaults": 1, "storage_accounts": 1, "cosmos_dbs": 1,
-        "virtual_machines": 1, "logic_apps": 1,
+        "virtual_machines": 1, "logic_apps": 1, "app_services": 1,
     },
 }
 
@@ -124,6 +124,42 @@ def test_technique_paths_get_recon_access():
                        and p.key.startswith("recon_") for p in prims)
     assert has_reader, "no subscription Reader recon grant"
     assert has_dir_read, "no Directory.Read.All recon grant"
+
+
+def test_managed_identity_app_service_source():
+    # App Service as the ManagedIdentityAbuse source: compromised identity gets
+    # Website Contributor on the app, then pivots through its MI to a key_vault.
+    config = {
+        "baseline": {"identities": {"users": 4, "applications": 4}},
+        "attack_paths": {
+            "mi_app_service": {
+                "privilege_escalation": "ManagedIdentityAbuse",
+                "source_type": "app_service", "target_resource_type": "key_vault",
+                "credential_type": "secret", "initial_access": "user",
+                "method": "AzureADRole", "entra_role": "random",
+                "identities": {"applications": [{"ref": "LootedApp"}],
+                               "users": [{"ref": "VictimUser"}]},
+                "resources": {
+                    "resource_groups": [{"ref": "asrg"}],
+                    "key_vaults": [{"ref": "askv01", "resource_group": "asrg"}],
+                    "app_services": [{"ref": "ops-portal", "resource_group": "asrg"}],
+                },
+            }
+        },
+    }
+    scenario = _load(config)
+    assert "ops-portal" in scenario.model.app_services
+    assert "askv01" in scenario.model.key_vaults
+    ov = scenario.attack_paths[0]
+    assert ov.objective["target_ref"] == "askv01"
+    assert ov.reachability["status"] == reachability.REACHED
+    # Website Contributor on the app + MI grants resolved via app_service source.
+    out = build_tfvars(scenario.model)
+    rbac = out["attack_path_azure_rbac_assignments"].values()
+    assert any(r["role"] == "Website Contributor"
+               and r["scope_resource_type"] == "app_service" for r in rbac)
+    assert any(r["principal_type"] == "managed_identity"
+               and r["mi_source_type"] == "app_service" for r in rbac)
 
 
 def test_inline_entities_run_targeted():

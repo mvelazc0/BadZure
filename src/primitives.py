@@ -69,9 +69,9 @@ class AzureRbacAssignment(Primitive):
     principal_type: str                          # user | service_principal | group | managed_identity
     role: str                                    # role_definition_name OR cosmos sql role GUID
     scope_type: str                              # subscription | resource_group | resource
-    mi_source_type: Optional[str] = None         # managed_identity: vm|logic_app|automation_account|function_app
+    mi_source_type: Optional[str] = None         # managed_identity: vm|logic_app|automation_account|function_app|app_service
     scope_ref: Optional[str] = None              # rg name or resource key; ignored for subscription
-    scope_resource_type: Optional[str] = None    # key_vault|storage_account|cosmos_db|virtual_machine|logic_app|automation_account|function_app
+    scope_resource_type: Optional[str] = None    # key_vault|storage_account|cosmos_db|virtual_machine|logic_app|automation_account|function_app|app_service
     data_plane: Optional[str] = None             # None (control plane) | cosmos_sql
 
 
@@ -206,6 +206,7 @@ class DeploymentModel:
     logic_apps: Dict = field(default_factory=dict)
     automation_accounts: Dict = field(default_factory=dict)
     function_apps: Dict = field(default_factory=dict)
+    app_services: Dict = field(default_factory=dict)
     cosmos_dbs: Dict = field(default_factory=dict)
 
     # The building blocks wired between the entities above — a flat list.
@@ -216,7 +217,7 @@ class DeploymentModel:
         "users", "groups", "applications", "administrative_units",
         "resource_groups", "key_vaults", "storage_accounts",
         "virtual_machines", "logic_apps", "automation_accounts",
-        "function_apps", "cosmos_dbs",
+        "function_apps", "app_services", "cosmos_dbs",
     )
 
     def entity_keys(self, attr: str):

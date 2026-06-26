@@ -74,9 +74,12 @@ The baseline has three sub-sections.
 | `logic_apps` | Logic Apps | ManagedIdentityAbuse |
 | `automation_accounts` | Automation Accounts | ManagedIdentityAbuse  |
 | `function_apps` | Function Apps | ManagedIdentityAbuse  |
+| `app_services` | App Services (Linux web apps) | ManagedIdentityAbuse  |
 | `cosmos_dbs` | Cosmos DB accounts | CosmosDBSecretTheft, ManagedIdentityAbuse |
 
 Baseline VMs are private — they get no public IP. Only an exposed-host foothold VM (an `exposed_rdp` / `exposed_ssh` initial-access vector) is allocated a public IP so the operator can log in.
+
+App Service creation is throttled per subscription. Running multiple build and destroy iterations in a short period can result in throttling errors that prevent App Services from being created for a while.
 
 Resource groups are created automatically.
 
@@ -280,6 +283,7 @@ Identical to `ApplicationAdministratorAbuse` in configuration, but uses the **Cl
 | `logic_app` | Logic App with system-assigned managed identity | Logic App Contributor |
 | `automation_account` | Automation Account with system-assigned managed identity | Automation Contributor |
 | `function_app` | Function App with system-assigned managed identity (Linux/Python) | Website Contributor |
+| `app_service` | App Service with system-assigned managed identity (Linux/Python) | Website Contributor |
 
 **`target_resource_type`** — The resource storing the application credentials:
 

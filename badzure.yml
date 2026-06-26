@@ -64,6 +64,9 @@ baseline:
     key_vaults: 2
     storage_accounts: 1
     virtual_machines: 1
+    # NOTE: App Service creation is throttled per subscription — running multiple
+    # build/destroy iterations in a short period can cause throttling errors.
+    app_services: 1
     cosmos_dbs: 1
 
   # Benign org "noise": realistic everyday assignments (all origin: random) that
@@ -174,7 +177,7 @@ attack_paths:
   # ---------------------------------------------------------------------------
   # 7. ManagedIdentityAbuse — control a compute resource, steal its managed
   #    identity, pivot to a data resource holding an app credential.
-  #    Knobs: source_type (vm | logic_app | automation_account | function_app),
+  #    Knobs: source_type (vm | logic_app | automation_account | function_app | app_service),
   #           target_resource_type (key_vault | storage_account | cosmos_db),
   #           credential_type (secret | certificate).
   #    Needs the source compute + target resource in the baseline (vm + key_vault).
@@ -182,6 +185,20 @@ attack_paths:
   mi_abuse:
     privilege_escalation: ManagedIdentityAbuse
     source_type: vm
+    target_resource_type: key_vault
+    credential_type: secret
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All
+
+  # 7a. ManagedIdentityAbuse with an App Service source. The attacker holds
+  #     Website Contributor on the app and steals its managed identity token via
+  #     the Kudu/SCM REST API (no application vulnerability needed). Needs an
+  #     app_service in the baseline.
+  # ---------------------------------------------------------------------------
+  mi_abuse_app_service:
+    privilege_escalation: ManagedIdentityAbuse
+    source_type: app_service
     target_resource_type: key_vault
     credential_type: secret
     method: APIPermission

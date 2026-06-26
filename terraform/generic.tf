@@ -70,11 +70,11 @@ variable "random_azure_rbac_assignments" {
   type = map(object({
     principal_ref       = string
     principal_type      = string                  # user | service_principal | group | managed_identity
-    mi_source_type      = optional(string, null)  # managed_identity only: vm | logic_app | automation_account | function_app
+    mi_source_type      = optional(string, null)  # managed_identity only: vm | logic_app | automation_account | function_app | app_service
     role                = string                  # role_definition_name (control plane) OR cosmos sql role GUID (data plane)
     scope_type          = string                  # subscription | resource_group | resource
     scope_ref           = optional(string, null)  # rg name, or resource key; ignored for subscription
-    scope_resource_type = optional(string, null)  # key_vault|storage_account|cosmos_db|virtual_machine|logic_app|automation_account|function_app
+    scope_resource_type = optional(string, null)  # key_vault|storage_account|cosmos_db|virtual_machine|logic_app|automation_account|function_app|app_service
     data_plane          = optional(string, null)  # null (control plane) | cosmos_sql (Cosmos data-plane role)
   }))
 }
@@ -368,6 +368,7 @@ locals {
       v.mi_source_type == "logic_app" ? azurerm_logic_app_workflow.logic_apps[v.principal_ref].identity[0].principal_id :
       v.mi_source_type == "automation_account" ? azurerm_automation_account.automation_accounts[v.principal_ref].identity[0].principal_id :
       v.mi_source_type == "function_app" ? azurerm_function_app_flex_consumption.function_apps[v.principal_ref].identity[0].principal_id :
+      v.mi_source_type == "app_service" ? azurerm_linux_web_app.app_services[v.principal_ref].identity[0].principal_id :
       null
     )
   }
@@ -384,6 +385,7 @@ locals {
       v.scope_resource_type == "logic_app" ? azurerm_logic_app_workflow.logic_apps[v.scope_ref].id :
       v.scope_resource_type == "automation_account" ? azurerm_automation_account.automation_accounts[v.scope_ref].id :
       v.scope_resource_type == "function_app" ? azurerm_function_app_flex_consumption.function_apps[v.scope_ref].id :
+      v.scope_resource_type == "app_service" ? azurerm_linux_web_app.app_services[v.scope_ref].id :
       v.scope_resource_type == "virtual_machine" ? (
         contains(keys(azurerm_linux_virtual_machine.linux_vms), v.scope_ref) ?
         azurerm_linux_virtual_machine.linux_vms[v.scope_ref].id :
@@ -453,6 +455,7 @@ resource "azurerm_role_assignment" "generic_azure_rbac" {
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
     azurerm_function_app_flex_consumption.function_apps,
+    azurerm_linux_web_app.app_services,
     azurerm_resource_group.rgroups,
   ]
 }
@@ -477,6 +480,7 @@ resource "azurerm_cosmosdb_sql_role_assignment" "generic_cosmos_rbac" {
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
     azurerm_function_app_flex_consumption.function_apps,
+    azurerm_linux_web_app.app_services,
   ]
 }
 

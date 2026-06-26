@@ -48,6 +48,7 @@ graph TD
         LA(("Logic App<br/>Logic App Contributor"))
         AA(("Automation Account<br/>Automation Contributor"))
         FA(("Function App<br/>Website Contributor"))
+        AS(("App Service<br/>Website Contributor"))
     end
 
     subgraph Targets
@@ -68,6 +69,9 @@ graph TD
     FA --> KV
     FA --> SA
     FA --> CDB
+    AS --> KV
+    AS --> SA
+    AS --> CDB
 ```
 
 === "Virtual Machine"
@@ -97,6 +101,16 @@ graph TD
 
     - **Config value:** `source_type: function_app`
     - **Required role:** Website Contributor
+
+=== "App Service"
+
+    The attacker uses the **Kudu/SCM REST API** (the `/api/command` RunCommand analog) to run commands in the app context and extract the managed identity token (Linux/Python).
+
+    - **Config value:** `source_type: app_service`
+    - **Required role:** Website Contributor
+
+    !!! note
+        App Service creation is throttled per subscription. Running multiple build and destroy iterations in a short period can result in throttling errors that prevent App Services from being created for a while.
 
 ### By Target Type
 
@@ -298,6 +312,19 @@ attack_paths:
     method: APIPermission
     api_type: graph
     app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+```
+
+App Service to Key Vault. The attacker holds Website Contributor on the app and steals its managed identity token through the Kudu/SCM REST API:
+
+```yaml
+attack_paths:
+  mi_appservice_keyvault:
+    privilege_escalation: ManagedIdentityAbuse
+    source_type: app_service
+    target_resource_type: key_vault
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 VM to Cosmos DB with Graph API permissions:

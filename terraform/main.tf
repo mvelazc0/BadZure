@@ -516,6 +516,54 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
   ]
 }
 
+# App Service Plan for App Services (Linux web apps)
+resource "azurerm_service_plan" "app_service_plan" {
+  for_each = var.app_services
+
+  name = "${each.value.name}-plan"
+  # App Services use their own region (var.app_service_location, default West US 2),
+  # independent of the resource group's region, because App Service quota is
+  # region-specific (some SKUs are capped at 0 in West US but available in West US 2).
+  location            = var.app_service_location
+  resource_group_name = each.value.resource_group_name
+  os_type             = "Linux"
+  # SKU comes from var.app_service_sku (default B1 / Basic). Every plan tier counts
+  # against the subscription's per-region App Service quota. If apply fails 401
+  # "Total VMs: Current Limit 0", the chosen SKU has 0 quota in app_service_location
+  # — move app_service_location to a region with quota, or override app_service_sku.
+  sku_name = var.app_service_sku
+
+  depends_on = [azurerm_resource_group.rgroups]
+}
+
+# App Service (Linux web app) with system-assigned managed identity
+resource "azurerm_linux_web_app" "app_services" {
+  for_each = var.app_services
+
+  name = each.value.name
+  # Must match the plan's region (var.app_service_location), which may differ from
+  # the resource group's region. See the app_service_location variable.
+  location            = var.app_service_location
+  resource_group_name = each.value.resource_group_name
+  service_plan_id     = azurerm_service_plan.app_service_plan[each.key].id
+
+  site_config {
+    # always_on is kept false so the config stays valid across every app_service_sku
+    # (Free/F1 requires it disabled; Basic and higher allow either — false is fine).
+    always_on = false
+    application_stack {
+      python_version = "3.11"
+    }
+  }
+
+  # Keep System-Assigned Identity for attack path scenarios
+  identity {
+    type = "SystemAssigned"
+  }
+
+  depends_on = [azurerm_service_plan.app_service_plan]
+}
+
 # Cosmos DB Account (serverless capacity mode for cost efficiency)
 resource "azurerm_cosmosdb_account" "cosmos_dbs" {
   for_each = var.cosmos_dbs

@@ -96,10 +96,12 @@ class AttackPathManager:
     SOURCE_CONTRIBUTOR_ROLE = {
         'vm': 'Virtual Machine Contributor', 'logic_app': 'Logic App Contributor',
         'automation_account': 'Automation Contributor', 'function_app': 'Website Contributor',
+        'app_service': 'Website Contributor',
     }
     SOURCE_SCOPE_RESOURCE_TYPE = {
         'vm': 'virtual_machine', 'logic_app': 'logic_app',
         'automation_account': 'automation_account', 'function_app': 'function_app',
+        'app_service': 'app_service',
     }
     MI_KV_ROLES = ['Key Vault Contributor', 'Key Vault Secrets User', 'Key Vault Reader']
     MI_KV_CERTIFICATE_ROLE = 'Key Vault Certificate User'
@@ -347,12 +349,13 @@ class AttackPathManager:
         logic_apps: Dict, automation_accounts: Dict, function_apps: Dict,
         mode: str = 'random', entities: Optional[Dict] = None, path_name: Optional[str] = None,
         used_apps: Optional[set] = None, used_users: Optional[set] = None,
-        cosmos_dbs: Optional[Dict] = None, used_sources: Optional[set] = None
+        cosmos_dbs: Optional[Dict] = None, used_sources: Optional[set] = None,
+        app_services: Optional[Dict] = None
     ) -> Dict:
         """ManagedIdentityAbuse as generic building blocks (Phase 4 macro).
 
         The attacker holds Contributor on a SOURCE compute resource (VM/Logic App/
-        Automation/Function) -> runs code -> steals the source's managed identity
+        Automation/Function/App Service) -> runs code -> steals the source's managed identity
         token -> the MI has grants on a TARGET (KV/Storage/Cosmos) holding the looted
         app's credential.
 
@@ -369,6 +372,7 @@ class AttackPathManager:
         Returns {primitives, credentials, groups, summary}.
         """
         cosmos_dbs = cosmos_dbs or {}
+        app_services = app_services or {}
         source_type = attack_config.get('source_type', 'vm')
         target_resource_type = attack_config.get('target_resource_type')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
@@ -388,12 +392,13 @@ class AttackPathManager:
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, source_type, target_resource_type,
                 identity_type, used_apps, used_users, cosmos_dbs=cosmos_dbs,
-                used_sources=used_sources)
+                used_sources=used_sources, app_services=app_services)
         else:
             app_name, target_name, source_name, principal_name = self._select_targeted_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, entities, source_type,
-                target_resource_type, identity_type, path_name, cosmos_dbs=cosmos_dbs)
+                target_resource_type, identity_type, path_name, cosmos_dbs=cosmos_dbs,
+                app_services=app_services)
 
         primitives, groups = [], {}
 
@@ -1329,7 +1334,7 @@ class AttackPathManager:
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
         source_type: str, target_resource_type: str, identity_type: str,
         used_apps: set = None, used_users: set = None,
-        cosmos_dbs: Dict = None, used_sources: set = None
+        cosmos_dbs: Dict = None, used_sources: set = None, app_services: Dict = None
     ) -> Tuple[str, str, str, str]:
         """Select random entities for Managed Identity Theft.
 
@@ -1370,6 +1375,7 @@ class AttackPathManager:
         source_pool = {
             'vm': virtual_machines, 'logic_app': logic_apps,
             'automation_account': automation_accounts, 'function_app': function_apps,
+            'app_service': app_services or {},
         }.get(source_type, virtual_machines)
         source_keys = list(source_pool.keys())
         if used_sources:
@@ -1652,7 +1658,7 @@ class AttackPathManager:
         self, applications: Dict, key_vaults: Dict, storage_accounts: Dict,
         virtual_machines: Dict, logic_apps: Dict, automation_accounts: Dict, function_apps: Dict, users: Dict,
         entities: Dict, source_type: str, target_resource_type: str, identity_type: str, path_name: str,
-        cosmos_dbs: Dict = None
+        cosmos_dbs: Dict = None, app_services: Dict = None
     ) -> Tuple[str, str, str, str]:
         """Select targeted entities for Managed Identity Theft.
 
@@ -1717,6 +1723,14 @@ class AttackPathManager:
             source_name = fa_spec.get('name', 'random')
             if source_name == 'random':
                 source_name = random.choice(list(function_apps.keys()))
+        elif source_type == 'app_service':
+            as_list = list(entities.get('app_services', []))
+            if not as_list:
+                raise ValueError(f"{path_name}: source_type 'app_service' requires app_services")
+            as_spec = as_list[0]
+            source_name = as_spec.get('name', 'random')
+            if source_name == 'random':
+                source_name = random.choice(list((app_services or {}).keys()))
         else:
             # Default to VM for unknown types
             source_name = random.choice(list(virtual_machines.keys()))

@@ -54,7 +54,7 @@ class BuildCommand:
     _LEGACY_TENANT_COUNT_KEYS = (
         'users', 'applications', 'groups', 'administrative_units', 'resource_groups',
         'key_vaults', 'storage_accounts', 'virtual_machines', 'logic_apps',
-        'automation_accounts', 'function_apps', 'cosmos_dbs',
+        'automation_accounts', 'function_apps', 'app_services', 'cosmos_dbs',
     )
 
     @classmethod
@@ -163,7 +163,7 @@ class BuildCommand:
             model.administrative_units, model.resource_groups, model.key_vaults,
             model.storage_accounts, model.virtual_machines, model.logic_apps,
             model.automation_accounts, model.function_apps, model.cosmos_dbs,
-            primitives=model.primitives
+            primitives=model.primitives, app_services=model.app_services
         )
 
         logging.info("Good bye.")
@@ -246,16 +246,18 @@ class BuildCommand:
                                    resource_groups: Dict, key_vaults: Dict,
                                    storage_accounts: Dict, virtual_machines: Dict, logic_apps: Dict,
                                    automation_accounts: Dict, function_apps: Dict,
-                                   cosmos_dbs: Dict = None, primitives: list = None) -> None:
+                                   cosmos_dbs: Dict = None, primitives: list = None,
+                                   app_services: Dict = None) -> None:
         """Display deployment statistics summary. When `primitives` is provided (the
         declarative path, where they are the complete picture), also break down the
         deployed assignments by type and origin."""
         cosmos_dbs = cosmos_dbs or {}
+        app_services = app_services or {}
         minutes = int(elapsed_time // 60)
         seconds = int(elapsed_time % 60)
 
         total_identities = len(users) + len(groups) + len(applications) + len(administrative_units)
-        total_resources = len(resource_groups) + len(key_vaults) + len(storage_accounts) + len(virtual_machines) + len(logic_apps) + len(automation_accounts) + len(function_apps) + len(cosmos_dbs)
+        total_resources = len(resource_groups) + len(key_vaults) + len(storage_accounts) + len(virtual_machines) + len(logic_apps) + len(automation_accounts) + len(function_apps) + len(app_services) + len(cosmos_dbs)
 
         logging.info("")
         logging.info("=" * 70)
@@ -275,6 +277,7 @@ class BuildCommand:
         logging.info(f"  - Logic Apps: {len(logic_apps)}")
         logging.info(f"  - Automation Accounts: {len(automation_accounts)}")
         logging.info(f"  - Function Apps: {len(function_apps)}")
+        logging.info(f"  - App Services: {len(app_services)}")
         logging.info(f"  - Cosmos DB Accounts: {len(cosmos_dbs)}")
 
         if primitives:

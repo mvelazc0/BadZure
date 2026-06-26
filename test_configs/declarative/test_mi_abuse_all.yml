@@ -19,6 +19,7 @@ baseline:
     logic_apps: 1
     automation_accounts: 2
     function_apps: 2
+    app_services: 1
     cosmos_dbs: 2
 attack_paths:
   mi_vm_keyvault_user:
@@ -80,3 +81,12 @@ attack_paths:
     method: APIPermission
     api_type: graph
     app_role: 19dbc75e-c2e2-444c-a770-ec69d8559fc7
+  mi_appservice_keyvault_user:
+    privilege_escalation: ManagedIdentityAbuse
+    source_type: app_service
+    target_resource_type: key_vault
+    initial_access: user
+    credential_type: secret
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f

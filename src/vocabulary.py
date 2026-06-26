@@ -44,6 +44,7 @@ RESOURCE_KINDS: Dict[str, Dict] = {
     "logic_apps": {"fields": ["ref", "resource_group"]},
     "automation_accounts": {"fields": ["ref", "resource_group"]},
     "function_apps": {"fields": ["ref", "resource_group", "os_type"]},
+    "app_services": {"fields": ["ref", "resource_group"]},
     "cosmos_dbs": {"fields": ["ref", "resource_group", "database_name", "container_name"]},
 }
 

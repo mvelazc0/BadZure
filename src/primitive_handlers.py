@@ -56,6 +56,7 @@ MI_SOURCE_TO_MAP = {
     "logic_app": "logic_apps",
     "automation_account": "automation_accounts",
     "function_app": "function_apps",
+    "app_service": "app_services",
 }
 
 SCOPE_RESOURCE_TO_MAP = {
@@ -66,6 +67,7 @@ SCOPE_RESOURCE_TO_MAP = {
     "logic_app": "logic_apps",
     "automation_account": "automation_accounts",
     "function_app": "function_apps",
+    "app_service": "app_services",
 }
 
 INJECT_LOCATION_TO_MAP = {

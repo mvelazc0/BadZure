@@ -136,6 +136,45 @@ variable "function_apps" {
   default = {}
 }
 
+variable "app_services" {
+  description = "A map of App Services (Linux web apps) to create"
+  type = map(object({
+    name                = string
+    location            = string
+    resource_group_name = string
+    os_type             = string # "linux" (App Services are always Linux web apps here)
+  }))
+  default = {}
+}
+
+variable "app_service_sku" {
+  description = <<-EOT
+    SKU (App Service plan tier) for App Services. Default B1 (Basic).
+    NOTE: every App Service plan tier counts against the subscription's per-region
+    App Service quota, and the quota profile varies by BOTH subscription and region.
+    Some SKUs are capped at 0 in some regions (e.g. West US on many subs) yet
+    ungoverned/available in others (e.g. West US 2) — so App Services deploy to
+    var.app_service_location (default West US 2), where Basic/Free are available. If
+    apply fails 401 "Total VMs: Current Limit 0", either move app_service_location to
+    a region where this SKU has quota, or override app_service_sku to a SKU that does.
+    Override to "F1" for free hosting where available. Validate available SKUs with:
+      az rest --method get --url "https://management.azure.com/subscriptions/<sub>/providers/Microsoft.Web/locations/<region>/providers/Microsoft.Quota/quotas?api-version=2023-02-01"
+  EOT
+  type        = string
+  default     = "B1"
+}
+
+variable "app_service_location" {
+  description = <<-EOT
+    Azure region for App Service plans + web apps, independent of the rest of the
+    lab's region. App Service quota is per-region and Free (F1) is blocked in some
+    regions but free in others, so App Services default to West US 2 (where F1 is
+    free on common subscriptions) even though other lab resources use West US.
+  EOT
+  type        = string
+  default     = "West US 2"
+}
+
 variable "cosmos_dbs" {
   description = "A map of Cosmos DB accounts to create"
   type = map(object({

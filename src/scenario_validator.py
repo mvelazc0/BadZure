@@ -41,7 +41,7 @@ _TECHNIQUE_KNOB_ENUMS = {
     "credential_type": {"secret", "certificate"},
     "scope": {"directory", "application"},
 }
-_MI_SOURCE_TYPES = {"vm", "logic_app", "automation_account", "function_app"}
+_MI_SOURCE_TYPES = {"vm", "logic_app", "automation_account", "function_app", "app_service"}
 _MI_TARGET_TYPES = {"key_vault", "storage_account", "cosmos_db"}
 
 # Per-capability required objective fields (beyond the human-facing name/impact).

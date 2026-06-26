@@ -67,6 +67,7 @@ _RESOURCE_BUILDERS = {
     "logic_apps": "generate_logic_apps_targeted",
     "automation_accounts": "generate_automation_accounts_targeted",
     "function_apps": "generate_function_apps_targeted",
+    "app_services": "generate_app_services_targeted",
     "cosmos_dbs": "generate_cosmos_dbs_targeted",
 }
 
@@ -121,6 +122,7 @@ _TECHNIQUE_REQUIRED_RESOURCE = {
 _MI_SOURCE_MAP = {
     "vm": "virtual_machines", "logic_app": "logic_apps",
     "automation_account": "automation_accounts", "function_app": "function_apps",
+    "app_service": "app_services",
 }
 _MI_TARGET_MAP = {
     "key_vault": "key_vaults", "storage_account": "storage_accounts",
@@ -970,7 +972,7 @@ class ScenarioLoader:
                 E["storage_accounts"], E["users"], domain, E["virtual_machines"],
                 E["logic_apps"], E["automation_accounts"], E["function_apps"],
                 used_apps=used_apps, used_users=used_users, used_sources=used_sources,
-                cosmos_dbs=E["cosmos_dbs"], **common)
+                cosmos_dbs=E["cosmos_dbs"], app_services=E["app_services"], **common)
         raise ScenarioConfigError(
             f"{path_name}: unknown technique '{technique}'.")
 

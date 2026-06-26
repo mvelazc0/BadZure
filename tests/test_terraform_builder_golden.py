@@ -6,7 +6,7 @@ apply-verified tfvars exercising every generic building block variant. We
 construct a DeploymentModel that mirrors it (entities loaded as passthrough; the
 ~50 building blocks hand-authored INDEPENDENTLY here, with BARE credential_refs
 so the test exercises the builder's origin-prefixing), run the Terraform builder,
-and assert it reproduces the fixture's 18 generic variables + 12 entity maps.
+and assert it reproduces the fixture's 18 generic variables + 13 entity maps.
 
 Comparison is "Terraform-equivalent," not byte-identical: each entry is
 canonicalized to the optional(...) defaults generic.tf would fill in, so the
@@ -100,6 +100,9 @@ def _build_model(fixture):
         AzureRbacAssignment("ap_fa_contrib", A, "alice", "user",
                             "Website Contributor", "resource",
                             scope_resource_type="function_app", scope_ref="fa_linux"),
+        AzureRbacAssignment("ap_as_contrib", A, "alice", "user",
+                            "Website Contributor", "resource",
+                            scope_resource_type="app_service", scope_ref="as_linux"),
         # ---- azure_rbac (managed identity) ----
         AzureRbacAssignment("ap_mi_vmlinux_kv", A, "vm_linux", "managed_identity",
                             "Key Vault Secrets User", "resource", mi_source_type="vm",
@@ -117,6 +120,10 @@ def _build_model(fixture):
         AzureRbacAssignment("ap_mi_fa_kv", A, "fa_linux", "managed_identity",
                             "Key Vault Secrets User", "resource",
                             mi_source_type="function_app",
+                            scope_resource_type="key_vault", scope_ref="kv_fixture"),
+        AzureRbacAssignment("ap_mi_as_kv", A, "as_linux", "managed_identity",
+                            "Key Vault Secrets User", "resource",
+                            mi_source_type="app_service",
                             scope_resource_type="key_vault", scope_ref="kv_fixture"),
         # ---- azure_rbac (Cosmos data plane) ----
         AzureRbacAssignment("ap_cosmos_dataplane_user", A, "alice", "user",
@@ -209,6 +216,7 @@ def _build_model(fixture):
         logic_apps=copy.deepcopy(fixture["logic_apps"]),
         automation_accounts=copy.deepcopy(fixture["automation_accounts"]),
         function_apps=copy.deepcopy(fixture["function_apps"]),
+        app_services=copy.deepcopy(fixture["app_services"]),
         cosmos_dbs=copy.deepcopy(fixture["cosmos_dbs"]),
         primitives=primitives,
     )

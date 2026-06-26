@@ -46,6 +46,8 @@ def _base_entities():
                                    "account_replication_type": "LRS"}},
         cosmos_dbs={"cos01": {"name": "cos01", "location": "West US",
                               "resource_group_name": "rg1"}},
+        app_services={"as01": {"name": "as01", "location": "West US",
+                               "resource_group_name": "rg1", "os_type": "linux"}},
     )
 
 
@@ -54,7 +56,8 @@ def _run(cfg, groups_out=None):
     result = AttackPathManager().macro_managed_identity_abuse(
         cfg, ents["applications"], ents["key_vaults"], ents["storage_accounts"],
         ents["users"], "contoso.com", ents["virtual_machines"], {}, {}, {},
-        mode="random", path_name="mi", cosmos_dbs=ents["cosmos_dbs"])
+        mode="random", path_name="mi", cosmos_dbs=ents["cosmos_dbs"],
+        app_services=ents["app_services"])
     model = DeploymentModel(domain="contoso.com", groups=result["groups"],
                             primitives=result["primitives"], **ents)
     return result, build_tfvars(model)
@@ -171,6 +174,26 @@ def test_sp_initial_access_mints_secret():
     assert sp_key.startswith("ap:") and sp_key.split("ap:", 1)[1] in out["attack_path_app_credentials"]
     src = next(r for r in _rbac(out) if r["role"] == "Virtual Machine Contributor")
     assert src["principal_type"] == "service_principal"
+
+
+def test_app_service_to_keyvault_secret():
+    cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "app_service",
+           "target_resource_type": "key_vault", "initial_access": "user",
+           "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
+    result, out = _run(cfg)
+    rbac = _rbac(out)
+    # source Website Contributor on the App Service, to the user
+    src = next(r for r in rbac if r["role"] == "Website Contributor")
+    assert src["principal_type"] == "user" and src["scope_ref"] == "as01"
+    assert src["scope_resource_type"] == "app_service"
+    # the App Service's MI gets the 3 KV roles, resolved via mi_source_type app_service
+    mi = [r for r in rbac if r["principal_type"] == "managed_identity"]
+    assert {r["role"] for r in mi} == {"Key Vault Contributor", "Key Vault Secrets User",
+                                       "Key Vault Reader"}
+    assert all(r["mi_source_type"] == "app_service" and r["principal_ref"] == "as01"
+               and r["scope_ref"] == "kv01" for r in mi)
+    assert result["summary"]["source_type"] == "app_service"
+    assert result["summary"]["technique"] == "ManagedIdentityAbuse"
 
 
 def _main():

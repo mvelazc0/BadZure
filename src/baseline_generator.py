@@ -43,7 +43,7 @@ from src.constants import ENTRA_ROLES, GRAPH_API_PERMISSIONS
 # Resource kinds that need a parent resource group (everything except RGs).
 _RG_DEPENDENT = (
     "key_vaults", "storage_accounts", "virtual_machines", "logic_apps",
-    "automation_accounts", "function_apps", "cosmos_dbs",
+    "automation_accounts", "function_apps", "app_services", "cosmos_dbs",
 )
 
 
@@ -103,6 +103,8 @@ class BaselineGenerator:
                 _count(resources.get("automation_accounts")), resource_groups),
             "function_apps": gen.generate_function_apps(
                 _count(resources.get("function_apps")), resource_groups),
+            "app_services": gen.generate_app_services(
+                _count(resources.get("app_services")), resource_groups),
             "cosmos_dbs": gen.generate_cosmos_dbs(
                 _count(resources.get("cosmos_dbs")), resource_groups),
         }
