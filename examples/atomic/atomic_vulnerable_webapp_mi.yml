@@ -1,0 +1,36 @@
+# Vulnerable web app (App Service) -> ManagedIdentityAbuse (atomic).
+# The attacker browses an internet-facing App Service, exploits a command-injection
+# bug (the "network diagnostics" page) to run code in the app's process context,
+# reads the app's managed-identity token, and pivots to a Key Vault secret. The
+# `initial_access` knob carries the vector; the vulnerable app IS the MI source.
+#
+# Live test:
+#   python badzure.py build --config examples/atomic/atomic_vulnerable_webapp_mi.yml --verbose
+#   python badzure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 2
+    groups: 1
+    applications: 2
+  resources:
+    resource_groups: 2
+    key_vaults: 1
+    app_services: 1
+attack_paths:
+  vulnerable_webapp_to_keyvault:
+    privilege_escalation: ManagedIdentityAbuse
+    initial_access: vulnerable_web_app   # exploit an internet-facing web app -> code exec
+    source_type: app_service             # the vulnerable app is the managed-identity source
+    target_resource_type: key_vault
+    variant: rce                         # command-injection diagnostics page
+    expose_to_internet: false            # false: restrict the app to your operator IP; true: open to the internet
+    credential_type: secret
+    method: APIPermission
+    api_type: graph
+    app_role:
+    - 06b708a9-e830-4db3-a914-8e69da51d44f

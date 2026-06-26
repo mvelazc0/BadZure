@@ -273,8 +273,10 @@ def test_builder_rejects_non_vm_target_type():
 
 
 def test_builder_rejects_unimplemented_method():
+    # exposed_credentials is reserved in the InitialAccessVector docstring but not yet
+    # a built vector (not in RESOURCE_SEED_VECTORS), so the builder rejects it.
     with pytest.raises(LabValidationError):
-        build_tfvars(_model_with_vector(method="vulnerable_web_app"))
+        build_tfvars(_model_with_vector(method="exposed_credentials"))
 
 
 # ---------------------------------------------------------------------------
@@ -308,6 +310,202 @@ def test_validator_rejects_unknown_vector():
 
 def test_validator_accepts_valid_atomic_foothold():
     scenario_validator.validate(_atomic_config())  # no raise
+
+
+# ===========================================================================
+# Slice 2b: vulnerable_web_app foothold (App Service)
+# ===========================================================================
+_WEBAPP_BASELINE = {
+    "identities": {"users": 4, "groups": 1, "applications": 4},
+    "resources": {"key_vaults": 1, "app_services": 1},
+}
+
+
+def _atomic_webapp_config(**knobs):
+    path = {
+        "privilege_escalation": "ManagedIdentityAbuse",
+        "initial_access": "vulnerable_web_app",
+        "source_type": "app_service",
+        "target_resource_type": "key_vault",
+        "variant": "rce",
+        "method": "APIPermission",
+        "api_type": "graph",
+        "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f",
+    }
+    path.update(knobs)
+    return {"baseline": _WEBAPP_BASELINE, "attack_paths": {"p": path}}
+
+
+def test_atomic_webapp_foothold_compiles_and_reaches():
+    scenario = _load(_atomic_webapp_config())
+    ov = scenario.attack_paths[0]
+    prims = scenario.model.primitives
+
+    iav = [p for p in prims if isinstance(p, InitialAccessVector)]
+    assert len(iav) == 1
+    vec = iav[0]
+    assert vec.method == "vulnerable_web_app"
+    assert vec.target_type == "app_service"
+    assert vec.grants == "code_execution"
+    assert vec.variant == "rce"
+
+    # Seed is the foothold App Service; the path reaches GA via the app's MI.
+    assert ov.initial_access.get("principal_ref") == vec.target_ref
+    assert ov.initial_access.get("method") == "vulnerable_web_app"
+    assert ov.reachability["status"] == reachability.REACHED
+
+    # No compromised identity, no source-Contributor grant — the foothold IS app control.
+    creds = ov.credentials
+    assert creds.get("initial_access") == "vulnerable_web_app"
+    assert creds.get("foothold_resource") == vec.target_ref
+    assert "user_principal_name" not in creds and "service_principal_name" not in creds
+    assert not any(isinstance(p, AzureRbacAssignment) and p.key.endswith("_src_contrib")
+                   for p in prims)
+
+
+def test_atomic_webapp_foothold_projects_app_variant():
+    scenario = _load(_atomic_webapp_config())
+    out = build_tfvars(scenario.model)
+    app_ref = [p for p in scenario.model.primitives
+               if isinstance(p, InitialAccessVector)][0].target_ref
+
+    assert out["webapp_foothold_refs"] == [app_ref]
+    # The foothold app gets the vulnerable code variant zip-deployed.
+    assert out["app_services"][app_ref]["app_variant"] == "vulnerable_rce"
+    # The InitialAccessVector is NOT emitted as a generic.tf family.
+    assert not any("initial_access" in fam for fam in out)
+
+
+def test_atomic_webapp_foothold_default_is_operator_ip_only():
+    # Default: the foothold app's access is restricted to the operator IP
+    # (expose_to_internet false), mirroring the VM foothold's NSG default.
+    scenario = _load(_atomic_webapp_config())
+    out = build_tfvars(scenario.model)
+    app_ref = out["webapp_foothold_refs"][0]
+    assert out["app_services"][app_ref]["expose_to_internet"] is False
+
+
+def test_atomic_webapp_foothold_expose_to_internet_opens_it():
+    scenario = _load(_atomic_webapp_config(expose_to_internet=True))
+    out = build_tfvars(scenario.model)
+    app_ref = out["webapp_foothold_refs"][0]
+    assert out["app_services"][app_ref]["expose_to_internet"] is True
+
+
+def test_baseline_app_service_gets_no_variant():
+    # A baseline App Service that is NOT a foothold stays on the default page (no
+    # app_variant), so only the targeted app gets the vulnerable code.
+    cfg = {
+        "baseline": {"identities": {"users": 2, "applications": 2},
+                     "resources": {"key_vaults": 1, "app_services": 2}},
+        "attack_paths": {
+            "p": {"privilege_escalation": "ManagedIdentityAbuse",
+                  "initial_access": "vulnerable_web_app", "source_type": "app_service",
+                  "target_resource_type": "key_vault", "variant": "rce",
+                  "method": "APIPermission", "api_type": "graph",
+                  "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
+        },
+    }
+    scenario = _load(cfg)
+    out = build_tfvars(scenario.model)
+    foothold = set(out["webapp_foothold_refs"])
+    assert foothold, "expected one web-app foothold App Service"
+    for ref, app in out["app_services"].items():
+        if ref in foothold:
+            assert app["app_variant"] == "vulnerable_rce", ref
+        else:
+            assert app.get("app_variant", "") == "", ref
+
+
+def _chained_webapp_config(**ia):
+    block = {"vector": "vulnerable_web_app", "target_ref": "app_foothold", "variant": "rce"}
+    block.update(ia)
+    return {
+        "attack_paths": {
+            "chain": {
+                "objective": {"capability": "read_secrets", "target_ref": "kv1",
+                              "name": "KV via web-app foothold"},
+                "initial_access": block,
+                "identities": {"applications": [{"ref": "app_hp"}]},
+                "resources": {
+                    "app_services": [{"ref": "app_foothold"}],
+                    "key_vaults": [{"ref": "kv1"}],
+                },
+                "assignments": [
+                    {"id": "a1", "type": "azure_rbac", "principal_ref": "app_foothold",
+                     "principal_type": "managed_identity", "mi_source_type": "app_service",
+                     "role": "Key Vault Secrets User", "scope_ref": "kv1"},
+                ],
+                "credentials": [{"ref": "c", "app_ref": "app_hp", "type": "password"}],
+                "data_injects": [
+                    {"id": "d1", "material": "app_secret", "credential_ref": "c",
+                     "location": "key_vault_secret", "location_ref": "kv1", "name": "s"},
+                ],
+            }
+        }
+    }
+
+
+def test_chained_webapp_foothold_compiles_and_reaches():
+    scenario = _load(_chained_webapp_config())
+    ov = scenario.attack_paths[0]
+    iav = [p for p in scenario.model.primitives if isinstance(p, InitialAccessVector)]
+    assert len(iav) == 1 and iav[0].target_ref == "app_foothold"
+    assert iav[0].target_type == "app_service"
+    assert ov.initial_access.get("principal_ref") == "app_foothold"
+    assert ov.reachability["status"] == reachability.REACHED
+
+    out = build_tfvars(scenario.model)
+    assert out["webapp_foothold_refs"] == ["app_foothold"]
+    assert out["app_services"]["app_foothold"]["app_variant"] == "vulnerable_rce"
+
+
+def _model_with_webapp_vector(target_ref="app1", target_type="app_service"):
+    m = DeploymentModel(app_services={"app1": {"name": "app1", "os_type": "linux"}})
+    m.primitives.append(InitialAccessVector(
+        "v", ATTACK_PATH, method="vulnerable_web_app", target_ref=target_ref,
+        target_type=target_type, grants="code_execution", variant="rce"))
+    return m
+
+
+def test_builder_webapp_stamps_variant():
+    out = build_tfvars(_model_with_webapp_vector())
+    assert out["webapp_foothold_refs"] == ["app1"]
+    assert out["app_services"]["app1"]["app_variant"] == "vulnerable_rce"
+    # default vector expose_to_internet is False -> restricted to the operator IP
+    assert out["app_services"]["app1"]["expose_to_internet"] is False
+
+
+def test_builder_rejects_unknown_app_ref():
+    with pytest.raises(LabValidationError):
+        build_tfvars(_model_with_webapp_vector(target_ref="nope"))
+
+
+def test_builder_rejects_non_app_service_target_for_webapp():
+    with pytest.raises(LabValidationError):
+        build_tfvars(_model_with_webapp_vector(target_type="virtual_machine"))
+
+
+def test_validator_rejects_webapp_foothold_on_non_mi_technique():
+    cfg = {"baseline": _WEBAPP_BASELINE,
+           "attack_paths": {"p": {"privilege_escalation": "KeyVaultSecretTheft",
+                                  "initial_access": "vulnerable_web_app"}}}
+    with pytest.raises(_Cfg, match="only supported with ManagedIdentityAbuse"):
+        scenario_validator.validate(cfg)
+
+
+def test_validator_rejects_webapp_foothold_with_non_app_service_source():
+    with pytest.raises(_Cfg, match="requires source_type 'app_service'"):
+        scenario_validator.validate(_atomic_webapp_config(source_type="vm"))
+
+
+def test_validator_rejects_unknown_webapp_variant():
+    with pytest.raises(_Cfg, match="variant"):
+        scenario_validator.validate(_atomic_webapp_config(variant="lfi"))
+
+
+def test_validator_accepts_valid_atomic_webapp_foothold():
+    scenario_validator.validate(_atomic_webapp_config())  # no raise
 
 
 if __name__ == "__main__":

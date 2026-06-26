@@ -125,10 +125,11 @@ These options are available for **all** technique types:
 | `enabled` | `true`, `false` | `true` | Set `false` to park the path (defined but not deployed). Applies to any path, atomic or chained |
 | `privilege_escalation` | See below | — | The privilege-escalation technique |
 | `method` | `AzureADRole`, `APIPermission` | — | How the target app gets its privileges |
-| `initial_access` | `user`, `service_principal`, `exposed_rdp`, `exposed_ssh` | `user` | How the attacker first gains a foothold |
+| `initial_access` | `user`, `service_principal`, `exposed_rdp`, `exposed_ssh`, `vulnerable_web_app` | `user` | How the attacker first gains a foothold |
 | `assignment_type` | `direct`, `group_member`, `group_owner` | `direct` | Direct, via group membership, or via group ownership |
-| `expose_to_internet` | `true`, `false` | `false` | Exposed-host footholds only. `true` adds a `0.0.0.0/0` allow rule so RDP/SSH is reachable from the public internet |
+| `expose_to_internet` | `true`, `false` | `false` (footholds) | Exposed-host and vulnerable-web-app footholds. `false` restricts access to the operator IP; `true` opens it to the public internet (`0.0.0.0/0` for VMs, no access restriction for App Service) |
 | `credential` | `known`, `weak` | `known` | Exposed-host footholds only. `weak` sets a brute-forceable local admin password; `known` keeps the strong generated one |
+| `variant` | `rce` | `rce` | Vulnerable-web-app foothold only. The vulnerability class deployed to the App Service |
 
 ### Option Details
 
@@ -158,6 +159,12 @@ Exposed-host foothold vectors (ManagedIdentityAbuse with `source_type: vm` only)
 
 With an exposed-host foothold the attacker lands directly on the VM (no compromised identity), then pivots through the VM's managed identity to reach the target resource. The foothold VM is the managed-identity source, so `source_type` must be `vm`. The foothold host's OS follows the vector (`exposed_rdp` forces a Windows VM, `exposed_ssh` a Linux VM) so the open port matches the box. The build surfaces the VM public IP and admin credentials so the operator can log in and continue the chain. Tune the exposure with `expose_to_internet` and `credential`.
 
+Vulnerable-web-app foothold vector (ManagedIdentityAbuse with `source_type: app_service` only):
+
+- **`vulnerable_web_app`** — An internet-facing App Service running a deliberately vulnerable app. The attacker exploits a code-execution bug to run commands in the app's process context and read its managed-identity token.
+
+With a vulnerable-web-app foothold the attacker lands directly on the App Service (no compromised identity), then pivots through the app's managed identity to reach the target resource. The vulnerable app is the managed-identity source, so `source_type` must be `app_service`. The `variant` knob selects the vulnerability class deployed to the app (`rce`, a command-injection diagnostics page). `expose_to_internet` controls the App Service access restrictions (the App Service analog of the VM foothold NSG): the default `false` restricts the app to the operator IP, while `true` leaves it open to the public internet. App Service has no host login, so `credential` does not apply. The build surfaces the app URL and the vulnerable endpoint so the operator knows where to start.
+
 The compromised-identity vectors are supported by every technique:
 
 | Technique | User | Service Principal |
@@ -170,7 +177,7 @@ The compromised-identity vectors are supported by every technique:
 | StorageCertificateTheft | User with Storage access | SP with Storage access |
 | CosmosDBSecretTheft | User with Cosmos DB access | SP with Cosmos DB access |
 
-**`expose_to_internet`** *(exposed-host footholds)* — Default `false`: RDP and SSH stay open to the operator IP only (the machine running BadZure), so the operator can still reach the host. Set `true` to also add a `0.0.0.0/0` (Internet) allow rule, making the host reachable — and brute-forceable — from anywhere.
+**`expose_to_internet`** *(exposed-host and vulnerable-web-app footholds)* — Default `false`: access stays open to the operator IP only (the machine running BadZure), so the operator can still reach the foothold. For a VM this keeps RDP and SSH restricted to the operator IP; set `true` to add a `0.0.0.0/0` (Internet) allow rule, making the host reachable — and brute-forceable — from anywhere. For an App Service this sets an access restriction allowing only the operator IP; set `true` to leave the app open to the public internet.
 
 **`credential`** *(exposed-host footholds)* — Default `known`: the VM keeps its strong generated admin password, surfaced to the operator so they can log in directly. Set `weak` to assign a brute-forceable local admin password for a realistic credential-guessing exercise.
 
@@ -367,6 +374,7 @@ The chain reads: `priya` holds **Key Vault Contributor** on the vault → reads 
 
 - A compromised identity: `{ method: compromised_identity, principal_ref: <user or app ref> }`. The walk seeds at that identity.
 - An exposed-host foothold: `{ vector: exposed_rdp, target_ref: <vm ref> }`. The attacker lands on the VM with code execution; the walk seeds at the host, so any assignment that grants the VM's managed identity access continues the chain. Optional `expose_to_internet` (default `false`) and `credential` (default `known`) tune the exposure exactly as in atomic paths.
+- A vulnerable-web-app foothold: `{ vector: vulnerable_web_app, target_ref: <app_service ref> }`. The attacker exploits an internet-facing App Service and lands with code execution in the app's process context; the walk seeds at the app, so any assignment that grants the app's managed identity access continues the chain. Optional `variant` (default `rce`) selects the vulnerability class, and `expose_to_internet` (default `false`) restricts the app to the operator IP or opens it to the internet.
 
 ```yaml
     initial_access:
@@ -383,7 +391,7 @@ The chain reads: `priya` holds **Key Vault Contributor** on the vault → reads 
           role: "Key Vault Secrets User", scope_ref: badzure-ref-kv-01 }
 ```
 
-See `examples/chained/chained_exposed_rdp.yml` for a worked example.
+See `examples/chained/chained_exposed_rdp.yml` for an exposed-host example and `examples/chained/chained_vulnerable_webapp.yml` for a vulnerable-web-app example.
 
 The nine assignment `type`s are `entra_role`, `azure_rbac`, `api_permission`, `group_membership`, `group_ownership`, `app_ownership`, `au_membership` (plus `credentials` and `data_injects` as their own blocks). A chained path can also borrow entities from the baseline with `{ ref: victim, from: baseline }`. See `examples/chained/chained_hybrid.yml` for a worked hybrid example.
 

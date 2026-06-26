@@ -74,6 +74,22 @@ output "vm_foothold_access" {
   sensitive = true
 }
 
+# Vulnerable-web-app foothold access — the public URL + the command-injectable
+# endpoint for the App Services that are an InitialAccessVector entry point, so the
+# operator knows where to start. Scoped to webapp_foothold_refs (only intentional
+# footholds). Not sensitive: a URL only, no credentials (the app is internet-facing
+# and has no host login — the attacker exploits the bug, not a password). The
+# default_hostname is only known after apply, hence surfaced here.
+output "app_service_foothold_access" {
+  description = "Public URL + vuln endpoint for vulnerable-web-app foothold App Services"
+  value = {
+    for k in var.webapp_foothold_refs : k => {
+      url       = "https://${azurerm_linux_web_app.app_services[k].default_hostname}"
+      vuln_path = "/diag?host="
+    }
+  }
+}
+
 # app ref -> client_id, so the data-plane phase can resolve app_client_id-material
 # injects (the client id is non-sensitive public metadata).
 output "application_client_ids" {

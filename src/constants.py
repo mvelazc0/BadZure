@@ -2561,12 +2561,32 @@ INITIAL_ACCESS_VECTORS = [
     'service_principal',   # compromised credentials of a service principal
     'exposed_rdp',         # internet-reachable RDP, brute-forced -> code execution
     'exposed_ssh',         # internet-reachable SSH, brute-forced -> code execution
+    'vulnerable_web_app',  # internet-facing web app with a code-exec bug -> code execution
 ]
 
 # The subset that lands on a compute resource rather than an identity. These seed
 # the reachability walk with the HOST node — controlling a compute resource already
 # means controlling its managed identity, so existing MI chains continue unchanged.
 RESOURCE_FOOTHOLD_VECTORS = ['exposed_rdp', 'exposed_ssh']
+
+# Web-app footholds land on an App Service via a deployed-code vulnerability (not a
+# VM exposure). They are resource-seed vectors like the VM footholds, but they do
+# NOT drive the VM-only projection (_derive_exposed_vms / NSG / public IP / OS
+# coercion) — they project a vulnerable-app variant onto an App Service instead.
+WEBAPP_FOOTHOLD_VECTORS = ['vulnerable_web_app']
+
+# Every vector that seeds the reachability walk at a RESOURCE (the host/app the
+# attacker lands on) rather than at an identity. Drives the generic "seed at a
+# resource" logic (_seed_from_credentials, the formatter, the reachability first
+# step). VM-specific behavior keeps keying off RESOURCE_FOOTHOLD_VECTORS.
+RESOURCE_SEED_VECTORS = RESOURCE_FOOTHOLD_VECTORS + WEBAPP_FOOTHOLD_VECTORS
+
+# Web-app vuln variants that are actually built, mapped to the in-repo app
+# directory under terraform/webapp/ the builder projects onto the foothold app.
+WEBAPP_VARIANT_DIR = {'rce': 'vulnerable_rce'}
+WEBAPP_VULN_VARIANTS = list(WEBAPP_VARIANT_DIR)
+WEBAPP_DEFAULT_VARIANT = 'rce'
+WEBAPP_VULN_PATH = '/diag?host='  # the command-injectable endpoint on the app
 
 # Per-vector protocol/port + the OS it implies, for operator output + NSG narration.
 FOOTHOLD_VECTOR_PROTOCOL = {

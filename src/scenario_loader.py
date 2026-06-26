@@ -43,7 +43,9 @@ from src.primitives import (
     InitialAccessVector,
 )
 from src.primitive_handlers import SCOPE_RESOURCE_TO_MAP, MI_SOURCE_TO_MAP
-from src.constants import VALID_TECHNIQUES, RESOURCE_FOOTHOLD_VECTORS
+from src.constants import (
+    VALID_TECHNIQUES, RESOURCE_SEED_VECTORS, WEBAPP_FOOTHOLD_VECTORS,
+)
 
 
 class ScenarioConfigError(ValueError):
@@ -683,16 +685,19 @@ class ScenarioLoader:
         vector = ia.get("vector")
         if not vector:
             return None
-        if vector not in RESOURCE_FOOTHOLD_VECTORS:
+        if vector not in RESOURCE_SEED_VECTORS:
             raise ScenarioConfigError(
                 f"{path_name}: initial_access vector '{vector}' is not implemented "
-                f"(supported: {', '.join(RESOURCE_FOOTHOLD_VECTORS)}).")
+                f"(supported: {', '.join(RESOURCE_SEED_VECTORS)}).")
         target = ia.get("target_ref")
         if not target:
             raise ScenarioConfigError(
                 f"{path_name}: initial_access vector '{vector}' needs a `target_ref` "
-                f"(the host the attacker lands on).")
-        target_type = ia.get("target_type", "virtual_machine")
+                f"(the host/app the attacker lands on).")
+        # A web-app foothold lands on an App Service; the exposed-host footholds on a VM.
+        default_target_type = ("app_service" if vector in WEBAPP_FOOTHOLD_VECTORS
+                               else "virtual_machine")
+        target_type = ia.get("target_type", default_target_type)
         primitives.append(InitialAccessVector(
             self._key(path_name, "foothold"), ATTACK_PATH, method=vector,
             target_ref=target, target_type=target_type,
@@ -700,7 +705,7 @@ class ScenarioLoader:
             variant=ia.get("variant"),
             expose_to_internet=bool(ia.get("expose_to_internet", False)),
             credential=ia.get("credential", "known")))
-        # Seed the walk at the host; keep `vector`/`target_ref` for the narrative.
+        # Seed the walk at the host/app; keep `vector`/`target_ref` for the narrative.
         initial_access = {**ia, "principal_ref": target, "method": vector}
         credentials = {
             "initial_access": vector,
@@ -1066,7 +1071,7 @@ class ScenarioLoader:
         vectors it's the compromised identity (user = UPN local part = var.users key;
         SP = app display_name)."""
         ia = credentials.get("initial_access")
-        if ia in RESOURCE_FOOTHOLD_VECTORS:
+        if ia in RESOURCE_SEED_VECTORS:
             return credentials.get("foothold_resource")
         if ia == "user":
             upn = credentials.get("user_principal_name", "")

@@ -14,7 +14,8 @@ from src.constants import (
     APP_ADMIN_ROLE_ID,
     CLOUD_APP_ADMIN_ROLE_ID,
     RECON_DIRECTORY_READ_ALL_ID,
-    RESOURCE_FOOTHOLD_VECTORS,
+    RESOURCE_SEED_VECTORS,
+    WEBAPP_FOOTHOLD_VECTORS,
 )
 from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
@@ -377,11 +378,12 @@ class AttackPathManager:
         target_resource_type = attack_config.get('target_resource_type')
         entry_point = attack_config.get('entry_point', 'compromised_identity')
         ia_vector = attack_config.get('initial_access', 'user')
-        # Exposed-host foothold (exposed_rdp/exposed_ssh): the attacker is dropped onto
-        # the source VM directly (code execution), so there is no compromised identity
+        # Exposed-host foothold (exposed_rdp/exposed_ssh) OR vulnerable-web-app
+        # foothold (vulnerable_web_app): the attacker is dropped onto the source
+        # resource directly (code execution), so there is no compromised identity
         # and no source-Contributor grant. identity_type only steers the (then unused)
         # principal pick during selection, so 'user' is a harmless placeholder there.
-        is_foothold = ia_vector in RESOURCE_FOOTHOLD_VECTORS
+        is_foothold = ia_vector in RESOURCE_SEED_VECTORS
         identity_type = 'user' if is_foothold else ia_vector
         credential_type = attack_config.get('credential_type', 'secret')
         assignment_type = attack_config.get('assignment_type', 'direct')
@@ -406,17 +408,27 @@ class AttackPathManager:
         src_role = self.SOURCE_CONTRIBUTOR_ROLE.get(source_type, 'Contributor')
         src_scope_rtype = self.SOURCE_SCOPE_RESOURCE_TYPE.get(source_type, 'virtual_machine')
         if is_foothold:
-            # Exposed-host foothold: drop straight onto the source VM (code execution).
-            # The reachability seed becomes the VM, and controlling it already implies
-            # controlling its managed identity — so steps 2+ continue unchanged.
+            # Foothold: drop straight onto the source resource (code execution).
+            # The reachability seed becomes that resource, and controlling it already
+            # implies controlling its managed identity — so steps 2+ continue
+            # unchanged. A web-app foothold lands on the App Service (target_type
+            # app_service + the vuln variant); the exposed-host footholds on a VM.
             group_name = None
             principal_name = None
-            primitives.append(InitialAccessVector(
-                f"{key}_foothold", ATTACK_PATH, method=ia_vector,
-                target_ref=source_name, target_type='virtual_machine',
-                grants='code_execution',
-                expose_to_internet=bool(attack_config.get('expose_to_internet', False)),
-                credential=attack_config.get('credential', 'known')))
+            if ia_vector in WEBAPP_FOOTHOLD_VECTORS:
+                primitives.append(InitialAccessVector(
+                    f"{key}_foothold", ATTACK_PATH, method=ia_vector,
+                    target_ref=source_name, target_type='app_service',
+                    grants='code_execution',
+                    variant=attack_config.get('variant'),
+                    expose_to_internet=bool(attack_config.get('expose_to_internet', False))))
+            else:
+                primitives.append(InitialAccessVector(
+                    f"{key}_foothold", ATTACK_PATH, method=ia_vector,
+                    target_ref=source_name, target_type='virtual_machine',
+                    grants='code_execution',
+                    expose_to_internet=bool(attack_config.get('expose_to_internet', False)),
+                    credential=attack_config.get('credential', 'known')))
         elif assignment_type in ('group_member', 'group_owner'):
             # Source-specific Contributor to the initial-access principal's group.
             group_spec = self._attack_group(assignment_type, principal_name, identity_type)
@@ -478,8 +490,11 @@ class AttackPathManager:
         primitives.extend(priv_prims)
         if is_foothold:
             credentials = self._foothold_credentials(ia_vector, source_name, source_type)
+            foothold_kind = ("vulnerable-web-app foothold"
+                             if ia_vector in WEBAPP_FOOTHOLD_VECTORS
+                             else "exposed-host foothold")
             source_line = (f"Source Resource: {source_type} - {source_name} "
-                           f"(exposed-host foothold via {ia_vector})")
+                           f"({foothold_kind} via {ia_vector})")
         else:
             credentials = self._initial_access_credentials(
                 identity_type, principal_name, users, domain, entry_point, key, primitives)

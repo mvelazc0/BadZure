@@ -63,10 +63,13 @@ baseline:
   resources:
     key_vaults: 2
     storage_accounts: 1
-    virtual_machines: 1
+    # Two VM-source MI paths (mi_abuse + mi_abuse_exposed_rdp) need two VMs — each MI
+    # path requires its own source resource (sharing one collides on apply).
+    virtual_machines: 2
     # NOTE: App Service creation is throttled per subscription — running multiple
     # build/destroy iterations in a short period can cause throttling errors.
-    app_services: 1
+    # Two app_service-source MI paths (mi_abuse_app_service + mi_abuse_vulnerable_webapp).
+    app_services: 2
     cosmos_dbs: 1
 
   # Benign org "noise": realistic everyday assignments (all origin: random) that
@@ -221,6 +224,28 @@ attack_paths:
     target_resource_type: key_vault
     expose_to_internet: false            # set true to open RDP/SSH to 0.0.0.0/0
     credential: known                    # set weak for a brute-forceable password
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All
+
+  # 7c. ManagedIdentityAbuse reached via a VULNERABLE WEB APP foothold (initial
+  #     access). Instead of a compromised identity, the attacker exploits an
+  #     internet-facing App Service (command injection on the diagnostics page),
+  #     gains code execution in the app's process context, and pivots through the
+  #     app's managed identity. The vulnerable app is the MI source, so source_type
+  #     must be app_service. variant (default rce) selects the vulnerability class.
+  #     expose_to_internet (default false): restrict the app to your operator IP via
+  #       App Service access restrictions; set true to open it to the internet.
+  #     The build surfaces the app URL + the vulnerable endpoint. Needs an
+  #     app_service in the baseline.
+  # ---------------------------------------------------------------------------
+  mi_abuse_vulnerable_webapp:
+    privilege_escalation: ManagedIdentityAbuse
+    initial_access: vulnerable_web_app
+    source_type: app_service
+    target_resource_type: key_vault
+    variant: rce                         # command-injection diagnostics page
+    expose_to_internet: false            # set true to open the app to the internet
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All

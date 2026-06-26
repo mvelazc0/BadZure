@@ -27,19 +27,24 @@ import logging
 from typing import Dict, List
 
 from src import capabilities
-from src.constants import VALID_TECHNIQUES, RESOURCE_FOOTHOLD_VECTORS
+from src.constants import (
+    VALID_TECHNIQUES, RESOURCE_FOOTHOLD_VECTORS, RESOURCE_SEED_VECTORS,
+    WEBAPP_FOOTHOLD_VECTORS, WEBAPP_VULN_VARIANTS,
+)
 from src.scenario_loader import ScenarioConfigError, ASSIGNMENT_TYPES
 
 # Atomic `privilege_escalation:` path knob enums (the per-technique knobs, validated
 # here against the same vocabularies the macros honor). `initial_access` accepts the
-# identity vectors (user/service_principal) plus the exposed-host footholds.
+# identity vectors (user/service_principal) plus the resource-seed footholds
+# (exposed-host VMs + the vulnerable web app).
 _TECHNIQUE_KNOB_ENUMS = {
-    "initial_access": {"user", "service_principal"} | set(RESOURCE_FOOTHOLD_VECTORS),
+    "initial_access": {"user", "service_principal"} | set(RESOURCE_SEED_VECTORS),
     "assignment_type": {"direct", "group_member", "group_owner"},
     "method": {"AzureADRole", "APIPermission"},
     "api_type": {"graph", "exchange"},
     "credential_type": {"secret", "certificate"},
     "scope": {"directory", "application"},
+    "variant": set(WEBAPP_VULN_VARIANTS),
 }
 _MI_SOURCE_TYPES = {"vm", "logic_app", "automation_account", "function_app", "app_service"}
 _MI_TARGET_TYPES = {"key_vault", "storage_account", "cosmos_db"}
@@ -206,8 +211,9 @@ def _validate_technique_path(name: str, path: Dict, errors: List[str]) -> None:
             f"attack_path '{name}': method 'APIPermission' needs `app_role` "
             f"(a GUID, a list, or 'random').")
 
-    # Exposed-host footholds (exposed_rdp/exposed_ssh) drop the attacker onto a VM —
-    # only ManagedIdentityAbuse with a VM source can currently consume that foothold.
+    # Resource-seed footholds drop the attacker onto a compute resource. Exposed-host
+    # (exposed_rdp/exposed_ssh) needs a VM source; vulnerable_web_app needs an App
+    # Service source. Both are only consumable by ManagedIdentityAbuse.
     ia = path.get("initial_access")
     if ia in RESOURCE_FOOTHOLD_VECTORS:
         if technique != "ManagedIdentityAbuse":
@@ -218,6 +224,16 @@ def _validate_technique_path(name: str, path: Dict, errors: List[str]) -> None:
             errors.append(
                 f"attack_path '{name}': initial_access '{ia}' requires source_type "
                 f"'vm' (the attacker lands on the VM); got "
+                f"'{path.get('source_type')}'.")
+    elif ia in WEBAPP_FOOTHOLD_VECTORS:
+        if technique != "ManagedIdentityAbuse":
+            errors.append(
+                f"attack_path '{name}': initial_access '{ia}' (a vulnerable-web-app "
+                f"foothold) is only supported with ManagedIdentityAbuse.")
+        elif path.get("source_type") != "app_service":
+            errors.append(
+                f"attack_path '{name}': initial_access '{ia}' requires source_type "
+                f"'app_service' (the attacker lands on the web app); got "
                 f"'{path.get('source_type')}'.")
 
     if technique == "ManagedIdentityAbuse":
@@ -279,14 +295,14 @@ def _validate_initial_access(name, ia, errors) -> None:
     # compromised identity (`principal_ref:`).
     vector = ia.get("vector")
     if vector is not None:
-        if vector not in RESOURCE_FOOTHOLD_VECTORS:
+        if vector not in RESOURCE_SEED_VECTORS:
             errors.append(
                 f"attack_path '{name}': initial_access vector '{vector}' is invalid. "
-                f"Valid: {', '.join(sorted(RESOURCE_FOOTHOLD_VECTORS))}.")
+                f"Valid: {', '.join(sorted(RESOURCE_SEED_VECTORS))}.")
         if not ia.get("target_ref"):
             errors.append(
                 f"attack_path '{name}': initial_access vector '{vector}' needs a "
-                f"`target_ref` (the host the attacker lands on).")
+                f"`target_ref` (the host/app the attacker lands on).")
         return
     if not ia.get("principal_ref"):
         errors.append(

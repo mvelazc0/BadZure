@@ -22,7 +22,7 @@
 #   python badzure.py build --config examples/chained/chained_appservice_mi.yml --verbose
 #   python badzure.py destroy --verbose
 #
-# kv-replacee-me12ra must be a GLOBALLY UNIQUE Key Vault name (3-24 chars, lowercase
+# kv-replacee-aasds must be a GLOBALLY UNIQUE Key Vault name (3-24 chars, lowercase
 # alphanumerics + hyphens) — change it in all three places below.
 # tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
 
@@ -60,14 +60,14 @@ attack_paths:
     resources:
       # A resource ref doubles as the real resource name. app01-portal is RG-scoped so
       # the name is fine as-is; the Key Vault name must be GLOBALLY UNIQUE (3-24 chars,
-      # lowercase alphanumerics + hyphens) — change kv-replacee-me12ra in BOTH places below.
+      # lowercase alphanumerics + hyphens) — change kv-replacee-aasds in BOTH places below.
       # The App Service is pinned to rg-app; the Key Vault names no resource_group, so it
       # is placed RANDOMLY across the declared groups.
       resource_groups:
         - { ref: rg-app,  location: "West US" }
         - { ref: rg-data, location: "West US" }
       app_services: [{ ref: app01-portal, resource_group: rg-app }]
-      key_vaults:   [{ ref: kv-replacee-me12ra }]
+      key_vaults:   [{ ref: kv-replacee-aasds }]
 
     assignments:
       # 2) alice gets Website Contributor on the App Service -> control the app (via the
@@ -80,7 +80,7 @@ attack_paths:
       #    and mi_source must be explicit (a resource ref can't be inferred as a principal).
       - { id: a2, type: azure_rbac, principal_ref: app01-portal,
           principal_type: managed_identity, mi_source: app_service,
-          role: "Key Vault Secrets User", scope_ref: kv-replacee-me12ra }
+          role: "Key Vault Secrets User", scope_ref: kv-replacee-aasds }
 
       # 5) the looted app is Global Administrator — controlling it is the escalation.
       - { id: a3, type: entra_role, principal_ref: app_highpriv, role: "Global Administrator" }
@@ -93,5 +93,5 @@ attack_paths:
       # 4) plant app_highpriv's client secret as a Key Vault secret. Whoever can read the
       #    vault (the App Service's MI, via hop 3) loots it and takes over app_highpriv.
       - { id: d1, material: app_secret, credential_ref: app_secret,
-          location: key_vault_secret, location_ref: kv-replacee-me12ra,
+          location: key_vault_secret, location_ref: kv-replacee-aasds,
           name: client-secret-app-highpriv }

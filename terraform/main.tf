@@ -12,6 +12,10 @@ terraform {
       source  = "hashicorp/time"
       version = ">= 0.9.0"
     }
+    archive = {
+      source  = "hashicorp/archive"
+      version = ">= 2.4.0"
+    }
   }
 }
 
@@ -554,7 +558,33 @@ resource "azurerm_linux_web_app" "app_services" {
     application_stack {
       python_version = "3.11"
     }
+
+    # Access restrictions — the App Service analog of the VM foothold's NSG. The
+    # builder stamps expose_to_internet onto foothold apps (default false). When
+    # false, deny all but the operator IP (var.public_ip); when true, leave the app
+    # open to the internet. Baseline apps default to true (open) so their behavior
+    # is unchanged.
+    ip_restriction_default_action = each.value.expose_to_internet ? "Allow" : "Deny"
+    dynamic "ip_restriction" {
+      for_each = each.value.expose_to_internet ? [] : [1]
+      content {
+        name       = "operator-ip-only"
+        action     = "Allow"
+        priority   = 100
+        ip_address = "${var.public_ip}/32"
+      }
+    }
   }
+
+  # Foothold apps (app_variant set) get the vulnerable code zip-deployed. The
+  # builder stamps app_variant onto the targeted app via _derive_webapp_footholds;
+  # baseline/2a apps leave it empty and stay on the default page. SCM build is
+  # disabled because the app is stdlib-only (no dependencies to install).
+  app_settings = each.value.app_variant != "" ? {
+    SCM_DO_BUILD_DURING_DEPLOYMENT = "false"
+  } : {}
+
+  zip_deploy_file = each.value.app_variant != "" ? data.archive_file.webapp[each.key].output_path : null
 
   # Keep System-Assigned Identity for attack path scenarios
   identity {
@@ -562,6 +592,17 @@ resource "azurerm_linux_web_app" "app_services" {
   }
 
   depends_on = [azurerm_service_plan.app_service_plan]
+}
+
+# Zip the in-repo vulnerable app dir for any App Service flagged with an app_variant
+# (a foothold app). archive_file's content hash makes an app-code edit redeploy and
+# an unchanged app a no-op. Plan-time + local-only — no Azure calls.
+data "archive_file" "webapp" {
+  for_each = { for k, v in var.app_services : k => v if v.app_variant != "" }
+
+  type        = "zip"
+  source_dir  = "${path.module}/webapp/${each.value.app_variant}"
+  output_path = "${path.module}/webapp/zip_${each.key}.zip"
 }
 
 # Cosmos DB Account (serverless capacity mode for cost efficiency)

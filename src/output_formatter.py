@@ -4,7 +4,10 @@ Handles formatting and writing of attack path details and user files.
 """
 import logging
 from typing import Dict, Optional
-from src.constants import API_REGISTRY, RESOURCE_FOOTHOLD_VECTORS, FOOTHOLD_VECTOR_PROTOCOL
+from src.constants import (
+    API_REGISTRY, RESOURCE_FOOTHOLD_VECTORS, FOOTHOLD_VECTOR_PROTOCOL,
+    WEBAPP_FOOTHOLD_VECTORS, WEBAPP_VULN_PATH,
+)
 from src.name_resolver import NameResolver
 
 
@@ -81,6 +84,15 @@ class OutputFormatter:
     @staticmethod
     def _declarative_initial_access(creds: Dict) -> None:
         identity_type = creds.get('initial_access')
+        if identity_type in WEBAPP_FOOTHOLD_VECTORS:
+            app = creds.get('foothold_resource', 'N/A')
+            logging.info(f"Initial Access: Vulnerable web app foothold on App Service - {app}")
+            url = creds.get('app_service_url')
+            if url:
+                vuln = creds.get('vuln_path', WEBAPP_VULN_PATH)
+                logging.info(f"Foothold URL: {url}")
+                logging.info(f"Vulnerable Endpoint: {url}{vuln} (command injection -> MI token)")
+            return
         if identity_type in RESOURCE_FOOTHOLD_VECTORS:
             proto = FOOTHOLD_VECTOR_PROTOCOL.get(identity_type, {})
             label = proto.get('protocol', identity_type)

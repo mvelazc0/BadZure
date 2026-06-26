@@ -15,6 +15,7 @@ from src.terraform_builder import build_tfvars
 from src.scenario_loader import ScenarioLoader
 import src.dataplane as dataplane
 import src.utils as utils
+from src.constants import WEBAPP_FOOTHOLD_VECTORS
 
 
 class BuildCommand:
@@ -187,17 +188,27 @@ class BuildCommand:
                 user_creds[ap_name]['client_secret'] = entry.get('client_secret')
 
     def _apply_foothold_access(self, user_creds: Dict, outputs: Dict) -> None:
-        """Fill exposed-host foothold paths' operator creds with the VM's public IP
-        and admin credentials, read from the vm_foothold_access TF output (keyed by
-        the foothold_resource the loader/macro recorded). The public IP is only known
-        after apply, so it can't be set at planning time."""
+        """Fill resource-seed foothold paths' operator artifacts from the post-apply
+        Terraform outputs (the public IP/URL is only known after apply). Exposed-host
+        footholds read vm_foothold_access (public IP + admin creds); vulnerable-web-app
+        footholds read app_service_foothold_access (the public URL + vuln endpoint).
+        Both are keyed by the foothold_resource the loader/macro recorded."""
         needed = {name: c['foothold_resource']
                   for name, c in user_creds.items() if c.get('foothold_resource')}
         if not needed:
             return
-        foothold = outputs.get('vm_foothold_access', {})
-        for name, vm_ref in needed.items():
-            entry = foothold.get(vm_ref)
+        vm_foothold = outputs.get('vm_foothold_access', {})
+        webapp_foothold = outputs.get('app_service_foothold_access', {})
+        for name, ref in needed.items():
+            if user_creds[name].get('initial_access') in WEBAPP_FOOTHOLD_VECTORS:
+                entry = webapp_foothold.get(ref)
+                if entry:
+                    user_creds[name].update({
+                        'app_service_url': entry.get('url'),
+                        'vuln_path': entry.get('vuln_path'),
+                    })
+                continue
+            entry = vm_foothold.get(ref)
             if entry:
                 user_creds[name].update({
                     'public_ip': entry.get('public_ip'),

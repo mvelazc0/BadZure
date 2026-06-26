@@ -143,6 +143,16 @@ variable "app_services" {
     location            = string
     resource_group_name = string
     os_type             = string # "linux" (App Services are always Linux web apps here)
+    # Vulnerable-web-app foothold knob (projected by the builder from an
+    # InitialAccessVector). "" (default): baseline app on the platform default page.
+    # Non-empty (e.g. "vulnerable_rce"): the in-repo app dir under terraform/webapp/
+    # that gets zip-deployed, planting the code-exec bug for the foothold.
+    app_variant = optional(string, "")
+    # Access-restriction knob (the App Service analog of the VM foothold NSG). The
+    # builder stamps this onto foothold apps (default false -> operator IP only).
+    # true (the default for unstamped baseline apps): the app is open to the
+    # internet. false: only var.public_ip may reach it (default-deny otherwise).
+    expose_to_internet = optional(bool, true)
   }))
   default = {}
 }
@@ -205,6 +215,12 @@ variable "cosmos_dataplane_refs" {
 # (The public IP is only known after apply, so it must come back through an output.)
 variable "foothold_vm_refs" {
   description = "Subset of virtual_machines keys that are an exposed-host foothold"
+  type        = list(string)
+  default     = []
+}
+
+variable "webapp_foothold_refs" {
+  description = "Subset of app_services keys that are a vulnerable-web-app foothold"
   type        = list(string)
   default     = []
 }

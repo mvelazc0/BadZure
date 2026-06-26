@@ -40,6 +40,7 @@ from src.primitives import (
 from src.primitive_handlers import handler_for, CREDENTIAL, DATAPLANE_LOCATION_TYPES
 from src.constants import (
     RESOURCE_FOOTHOLD_VECTORS, WEAK_FOOTHOLD_PASSWORD, FOOTHOLD_VECTOR_PROTOCOL,
+    WEBAPP_FOOTHOLD_VECTORS, WEBAPP_VARIANT_DIR, WEBAPP_DEFAULT_VARIANT,
 )
 
 
@@ -98,6 +99,7 @@ class TerraformBuilder:
         self.validate()
         groups = self._derive_attack_path_groups()
         exposed_vms = self._derive_exposed_vms()
+        webapp_apps = self._derive_webapp_footholds()
         families = self._build_families()
 
         tfvars: Dict = {
@@ -112,6 +114,8 @@ class TerraformBuilder:
                 tfvars[attr] = groups
             elif attr == "virtual_machines":
                 tfvars[attr] = exposed_vms
+            elif attr == "app_services":
+                tfvars[attr] = webapp_apps
             else:
                 tfvars[attr] = getattr(self.model, attr)
         tfvars.update(families)
@@ -122,6 +126,9 @@ class TerraformBuilder:
         # VMs that are an exposed-host foothold — the vm_foothold_access output
         # surfaces exactly these (public IP + creds the operator logs in with).
         tfvars["foothold_vm_refs"] = self._foothold_vm_refs()
+        # App Services that are a vulnerable-web-app foothold — the
+        # app_service_foothold_access output surfaces exactly these (URL + vuln path).
+        tfvars["webapp_foothold_refs"] = self._webapp_foothold_refs()
         return tfvars
 
     def _cosmos_dataplane_refs(self) -> List[str]:
@@ -196,6 +203,39 @@ class TerraformBuilder:
             if isinstance(p, InitialAccessVector) and p.method in RESOURCE_FOOTHOLD_VECTORS
         })
 
+    # -- step 1c: vulnerable-web-app foothold projection ----------------------
+    def _derive_webapp_footholds(self) -> Dict:
+        """A fresh app_services map with vulnerable-web-app footholds projected onto
+        the target App Service spec: an `app_variant` (the in-repo app dir under
+        terraform/webapp/ that main.tf zip-deploys, planting the code-exec bug). The
+        vector's `variant` (e.g. rce) maps to the dir via WEBAPP_VARIANT_DIR. Mirrors
+        _derive_exposed_vms — an InitialAccessVector is consumed here, NOT as a
+        generic.tf family. Does not mutate the model; apps no foothold targets are
+        copied through unchanged (so baseline App Services stay on the default page)."""
+        out: Dict = {k: dict(v) for k, v in self.model.app_services.items()}
+        for p in self.model.primitives:
+            if not (isinstance(p, InitialAccessVector)
+                    and p.method in WEBAPP_FOOTHOLD_VECTORS):
+                continue
+            app = out.get(p.target_ref)
+            if app is None:  # ref-validated in validate(); defensive
+                continue
+            variant = p.variant or WEBAPP_DEFAULT_VARIANT
+            app["app_variant"] = WEBAPP_VARIANT_DIR.get(variant, variant)
+            # Access restriction: false (default) -> the app's main site allows only
+            # the operator IP; true -> open to the internet. Mirrors the VM NSG.
+            app["expose_to_internet"] = bool(p.expose_to_internet)
+        return out
+
+    def _webapp_foothold_refs(self) -> List[str]:
+        """Sorted app_service refs that are a vulnerable-web-app foothold — the
+        app_service_foothold_access output iterates exactly these (its URL is only
+        known after apply)."""
+        return sorted({
+            p.target_ref for p in self.model.primitives
+            if isinstance(p, InitialAccessVector) and p.method in WEBAPP_FOOTHOLD_VECTORS
+        })
+
     # -- step 2: reference checking -------------------------------------------
     def validate(self) -> None:
         credential_keys = set(self._credential_origin.keys())
@@ -209,11 +249,25 @@ class TerraformBuilder:
 
     def _validate_initial_access_vector(self, p: InitialAccessVector) -> None:
         """An InitialAccessVector has no generic.tf handler, so ref-check it here.
-        Slice 1 implements only the exposed-host footholds (target_type=virtual_machine)."""
+        Two foothold families: exposed-host (target_type=virtual_machine) and
+        vulnerable-web-app (target_type=app_service)."""
+        if p.method in WEBAPP_FOOTHOLD_VECTORS:
+            if p.target_type != "app_service":
+                raise LabValidationError(
+                    f"InitialAccessVector '{p.key}': method '{p.method}' requires "
+                    f"target_type 'app_service' (got '{p.target_type}')."
+                )
+            if p.target_ref not in self.model.entity_keys("app_services"):
+                raise LabValidationError(
+                    f"InitialAccessVector '{p.key}': target_ref '{p.target_ref}' is not "
+                    f"a declared app_service."
+                )
+            return
         if p.method not in RESOURCE_FOOTHOLD_VECTORS:
             raise LabValidationError(
                 f"InitialAccessVector '{p.key}': method '{p.method}' is not "
-                f"implemented yet (supported: {', '.join(RESOURCE_FOOTHOLD_VECTORS)})."
+                f"implemented yet (supported: "
+                f"{', '.join(RESOURCE_FOOTHOLD_VECTORS + WEBAPP_FOOTHOLD_VECTORS)})."
             )
         if p.target_type != "virtual_machine":
             raise LabValidationError(

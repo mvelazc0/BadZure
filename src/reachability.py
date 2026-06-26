@@ -55,7 +55,7 @@ from src.primitives import (
     GroupMembership, GroupOwnership, AppOwnership, EntraRoleAssignment, ApiPermission,
 )
 from src.primitive_handlers import SCOPE_RESOURCE_TO_MAP, INJECT_LOCATION_TO_MAP
-from src.constants import RESOURCE_FOOTHOLD_VECTORS
+from src.constants import RESOURCE_SEED_VECTORS
 
 # Flip to False (or export BADZURE_SKIP_REACHABILITY=1) to deploy chains without
 # the reachability gate. Analysis still runs and still derives steps — only the
@@ -428,8 +428,8 @@ class _Analyzer:
         then each edge from seed to the terminal node, then a final 'gain' note."""
         ia = overlay.initial_access or {}
         method = ia.get("method", "compromised_identity")
-        if method in RESOURCE_FOOTHOLD_VECTORS:
-            # Exposed-host foothold: the seed is the host, not an identity.
+        if method in RESOURCE_SEED_VECTORS:
+            # Resource-seed foothold: the seed is the host/app, not an identity.
             first_name = f"Initial access via {method}: code execution on {seed}"
         else:
             first_name = f"Compromise {seed}"

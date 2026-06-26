@@ -185,9 +185,9 @@ graph TD
 
 ### By Initial Access Vector
 
-By default the attacker starts from a **compromised identity** (user or service principal) that already holds contributor access to the source resource. With a VM source the chain can instead start from an **exposed-host foothold**: an internet-reachable VM whose RDP or SSH the attacker brute-forces to gain code execution on the host directly. There is no compromised identity and no separate contributor grant. The attacker lands on the VM and pivots straight through its managed identity.
+By default the attacker starts from a **compromised identity** (user or service principal) that already holds contributor access to the source resource. The chain can instead start from a **resource foothold**: with a VM source, an **exposed-host foothold** (an internet-reachable VM whose RDP or SSH the attacker brute-forces); with an App Service source, a **vulnerable-web-app foothold** (an internet-facing web app the attacker exploits to run code). In both cases there is no compromised identity and no separate contributor grant. The attacker lands on the resource and pivots straight through its managed identity.
 
-These vectors apply only to `source_type: vm` (the foothold host is the managed-identity source). The foothold host's OS is set to match the vector — `exposed_rdp` forces a Windows VM, `exposed_ssh` a Linux VM — so the open port is consistent with the box. The build surfaces the VM public IP and admin credentials so the operator can log in and continue the chain.
+The exposed-host vectors apply only to `source_type: vm` (the foothold host is the managed-identity source). The foothold host's OS is set to match the vector — `exposed_rdp` forces a Windows VM, `exposed_ssh` a Linux VM — so the open port is consistent with the box. The build surfaces the VM public IP and admin credentials so the operator can log in and continue the chain. The vulnerable-web-app vector applies only to `source_type: app_service`; the build surfaces the app URL and the vulnerable endpoint instead.
 
 === "Exposed RDP"
 
@@ -210,10 +210,27 @@ These vectors apply only to `source_type: vm` (the foothold host is the managed-
     - **Config value:** `initial_access: exposed_ssh`
     - **Requires:** `source_type: vm`
 
+=== "Vulnerable Web App"
+
+    An internet-facing App Service running a deliberately vulnerable app, exploited to gain code execution in the app's process context and read its managed-identity token.
+
+    - **Config value:** `initial_access: vulnerable_web_app`
+    - **Requires:** `source_type: app_service`
+    - **Variant:** `variant: rce` (a command-injection diagnostics page)
+
+    ``` mermaid
+    graph LR
+        A(("Attacker")) -->|"exploit web bug"| RES(("App<br/>Service"))
+        RES -->|"has"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Target<br/>Resource"))
+    ```
+
 **Exposure knobs:**
 
-- `expose_to_internet` (default `false`) — keep RDP/SSH open to the operator IP only, or set `true` to add a `0.0.0.0/0` rule so the host is reachable and brute-forceable from anywhere.
-- `credential` (default `known`) — keep the strong generated admin password (operator logs in directly), or set `weak` for a brute-forceable password.
+- `expose_to_internet` (default `false`) — for a VM, keep RDP/SSH open to the operator IP only, or set `true` to add a `0.0.0.0/0` rule so the host is reachable and brute-forceable from anywhere. For an App Service, keep an access restriction allowing only the operator IP, or set `true` to leave the app open to the public internet.
+- `credential` (default `known`) — exposed-host (VM) footholds only: keep the strong generated admin password (operator logs in directly), or set `weak` for a brute-forceable password.
+
+`expose_to_internet` applies to both the exposed-host (VM) and vulnerable-web-app vectors. `credential` applies only to the VM vectors (App Service has no host login). The vulnerable-web-app vector adds `variant` to select the vulnerability class.
 
 ### By Assignment Type
 
@@ -353,6 +370,21 @@ attack_paths:
     target_resource_type: key_vault
     expose_to_internet: false   # set true to open RDP/SSH to 0.0.0.0/0
     credential: known           # set weak for a brute-forceable password
+    method: APIPermission
+    api_type: graph
+    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+```
+
+Vulnerable-web-app foothold to Key Vault. The attacker exploits an internet-facing App Service and pivots through its managed identity:
+
+```yaml
+attack_paths:
+  mi_vulnerable_webapp_keyvault:
+    privilege_escalation: ManagedIdentityAbuse
+    initial_access: vulnerable_web_app
+    source_type: app_service
+    target_resource_type: key_vault
+    variant: rce                # command-injection diagnostics page
     method: APIPermission
     api_type: graph
     app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
