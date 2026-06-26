@@ -46,7 +46,7 @@ baseline:
     key_vaults:
       - { ref: kvmvc-northwind-prod, resource_group: rg-prod }
     storage_accounts:
-      - { ref: stnorthwindprod12, resource_group: rg-prod }
+      - { ref: stnorthwindprod12 }   # no resource_group -> placed randomly across rg-prod/rg-dev
 
   assignments:
     # Departmental group membership.

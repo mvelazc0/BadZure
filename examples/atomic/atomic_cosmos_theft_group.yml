@@ -12,6 +12,7 @@ baseline:
     groups: 1
     applications: 2
   resources:
+    resource_groups: 2
     cosmos_dbs: 1
 attack_paths:
   cosmos_theft_group:

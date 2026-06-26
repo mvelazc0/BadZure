@@ -12,6 +12,7 @@ baseline:
     groups: 5
     applications: 12
   resources:
+    resource_groups: 2
     key_vaults: 3
     storage_accounts: 2
     virtual_machines: 2

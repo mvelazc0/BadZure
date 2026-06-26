@@ -341,18 +341,22 @@ class ScenarioLoader:
         resource_groups = self.generator.generate_resource_groups_targeted(
             specs.get("resource_groups", [])
         )
-        # Synthesize a default RG for any resource spec that didn't name one, so
-        # the operator can declare `key_vaults: [{ref: kv01}]` without boilerplate.
-        if self._needs_default_rg(specs) and _DEFAULT_RG not in resource_groups:
+        # Synthesize a default RG ONLY when resources need one and the config
+        # declared none — so `key_vaults: [{ref: kv01}]` works with zero RG
+        # boilerplate. When RGs ARE declared, an unparented resource is instead
+        # distributed randomly across the declared pool (see _resolve_rg).
+        if self._needs_default_rg(specs) and not resource_groups:
             resource_groups[_DEFAULT_RG] = {
                 "name": _DEFAULT_RG, "location": _DEFAULT_RG_LOCATION,
             }
 
+        rg_pool = list(resource_groups.keys())
         entities: Dict[str, Dict] = {"resource_groups": resource_groups}
         for kind, method in _IDENTITY_BUILDERS.items():
             entities[kind] = getattr(self.generator, method)(specs.get(kind, []))
         for kind, method in _RESOURCE_BUILDERS.items():
-            kind_specs = [self._with_default_rg(s) for s in specs.get(kind, [])]
+            kind_specs = [self._resolve_rg(s, resource_groups, rg_pool)
+                          for s in specs.get(kind, [])]
             entities[kind] = getattr(self.generator, method)(kind_specs, resource_groups)
         return entities
 
@@ -443,18 +447,37 @@ class ScenarioLoader:
 
     @staticmethod
     def _needs_default_rg(specs: Dict[str, List[Dict]]) -> bool:
+        """True when some resource spec needs a parent RG picked for it (it named
+        no `resource_group`, or asked for `random`)."""
         for kind in _RESOURCE_BUILDERS:
             for s in specs.get(kind, []):
-                if not s.get("resource_group"):
+                rg = s.get("resource_group")
+                if not rg or rg == RANDOM:
                     return True
         return False
 
     @staticmethod
-    def _with_default_rg(spec: Dict) -> Dict:
-        if spec.get("resource_group"):
+    def _resolve_rg(spec: Dict, resource_groups: Dict[str, Dict],
+                    rg_pool: List[str]) -> Dict:
+        """Bind a resource spec to a concrete, declared resource group. An explicit
+        `resource_group:` must name a declared RG (else a clear error). An omitted
+        or `random` `resource_group:` is distributed randomly across the declared
+        RG pool (or the synthesized default when no RGs were declared)."""
+        rg = spec.get("resource_group")
+        if rg and rg != RANDOM:
+            if rg not in resource_groups:
+                raise ScenarioConfigError(
+                    f"resource '{spec.get('name', '?')}' references resource_group "
+                    f"'{rg}', which is not a declared resource group "
+                    f"(declared: {sorted(resource_groups) or 'none'}). Declare it under "
+                    f"`resources.resource_groups`, or omit `resource_group` to place "
+                    f"the resource randomly across the declared groups."
+                )
+            return spec
+        if not rg_pool:
             return spec
         out = dict(spec)
-        out["resource_group"] = _DEFAULT_RG
+        out["resource_group"] = random.choice(rg_pool)
         return out
 
     @staticmethod

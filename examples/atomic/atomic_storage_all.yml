@@ -12,6 +12,7 @@ baseline:
     groups: 2
     applications: 6
   resources:
+    resource_groups: 2
     storage_accounts: 8
 attack_paths:
   storage_user:

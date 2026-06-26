@@ -12,6 +12,7 @@ baseline:
     groups: 1
     applications: 3
   resources:
+    resource_groups: 2
     automation_accounts: 1
     cosmos_dbs: 1
 attack_paths:

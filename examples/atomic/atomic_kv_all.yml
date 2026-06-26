@@ -15,6 +15,7 @@ baseline:
     groups: 2
     applications: 8
   resources:
+    resource_groups: 2
     key_vaults: 5
 attack_paths:
   kv_theft_user:

@@ -297,7 +297,7 @@ class EntityGenerator:
         
         for spec in kv_specs:
             name = spec.get('name', 'random')
-            rg_name = spec.get('resource_group')
+            rg_name = spec.get('resource_group', 'random')
             
             if name == 'random':
                 base_name = random.choice(kv_names)
@@ -308,7 +308,7 @@ class EntityGenerator:
             if rg_name == 'random':
                 if not resource_groups:
                     continue
-                rg_name = list(resource_groups.keys())[0]
+                rg_name = random.choice(list(resource_groups.keys()))
             
             # Validate resource group exists
             if rg_name not in resource_groups:
@@ -364,7 +364,7 @@ class EntityGenerator:
         
         for spec in sa_specs:
             name = spec.get('name', 'random')
-            rg_name = spec.get('resource_group')
+            rg_name = spec.get('resource_group', 'random')
             
             if name == 'random':
                 base_name = random.choice(sa_names)
@@ -375,7 +375,7 @@ class EntityGenerator:
             if rg_name == 'random':
                 if not resource_groups:
                     continue
-                rg_name = list(resource_groups.keys())[0]
+                rg_name = random.choice(list(resource_groups.keys()))
             
             # Validate resource group exists
             if rg_name not in resource_groups:
@@ -435,7 +435,7 @@ class EntityGenerator:
         
         for spec in vm_specs:
             name = spec.get('name', 'random')
-            rg_name = spec.get('resource_group')
+            rg_name = spec.get('resource_group', 'random')
             os_type = spec.get('os_type', 'Linux')
             
             if name == 'random':
@@ -447,7 +447,7 @@ class EntityGenerator:
             if rg_name == 'random':
                 if not resource_groups:
                     continue
-                rg_name = list(resource_groups.keys())[0]
+                rg_name = random.choice(list(resource_groups.keys()))
             
             # Validate resource group exists
             if rg_name not in resource_groups:

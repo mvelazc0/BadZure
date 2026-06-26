@@ -41,7 +41,9 @@ attack_paths:
       users:        [{ ref: alice }]
       applications: [{ ref: app_highpriv }]
     resources:
-      key_vaults:   [{ ref: kv-replace-me }]
+      resource_groups:
+        - { ref: rg-data, location: "West US" }
+      key_vaults:   [{ ref: kv-replace-me, resource_group: rg-data }]
 
     assignments:
       # NOTE: the "Key Vault Contributor" assignment that would let alice read the

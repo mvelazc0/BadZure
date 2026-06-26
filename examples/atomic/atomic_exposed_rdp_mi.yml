@@ -17,6 +17,7 @@ baseline:
     groups: 1
     applications: 2
   resources:
+    resource_groups: 2
     key_vaults: 1
     virtual_machines: 6
 attack_paths:

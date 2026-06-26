@@ -38,7 +38,12 @@ attack_paths:
     identities:
       applications: [{ ref: app_highpriv }]
     resources:
-      virtual_machines: [{ ref: vm-foothold, os_type: Windows }]
+      # The foothold VM is pinned to rg-compute; the Key Vault names no
+      # resource_group, so it is placed RANDOMLY across the declared groups.
+      resource_groups:
+        - { ref: rg-compute, location: "West US" }
+        - { ref: rg-data,    location: "West US" }
+      virtual_machines: [{ ref: vm-foothold, os_type: Windows, resource_group: rg-compute }]
       key_vaults:       [{ ref: kv-replace-me }]
 
     assignments:

@@ -12,6 +12,7 @@ baseline:
     groups: 1
     applications: 3
   resources:
+    resource_groups: 2
     storage_accounts: 1
     logic_apps: 1
 attack_paths:

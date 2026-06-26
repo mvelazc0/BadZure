@@ -12,6 +12,7 @@ baseline:
     groups: 1
     applications: 2
   resources:
+    resource_groups: 2
     virtual_machines: 1
     cosmos_dbs: 1
 attack_paths:

@@ -245,6 +245,11 @@ attack_paths:
       applications: [{ ref: billing-sync-app }]
     resources:
       # `ref` doubles as the real Key Vault name -> must be globally unique, 3-24 chars.
+      # Resource groups: declare them under `resource_groups` and pin a resource with
+      # `resource_group:`. Omit `resource_group:` and the resource is placed randomly
+      # across the declared groups; declare no groups at all and one is synthesized.
+      #   resource_groups: [{ ref: rg-prod, location: "West US" }]
+      #   key_vaults: [{ ref: badzure-ref-kv-01, resource_group: rg-prod }]
       key_vaults:   [{ ref: badzure-ref-kv-01 }]
     assignments:
       - { id: a1, type: azure_rbac, principal_ref: priya,

@@ -18,7 +18,7 @@ tenant:
 # group_ownerships, app_ownerships, app_credentials, and data_injects.
 baseline:
   identities: { users: 15, groups: 4, applications: 6, administrative_units: 2 }
-  resources:  { key_vaults: 2 }                      # opt-in (real cost/time)
+  resources:  { key_vaults: 2, resource_groups: 2 }  # opt-in (real cost/time); 2 RGs -> random spread
   assignments:
     group_memberships: 12
     entra_roles: 4
@@ -42,7 +42,9 @@ attack_paths:
       applications: [{ ref: app_highpriv }]
     resources:
       # ref doubles as the real KV name -> must be globally unique (3-24 chars).
-      key_vaults:   [{ ref: kv-replace-me }]
+      resource_groups:
+        - { ref: rg-prod, location: "West US" }
+      key_vaults:   [{ ref: kv-replace-me, resource_group: rg-prod }]
     assignments:
       - { id: a1, type: azure_rbac, principal_ref: alice,
           role: "Key Vault Contributor", scope_ref: kv-replace-me }

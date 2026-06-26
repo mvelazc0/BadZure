@@ -43,7 +43,9 @@ attack_paths:
       # On this declarative path the ref doubles as the real Cosmos account name,
       # which must be GLOBALLY UNIQUE (3-44 chars, lowercase alphanumerics +
       # hyphens). Change cosmos-replace-me to your own unique value below.
-      cosmos_dbs:   [{ ref: cosmos-replace-me }]
+      resource_groups:
+        - { ref: rg-data, location: "West US" }
+      cosmos_dbs:   [{ ref: cosmos-replace-me, resource_group: rg-data }]
 
     assignments:
       # alice holds Cosmos DB Built-in Data Contributor (data plane) on the account.

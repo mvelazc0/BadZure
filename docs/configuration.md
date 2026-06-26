@@ -81,7 +81,7 @@ Baseline VMs are private — they get no public IP. Only an exposed-host foothol
 
 App Service creation is throttled per subscription. Running multiple build and destroy iterations in a short period can result in throttling errors that prevent App Services from being created for a while.
 
-Resource groups are created automatically.
+Resource groups are created automatically. See [Resource Groups](#resource-groups) for how resources are placed into them.
 
 ### `baseline.assignments` — (optional)
 
@@ -388,6 +388,33 @@ See `examples/chained/chained_exposed_rdp.yml` for a worked example.
 The nine assignment `type`s are `entra_role`, `azure_rbac`, `api_permission`, `group_membership`, `group_ownership`, `app_ownership`, `au_membership` (plus `credentials` and `data_injects` as their own blocks). A chained path can also borrow entities from the baseline with `{ ref: victim, from: baseline }`. See `examples/chained/chained_hybrid.yml` for a worked hybrid example.
 
 A `data_inject` places material into a resource an attacker can read. Its `location_type` selects the resource family: `key_vault_secret` and `key_vault_certificate` (a Key Vault), `storage_blob` (a Storage account container), and `cosmos_document` (a Cosmos DB container). The `material` is `app_secret` (bound to a declared credential via `credential_ref`), `app_client_id` (the client id of an application via `source_ref`), `app_certificate` (a certificate file via `file_path`), or `literal` (arbitrary content via `literal_value`). Key Vault and Storage injects are written by Terraform; `cosmos_document` injects are planted by the data-plane phase that runs after the Terraform apply, using the Cosmos account key to upsert one document per inject. See `examples/chained/chained_cosmos_inject.yml` for a worked Cosmos example.
+
+## Resource Groups
+
+Every Azure resource lives in a resource group. BadZure creates the resource groups and places the resources into them, and you choose how much of that placement is explicit.
+
+In the `baseline:` section resources are declared as counts, so resource groups are a count too. BadZure creates that many groups with generated names and spreads the baseline resources randomly across them. If you declare resources but no groups, it creates one group to hold them.
+
+In a chained path resources are named, so you can name the groups as well. Declare them under `resources.resource_groups` and place a resource in one with its `resource_group` field. A resource that names a group lands in that group and takes its location. A resource that omits the field is spread randomly across the declared groups. Naming a group that was never declared stops the build with an error, and a path that declares resources but no groups falls back to a single default group.
+
+```yaml
+# baseline (counts): two groups, resources spread randomly across them
+baseline:
+  resources: { resource_groups: 2, key_vaults: 2, storage_accounts: 1 }
+
+# chained (named): pin some resources, leave others to random placement
+attack_paths:
+  kv_to_ga:
+    resources:
+      resource_groups:
+        - { ref: rg-prod, location: "West US" }
+        - { ref: rg-corp, location: "East US" }
+      key_vaults:
+        - { ref: badzure-ref-kv-01, resource_group: rg-prod }   # pinned
+        - { ref: badzure-ref-kv-02 }                            # random placement
+      storage_accounts:
+        - { ref: stbadzure01 }                                  # random placement
+```
 
 ## Group-Based Assignment
 

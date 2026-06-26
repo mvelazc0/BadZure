@@ -61,7 +61,12 @@ attack_paths:
       # A resource ref doubles as the real resource name. app01-portal is RG-scoped so
       # the name is fine as-is; the Key Vault name must be GLOBALLY UNIQUE (3-24 chars,
       # lowercase alphanumerics + hyphens) — change kv-replacee-me12ra in BOTH places below.
-      app_services: [{ ref: app01-portal }]
+      # The App Service is pinned to rg-app; the Key Vault names no resource_group, so it
+      # is placed RANDOMLY across the declared groups.
+      resource_groups:
+        - { ref: rg-app,  location: "West US" }
+        - { ref: rg-data, location: "West US" }
+      app_services: [{ ref: app01-portal, resource_group: rg-app }]
       key_vaults:   [{ ref: kv-replacee-me12ra }]
 
     assignments:

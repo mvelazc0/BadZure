@@ -37,7 +37,9 @@ attack_paths:
       # On this declarative path the ref doubles as the real Key Vault name, which
       # must be GLOBALLY UNIQUE (3-24 chars, lowercase alphanumerics + hyphens).
       # Change kv-replace-me to your own unique value in all three places below.
-      key_vaults:   [{ ref: kv-replace-me }]
+      resource_groups:
+        - { ref: rg-prod, location: "West US" }
+      key_vaults:   [{ ref: kv-replace-me, resource_group: rg-prod }]
 
     assignments:
       # alice can manage the vault (Key Vault Contributor -> read any secret).

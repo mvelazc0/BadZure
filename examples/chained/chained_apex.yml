@@ -126,13 +126,20 @@ attack_paths:
 
     resources:
       # All globally-unique names below must be made unique before a live build.
-      virtual_machines:    [{ ref: vm-build01 }]
-      function_apps:       [{ ref: func-bz-api01 }]
-      automation_accounts: [{ ref: auto-runbook01 }]
-      logic_apps:          [{ ref: logic-etl01 }]
-      key_vaults:          [{ ref: kv-bz-vault02 }, { ref: kv-bz-vault04 }]
-      storage_accounts:    [{ ref: stbzdata01 }, { ref: stbzdata03 }]
-      cosmos_dbs:          [{ ref: cosmos-bz-app01 }]
+      # Resource groups: compute foothold resources land in rg-compute, the looted
+      # data stores in rg-data. A couple are left unpinned (no `resource_group`) to
+      # show those getting distributed RANDOMLY across the declared groups.
+      resource_groups:
+        - { ref: rg-compute, location: "West US" }
+        - { ref: rg-data,    location: "West US" }
+        - { ref: rg-shared,  location: "West US" }
+      virtual_machines:    [{ ref: vm-build01, resource_group: rg-compute }]
+      function_apps:       [{ ref: func-bz-api01, resource_group: rg-compute }]
+      automation_accounts: [{ ref: auto-runbook01, resource_group: rg-compute }]
+      logic_apps:          [{ ref: logic-etl01 }]                                  # random placement
+      key_vaults:          [{ ref: kv-bz-vault02, resource_group: rg-data }, { ref: kv-bz-vault04, resource_group: rg-data }]
+      storage_accounts:    [{ ref: stbzdata01, resource_group: rg-data }, { ref: stbzdata03 }]   # stbzdata03 random
+      cosmos_dbs:          [{ ref: cosmos-bz-app01, resource_group: rg-data }]
 
     # -- the chain ------------------------------------------------------------
     assignments:
