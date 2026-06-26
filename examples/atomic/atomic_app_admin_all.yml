@@ -1,0 +1,46 @@
+# Tier-1 `technique:` sugar - same chain, new shape. Live test:
+#   python badzure.py build --config examples/atomic/atomic_app_admin_all.yml --verbose
+#   python badzure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 8
+    groups: 2
+    applications: 10
+attack_paths:
+  app_admin_user_role:
+    privilege_escalation: ApplicationAdministratorAbuse
+    method: AzureADRole
+    entra_role: random
+  app_admin_group_member:
+    privilege_escalation: ApplicationAdministratorAbuse
+    assignment_type: group_member
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
+  app_admin_group_owner:
+    privilege_escalation: ApplicationAdministratorAbuse
+    assignment_type: group_owner
+    method: APIPermission
+    api_type: graph
+    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+  app_admin_sp_scoped:
+    privilege_escalation: ApplicationAdministratorAbuse
+    initial_access: service_principal
+    scope: application
+    method: AzureADRole
+    entra_role: 62e90394-69f5-4237-9190-012177145e10
+  app_admin_multi_role:
+    privilege_escalation: ApplicationAdministratorAbuse
+    method: AzureADRole
+    entra_role:
+    - 62e90394-69f5-4237-9190-012177145e10
+    - 9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3
+  app_admin_exchange:
+    privilege_escalation: ApplicationAdministratorAbuse
+    method: APIPermission
+    api_type: exchange
+    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40

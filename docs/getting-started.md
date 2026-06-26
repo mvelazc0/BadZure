@@ -135,4 +135,4 @@ attack_paths:
 
 - Browse the [Attack Paths](attack-paths/index.md) to understand the seven privilege escalation techniques BadZure supports
 - Read the [Configuration Guide](configuration.md) to customize your environment
-- Check out the annotated reference config `badzure.yml` and the example configs in `test_configs/declarative/`
+- Check out the annotated reference config `badzure.yml` and the example configs in `examples/` (`examples/atomic/` and `examples/chained/`)

@@ -231,7 +231,7 @@ attack_paths:
   #    a user with Key Vault Contributor reads a planted secret and authenticates
   #    as a Global-Admin app. `privilege_escalation:` and `assignments:` are mutually exclusive.
   #    Entities are declared INLINE here (not picked from the baseline).
-  #    Reference: docs (Authoring an explicit graph) + test_configs/declarative/.
+  #    Reference: docs (Authoring an explicit graph) + examples/chained/.
   # ---------------------------------------------------------------------------
   explicit_kv_to_ga:
     objective:

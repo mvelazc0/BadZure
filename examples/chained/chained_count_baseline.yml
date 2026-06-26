@@ -1,0 +1,31 @@
+# Count-driven baseline exercising ALL 9 primitives (Slice 3b parity).
+#
+# The count-driven random baseline is the mirror of the explicit/LLM baseline:
+# instead of naming entities + assignments, you give COUNTS and the generator
+# fabricates random entities and random relationships of each kind (origin=random).
+# After Slice 3b it supports the same 9 primitives as the explicit/LLM path.
+#
+# Live test:
+#   python badzure.py build --config examples/chained/chained_count_baseline.yml --verbose
+#   python badzure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+baseline:
+  identities: { users: 20, groups: 5, applications: 6, administrative_units: 2 }
+  resources:  { resource_groups: 2, key_vaults: 2, storage_accounts: 1 }
+  assignments:
+    # Identity-plane (parity with the legacy random generator).
+    group_memberships: 12
+    entra_roles: 5
+    api_permissions: 3
+    au_memberships: 3
+    # Full-primitive parity (Slice 3b).
+    azure_rbac: 10         # RBAC over the baseline RGs + resources
+    group_ownerships: 4    # groups owned by users/SPs
+    app_ownerships: 3      # apps owned by users/SPs
+    app_credentials: 4     # SP client secrets
+    data_injects: 4        # benign (fake) secrets in vaults / blobs in storage

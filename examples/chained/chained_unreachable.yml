@@ -1,0 +1,57 @@
+# Phase-3 NEGATIVE test (Slice 4/5) — an intentionally UNREACHABLE attack path.
+#
+# This is declarative_kv_theft.yml with ONE edge removed: alice has NO Key Vault
+# access (the `azure_rbac` "Key Vault Contributor" assignment is gone). So alice
+# can never read the vault, never loots app_highpriv's secret, never controls
+# app_highpriv, and never attains Global Administrator. The reachability gate must
+# REJECT this before any terraform apply.
+#
+# Expected result:
+#   python badzure.py build --config examples/chained/chained_unreachable.yml --verbose
+#   -> logs "Reachability gate rejected ... declarative_unreachable: no controlled
+#      principal ends up holding Entra role 'Global Administrator'." and EXITS.
+#   -> NOTHING is deployed (the gate runs in Python, before Terraform), so you do
+#      NOT need to replace kv-replace-me for this test, and there is nothing to destroy.
+#
+# To confirm the bypass instead, run with the env var set and it will proceed past
+# the gate (then `python badzure.py destroy --verbose`):
+#   $env:BADZURE_SKIP_REACHABILITY="1"; python badzure.py build --config examples/chained/chained_unreachable.yml --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  declarative_unreachable:
+    objective:
+      name: "Global Administrator via Key Vault"
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: "Same goal as declarative_kv_theft, but the access edge is missing."
+    metadata:
+      complexity: low
+      tags: [key-vault, negative-test]
+    initial_access:
+      method: compromised_identity
+      principal_ref: alice
+
+    identities:
+      users:        [{ ref: alice }]
+      applications: [{ ref: app_highpriv }]
+    resources:
+      key_vaults:   [{ ref: kv-replace-me }]
+
+    assignments:
+      # NOTE: the "Key Vault Contributor" assignment that would let alice read the
+      # vault is DELIBERATELY OMITTED here. Without it the chain is a dead end.
+      - { id: a2, type: entra_role, principal_ref: app_highpriv,
+          role: "Global Administrator" }
+
+    credentials:
+      - { ref: app_secret, app_ref: app_highpriv, type: password }
+
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-replace-me, name: client-secret-app-highpriv }

@@ -10,7 +10,7 @@ emit. These tests drive the real ScenarioLoader (no Azure) and assert:
   - explicit baseline assignments compile to origin=random primitives, with
     principal_type/scope inference working as for attack paths
   - counts and explicit specs coexist in one baseline
-  - the hand-written test_configs/declarative/declarative_org_baseline.yml fixture compiles and
+  - the hand-written examples/chained/chained_org_baseline.yml fixture compiles and
     builds a valid terraform.tfvars.json
   - the validator rejects malformed baselines (missing ref / bad assignment)
 
@@ -36,7 +36,7 @@ from src.primitives import (  # noqa: E402
 )
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_FIXTURE = os.path.join(_REPO, "test_configs", "declarative", "declarative_org_baseline.yml")
+_FIXTURE = os.path.join(_REPO, "examples", "chained", "chained_org_baseline.yml")
 
 
 def _loader():

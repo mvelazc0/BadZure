@@ -1,0 +1,70 @@
+# Declarative graph config — a CosmosDBSecretTheft-equivalent chain written
+# explicitly (Tier 2) instead of via the `privilege_escalation:` macro. Shows the
+# cosmos_document data_inject planting both a looted app secret and an arbitrary
+# literal document in the same container.
+#
+# In this build path the cosmos_document injects are planted by the Python
+# post-apply data-plane phase (src/dataplane.py), not Terraform — Terraform only
+# creates the Cosmos account/database/container.
+#
+# Live test:
+#   python badzure.py build --config examples/chained/chained_cosmos_inject.yml --verbose
+#   python badzure.py destroy --verbose
+#
+# tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  cosmos_inject:
+    objective:
+      # Machine-checkable objective for the reachability gate: a controlled
+      # principal can read the Cosmos container that holds the looted secret.
+      name: "Global Administrator via Cosmos DB"
+      capability: read_cosmos
+      target_ref: cosmos-replace-me
+      impact: critical
+      description: "Read a high-privilege app's client secret planted as a Cosmos document."
+    metadata:
+      complexity: low
+      tags: [cosmos-db]
+      mitre: [T1078, T1552]
+    initial_access:
+      method: compromised_identity
+      principal_ref: alice
+
+    identities:
+      users:        [{ ref: alice }]
+      applications: [{ ref: app_highpriv }]
+    resources:
+      # On this declarative path the ref doubles as the real Cosmos account name,
+      # which must be GLOBALLY UNIQUE (3-44 chars, lowercase alphanumerics +
+      # hyphens). Change cosmos-replace-me to your own unique value below.
+      cosmos_dbs:   [{ ref: cosmos-replace-me }]
+
+    assignments:
+      # alice holds Cosmos DB Built-in Data Contributor (data plane) on the account.
+      - { id: a1, type: azure_rbac, principal_ref: alice,
+          role: "00000000-0000-0000-0000-000000000002", scope_ref: cosmos-replace-me,
+          scope_resource_type: cosmos_db, data_plane: cosmos_sql }
+      # the looted app is Global Administrator — reading its secret is the escalation.
+      - { id: a2, type: entra_role, principal_ref: app_highpriv,
+          role: "Global Administrator" }
+
+    credentials:
+      - { ref: app_secret, app_ref: app_highpriv, type: password }
+
+    data_injects:
+      # the looted app's client secret, planted as a queryable Cosmos document by
+      # the Python data-plane phase
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location_type: cosmos_document, location_ref: cosmos-replace-me,
+          name: client-secret-app-highpriv }
+      # an arbitrary literal document (no app secret required) — shows the same
+      # mechanism seeds Cosmos with non-credential content
+      - { id: d2, material: literal, literal_value: '{"note":"badzure seed"}',
+          location_type: cosmos_document, location_ref: cosmos-replace-me,
+          name: seed-doc }

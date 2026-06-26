@@ -1,0 +1,92 @@
+# Chained (explicit-graph) version of test_mi_appservice_kv.yml — the SAME attack
+# path, hand-authored as generic primitive edges instead of the
+# `privilege_escalation: ManagedIdentityAbuse` macro.
+#
+# The chain:
+#   1. INITIAL ACCESS   compromise alice                 (stolen user credentials)
+#   2. azure_rbac        alice →Website Contributor→ app01-portal   (control the App
+#                        Service via Kudu/SCM, and thus act as its managed identity)
+#   3. azure_rbac        app01-portal(MI) →KV Secrets User→ kv01    (the MI can read the vault)
+#   4. data_inject       loot app_highpriv's secret out of kv01     <- OBJECTIVE
+#   5. entra_role        app_highpriv holds Global Administrator     (the payoff)
+#
+# Why the reachability walk accepts it — the CONTROL set grows:
+#   seed {alice}
+#     +app01-portal  (azure_rbac Website Contributor is a CONTROL role for an
+#                     App Service -> you control the app AND its system-assigned MI)
+#     +app_highpriv  (data_inject: app01-portal's MI holds a READ role on kv01, so it
+#                     loots the planted client secret and takes over app_highpriv)
+#   objective entra_role/Global Administrator: app_highpriv ∈ control AND holds GA -> REACHED.
+#
+# Live test:
+#   python badzure.py build --config examples/chained/chained_appservice_mi.yml --verbose
+#   python badzure.py destroy --verbose
+#
+# kv-replacee-me12ra must be a GLOBALLY UNIQUE Key Vault name (3-24 chars, lowercase
+# alphanumerics + hyphens) — change it in all three places below.
+# tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  appservice_mi_chain:
+    objective:
+      name: "Global Administrator via an App Service managed identity"
+      # Machine-checkable objective for the reachability gate: a controlled principal
+      # must end up holding the Global Administrator Entra role.
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: >-
+        A compromised user holds Website Contributor on an App Service, steals its
+        managed identity token via Kudu, reads a high-privilege app's secret from a
+        Key Vault, and takes over that app — which is Global Administrator.
+    metadata:
+      complexity: low
+      tags: [managed-identity, app-service, key-vault]
+      # T1078 Valid Accounts · T1528 Steal App Access Token · T1555 Credentials from
+      # Password Stores
+      mitre: [T1078, T1528, T1555]
+    initial_access:
+      method: compromised_identity
+      principal_ref: alice
+
+    identities:
+      users:        [{ ref: alice }]
+      applications: [{ ref: app_highpriv }]
+    resources:
+      # A resource ref doubles as the real resource name. app01-portal is RG-scoped so
+      # the name is fine as-is; the Key Vault name must be GLOBALLY UNIQUE (3-24 chars,
+      # lowercase alphanumerics + hyphens) — change kv-replacee-me12ra in BOTH places below.
+      app_services: [{ ref: app01-portal }]
+      key_vaults:   [{ ref: kv-replacee-me12ra }]
+
+    assignments:
+      # 2) alice gets Website Contributor on the App Service -> control the app (via the
+      #    Kudu/SCM REST API) and, crucially, act as its system-assigned managed identity.
+      - { id: a1, type: azure_rbac, principal_ref: alice,
+          role: "Website Contributor", scope_ref: app01-portal }
+
+      # 3) app01-portal's MANAGED IDENTITY gets Key Vault Secrets User on the vault. The
+      #    principal is the App Service resource itself acting as its MI, so principal_type
+      #    and mi_source must be explicit (a resource ref can't be inferred as a principal).
+      - { id: a2, type: azure_rbac, principal_ref: app01-portal,
+          principal_type: managed_identity, mi_source: app_service,
+          role: "Key Vault Secrets User", scope_ref: kv-replacee-me12ra }
+
+      # 5) the looted app is Global Administrator — controlling it is the escalation.
+      - { id: a3, type: entra_role, principal_ref: app_highpriv, role: "Global Administrator" }
+
+    credentials:
+      # The client secret that gets planted in the vault and looted at hop 4.
+      - { ref: app_secret, app_ref: app_highpriv, type: password }
+
+    data_injects:
+      # 4) plant app_highpriv's client secret as a Key Vault secret. Whoever can read the
+      #    vault (the App Service's MI, via hop 3) loots it and takes over app_highpriv.
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-replacee-me12ra,
+          name: client-secret-app-highpriv }
