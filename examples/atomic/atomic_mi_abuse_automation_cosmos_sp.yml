@@ -17,11 +17,16 @@ baseline:
     cosmos_dbs: 1
 attack_paths:
   mi_abuse_automation_cosmos_sp:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: automation_account
-    target_resource_type: cosmos_db
-    initial_access: service_principal
-    assignment_type: group_owner
-    method: APIPermission
-    api_type: graph
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: automation_account
+      privilege_source: stored_credential
+      target_resource_type: cosmos_db
+      credential_type: secret
+      assignment_type: group_owner
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8

@@ -13,8 +13,13 @@ baseline:
     applications: 2
 attack_paths:
   app_admin_group_owner:
-    privilege_escalation: ApplicationAdministratorAbuse
-    assignment_type: group_owner
-    method: APIPermission
-    api_type: graph
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: directory
+      assignment_type: group_owner
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8

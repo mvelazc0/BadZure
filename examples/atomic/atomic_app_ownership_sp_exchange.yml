@@ -13,8 +13,12 @@ baseline:
     applications: 3
 attack_paths:
   app_ownership_sp_exchange:
-    privilege_escalation: ApplicationOwnershipAbuse
-    initial_access: service_principal
-    method: APIPermission
-    api_type: exchange
-    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ApplicationOwnershipAbuse
+      assignment_type: direct
+    objective:
+      api_permission:
+        exchange: dc890d15-9560-4a4c-9b7f-a736ec74ec40

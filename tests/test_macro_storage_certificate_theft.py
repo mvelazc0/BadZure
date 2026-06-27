@@ -69,7 +69,7 @@ def _run_macro(cfg, applications=None, used_apps=None):
 # ---------------------------------------------------------------------------
 def test_user_direct_azureadrole():
     cfg = {"privilege_escalation": "StorageCertificateTheft", "initial_access": "user",
-           "assignment_type": "direct", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "direct", "objective": {"entra_role": GA_ROLE}}
     result = _run_macro(cfg)
     out = build_tfvars(_model(result["primitives"], result["groups"]))
 
@@ -115,8 +115,7 @@ def test_user_apipermission_list():
     perms = ["06b708a9-e830-4db3-a914-8e69da51d44f",
              "19dbc75e-c2e2-444c-a770-ec69d8559fc7"]
     cfg = {"privilege_escalation": "StorageCertificateTheft", "initial_access": "user",
-           "assignment_type": "direct", "method": "APIPermission",
-           "api_type": "graph", "app_role": perms}
+           "assignment_type": "direct", "objective": {"api_permission": {"graph": perms}}}
     result = _run_macro(cfg)
     out = build_tfvars(_model(result["primitives"], result["groups"]))
 
@@ -130,7 +129,7 @@ def test_user_apipermission_list():
 def test_sp_initial_access_mints_surfaced_credential():
     cfg = {"privilege_escalation": "StorageCertificateTheft",
            "initial_access": "service_principal", "assignment_type": "direct",
-           "method": "AzureADRole", "entra_role": GA_ROLE}
+           "objective": {"entra_role": GA_ROLE}}
     two_apps = {"app-highpriv": {"display_name": "app-highpriv"},
                 "app-initial": {"display_name": "app-initial"}}
     result = _run_macro(cfg, applications=two_apps, used_apps={"app-initial"})
@@ -149,8 +148,7 @@ def test_sp_initial_access_mints_surfaced_credential():
 
 def test_group_member_routes_rbac_to_group():
     cfg = {"privilege_escalation": "StorageCertificateTheft", "initial_access": "user",
-           "assignment_type": "group_member", "method": "AzureADRole",
-           "entra_role": GA_ROLE}
+           "assignment_type": "group_member", "objective": {"entra_role": GA_ROLE}}
     result = _run_macro(cfg)
     assert len(result["groups"]) == 1
     out = build_tfvars(_model(result["primitives"], result["groups"]))
@@ -165,8 +163,7 @@ def test_group_member_routes_rbac_to_group():
 
 def test_group_owner_routes_rbac_to_group():
     cfg = {"privilege_escalation": "StorageCertificateTheft", "initial_access": "user",
-           "assignment_type": "group_owner", "method": "AzureADRole",
-           "entra_role": GA_ROLE}
+           "assignment_type": "group_owner", "objective": {"entra_role": GA_ROLE}}
     result = _run_macro(cfg)
     out = build_tfvars(_model(result["primitives"], result["groups"]))
 

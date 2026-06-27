@@ -76,10 +76,58 @@ _TECHNIQUE_CASES = {
 }
 
 
+_PE_KNOBS = {"assignment_type", "scope", "scenario", "source_type",
+             "privilege_source", "target_resource_type", "credential_type"}
+_IA_FOOTHOLD_KNOBS = {"expose_to_internet", "credential", "variant"}
+
+
+def _objective_from_knobs(knobs):
+    """Translate the test's flat privilege knobs into the typed `objective:` section."""
+    if "objective" in knobs:
+        return knobs["objective"]
+    obj = {}
+    if "entra_role" in knobs:
+        obj["entra_role"] = knobs["entra_role"]
+    if "app_role" in knobs:
+        obj["api_permission"] = {knobs.get("api_type", "graph"): knobs["app_role"]}
+    if "azure_role" in knobs:
+        obj["azure_role"] = knobs["azure_role"]
+    return obj
+
+
+def _build_path(technique, knobs):
+    """Assemble a nested atomic path (initial_access / privilege_escalation / objective)
+    from a flat knob dict (the legacy authoring shorthand the tests use)."""
+    knobs = dict(knobs)
+    pe = {"technique": technique}
+    ia = {}
+    for k, v in knobs.items():
+        if k in _PE_KNOBS:
+            pe[k] = v
+        elif k == "initial_access":
+            if v in ("user", "service_principal"):
+                ia["vector"] = "compromised_credential"
+                ia["principal_type"] = v
+            else:
+                ia["vector"] = v
+        elif k in _IA_FOOTHOLD_KNOBS:
+            ia[k] = v
+    path = {"privilege_escalation": pe}
+    objective = _objective_from_knobs(knobs)
+    if objective:
+        path["objective"] = objective
+    if ia:
+        path["initial_access"] = ia
+    for k in ("identities", "resources"):
+        if k in knobs:
+            path[k] = knobs[k]
+    return path
+
+
 def _technique_config(technique, knobs):
     return {
         "baseline": _FULL_BASELINE,
-        "attack_paths": {"path1": {"privilege_escalation": technique, **knobs}},
+        "attack_paths": {"path1": _build_path(technique, knobs)},
     }
 
 
@@ -132,11 +180,10 @@ def test_managed_identity_app_service_source():
     config = {
         "baseline": {"identities": {"users": 4, "applications": 4}},
         "attack_paths": {
-            "mi_app_service": {
-                "privilege_escalation": "ManagedIdentityAbuse",
+            "mi_app_service": _build_path("ManagedIdentityAbuse", {
                 "source_type": "app_service", "target_resource_type": "key_vault",
                 "credential_type": "secret", "initial_access": "user",
-                "method": "AzureADRole", "entra_role": "random",
+                "entra_role": "random",
                 "identities": {"applications": [{"ref": "LootedApp"}],
                                "users": [{"ref": "VictimUser"}]},
                 "resources": {
@@ -144,7 +191,7 @@ def test_managed_identity_app_service_source():
                     "key_vaults": [{"ref": "askv01", "resource_group": "asrg"}],
                     "app_services": [{"ref": "ops-portal", "resource_group": "asrg"}],
                 },
-            }
+            })
         },
     }
     scenario = _load(config)
@@ -168,11 +215,10 @@ def test_inline_entities_run_targeted():
     config = {
         "baseline": {"identities": {"users": 4, "applications": 4}},
         "attack_paths": {
-            "mi_inline": {
-                "privilege_escalation": "ManagedIdentityAbuse",
+            "mi_inline": _build_path("ManagedIdentityAbuse", {
                 "source_type": "logic_app", "target_resource_type": "key_vault",
                 "credential_type": "secret", "initial_access": "service_principal",
-                "method": "APIPermission", "api_type": "exchange",
+                "api_type": "exchange",
                 "app_role": "dc890d15-9560-4a4c-9b7f-a736ec74ec40",
                 "identities": {"applications": [{"ref": "AdminExchange"},
                                                 {"ref": "InitialApp"}]},
@@ -181,7 +227,7 @@ def test_inline_entities_run_targeted():
                     "key_vaults": [{"ref": "superkvz0033", "resource_group": "m003rg"}],
                     "logic_apps": [{"ref": "test-lp", "resource_group": "m003rg"}],
                 },
-            }
+            })
         },
     }
     scenario = _load(config)
@@ -244,8 +290,7 @@ def test_mixed_technique_and_explicit_paths():
         "baseline": {"identities": {"users": 6, "applications": 4},
                      "resources": {"key_vaults": 1}},
         "attack_paths": {
-            "sugar": {"privilege_escalation": "KeyVaultSecretTheft", "method": "AzureADRole",
-                      "entra_role": "random"},
+            "sugar": _build_path("KeyVaultSecretTheft", {"entra_role": "random"}),
             "explicit": {
                 "objective": {"name": "GA via owned app", "impact": "critical",
                               "capability": "control_principal", "target_ref": "app_hp"},
@@ -276,7 +321,8 @@ def test_technique_xor_assignments_is_rejected():
                      "resources": {"key_vaults": 1}},
         "attack_paths": {
             "bad": {
-                "privilege_escalation": "KeyVaultSecretTheft",
+                "privilege_escalation": {"technique": "KeyVaultSecretTheft"},
+                "objective": {"entra_role": "random"},
                 "assignments": [{"id": "a1", "type": "entra_role",
                                  "principal_ref": "x", "role": "random"}],
             }
@@ -292,21 +338,21 @@ def test_technique_xor_assignments_is_rejected():
 def test_unknown_technique_is_rejected():
     config = {
         "baseline": {"identities": {"users": 3, "applications": 2}},
-        "attack_paths": {"bad": {"privilege_escalation": "NotARealTechnique"}},
+        "attack_paths": {"bad": {"privilege_escalation": {"technique": "NotARealTechnique"},
+                                 "objective": {"entra_role": "random"}}},
     }
     try:
         _load(config)
         assert False, "expected error for unknown technique"
     except ScenarioConfigError as e:
-        assert "unknown privilege_escalation" in str(e)
+        assert "unknown technique" in str(e)
 
 
 def test_missing_baseline_entity_errors_clearly():
     # mode=random KeyVaultSecretTheft with no key_vault in the baseline.
     config = {
         "baseline": {"identities": {"users": 3, "applications": 2}},
-        "attack_paths": {"kv": {"privilege_escalation": "KeyVaultSecretTheft",
-                                "method": "AzureADRole", "entra_role": "random"}},
+        "attack_paths": {"kv": _build_path("KeyVaultSecretTheft", {"entra_role": "random"})},
     }
     try:
         _load(config)
@@ -404,9 +450,8 @@ def test_sp_resource_theft_principal_differs_from_looted_app():
         for _ in range(8):  # random pick — exercise it a few times
             scenario = _load({
                 "baseline": {"identities": {"applications": 2}, "resources": resources},
-                "attack_paths": {"p": {
-                    "privilege_escalation": technique, "initial_access": "service_principal",
-                    "method": "AzureADRole", "entra_role": "random"}},
+                "attack_paths": {"p": _build_path(technique, {
+                    "initial_access": "service_principal", "entra_role": "random"})},
             })
             summary = scenario.attack_paths[0].summary
             assert summary["principal_name"] != summary["app_name"], \
@@ -421,13 +466,11 @@ def test_enabled_false_parks_a_path():
         "baseline": {"identities": {"users": 4, "applications": 4},
                      "resources": {"key_vaults": 1}},
         "attack_paths": {
-            "active": {"privilege_escalation": "KeyVaultSecretTheft",
-                       "method": "AzureADRole", "entra_role": "random"},
+            "active": _build_path("KeyVaultSecretTheft", {"entra_role": "random"}),
             "parked": {"enabled": False,
                        "privilege_escalation": "NotARealTechnique"},  # broken but parked
-            "explicit_on": {"enabled": True,
-                            "privilege_escalation": "ApplicationOwnershipAbuse",
-                            "method": "AzureADRole", "entra_role": "random"},
+            "explicit_on": {**_build_path("ApplicationOwnershipAbuse", {"entra_role": "random"}),
+                            "enabled": True},
         },
     }
     scenario = _load(cfg)                       # must NOT raise on the broken parked path

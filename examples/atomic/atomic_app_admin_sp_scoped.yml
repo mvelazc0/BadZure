@@ -13,8 +13,12 @@ baseline:
     applications: 3
 attack_paths:
   app_admin_sp_scoped:
-    privilege_escalation: ApplicationAdministratorAbuse
-    initial_access: service_principal
-    scope: application
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: application
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10

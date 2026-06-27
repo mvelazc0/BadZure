@@ -16,6 +16,11 @@ baseline:
     key_vaults: 1
 attack_paths:
   kv_theft_user:
-    privilege_escalation: KeyVaultSecretTheft
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: KeyVaultSecretTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10

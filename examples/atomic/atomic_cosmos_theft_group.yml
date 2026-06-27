@@ -16,8 +16,12 @@ baseline:
     cosmos_dbs: 1
 attack_paths:
   cosmos_theft_group:
-    privilege_escalation: CosmosDBSecretTheft
-    assignment_type: group_member
-    method: APIPermission
-    api_type: graph
-    app_role: random
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CosmosDBSecretTheft
+      assignment_type: group_member
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f

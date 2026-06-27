@@ -13,7 +13,13 @@ baseline:
     applications: 2
 attack_paths:
   app_admin_exchange:
-    privilege_escalation: ApplicationAdministratorAbuse
-    method: APIPermission
-    api_type: exchange
-    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: directory
+      assignment_type: direct
+    objective:
+      api_permission:
+        exchange: dc890d15-9560-4a4c-9b7f-a736ec74ec40

@@ -50,7 +50,7 @@ def _mgr():
 # ---------------------------------------------------------------------------
 def test_ownership_user_direct():
     cfg = {"privilege_escalation": "ApplicationOwnershipAbuse", "initial_access": "user",
-           "assignment_type": "direct", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "direct", "objective": {"entra_role": GA_ROLE}}
     users, apps = _users(1), _apps(["app-hp"])
     result = _mgr().macro_application_ownership_abuse(
         cfg, users, apps, "contoso.com", mode="random", path_name="own")
@@ -67,7 +67,7 @@ def test_ownership_user_direct():
 
 def test_ownership_group_falls_back_to_direct():
     cfg = {"privilege_escalation": "ApplicationOwnershipAbuse", "initial_access": "user",
-           "assignment_type": "group_member", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "group_member", "objective": {"entra_role": GA_ROLE}}
     users, apps = _users(1), _apps(["app-hp"])
     result = _mgr().macro_application_ownership_abuse(
         cfg, users, apps, "contoso.com", mode="random", path_name="own")
@@ -80,7 +80,7 @@ def test_ownership_group_falls_back_to_direct():
 def test_ownership_sp_mints_secret():
     cfg = {"privilege_escalation": "ApplicationOwnershipAbuse",
            "initial_access": "service_principal", "assignment_type": "direct",
-           "method": "AzureADRole", "entra_role": GA_ROLE}
+           "objective": {"entra_role": GA_ROLE}}
     apps = _apps(["app-hp", "app-owner"])
     result = _mgr().macro_application_ownership_abuse(
         {**cfg}, _users(1), apps, "contoso.com", mode="random", path_name="own",
@@ -95,7 +95,7 @@ def test_ownership_sp_mints_secret():
 def test_ownership_helpdesk_adds_second_user():
     cfg = {"privilege_escalation": "ApplicationOwnershipAbuse", "initial_access": "user",
            "scenario": "helpdesk", "assignment_type": "direct",
-           "method": "AzureADRole", "entra_role": GA_ROLE}
+           "objective": {"entra_role": GA_ROLE}}
     users, apps = _users(3), _apps(["app-hp"])
     result = _mgr().macro_application_ownership_abuse(
         cfg, users, apps, "contoso.com", mode="random", path_name="own")
@@ -112,7 +112,7 @@ def test_ownership_helpdesk_adds_second_user():
 # ---------------------------------------------------------------------------
 def test_app_admin_user_direct():
     cfg = {"privilege_escalation": "ApplicationAdministratorAbuse", "initial_access": "user",
-           "assignment_type": "direct", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "direct", "objective": {"entra_role": GA_ROLE}}
     users, apps = _users(1), _apps(["app-hp"])
     result = _mgr().macro_application_administrator_abuse(
         cfg, users, apps, "contoso.com", mode="random", path_name="adm")
@@ -128,7 +128,7 @@ def test_app_admin_user_direct():
 def test_app_admin_scoped_to_application():
     cfg = {"privilege_escalation": "ApplicationAdministratorAbuse", "initial_access": "user",
            "assignment_type": "direct", "scope": "application",
-           "method": "AzureADRole", "entra_role": GA_ROLE}
+           "objective": {"entra_role": GA_ROLE}}
     users, apps = _users(1), _apps(["app-hp"])
     result = _mgr().macro_application_administrator_abuse(
         cfg, users, apps, "contoso.com", mode="random", path_name="adm")
@@ -140,7 +140,7 @@ def test_app_admin_scoped_to_application():
 
 def test_app_admin_group_member():
     cfg = {"privilege_escalation": "ApplicationAdministratorAbuse", "initial_access": "user",
-           "assignment_type": "group_member", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "group_member", "objective": {"entra_role": GA_ROLE}}
     users, apps = _users(1), _apps(["app-hp"])
     result = _mgr().macro_application_administrator_abuse(
         cfg, users, apps, "contoso.com", mode="random", path_name="adm")
@@ -155,7 +155,7 @@ def test_app_admin_group_member():
 
 def test_cloud_app_admin_uses_cloud_role():
     cfg = {"privilege_escalation": "CloudAppAdministratorAbuse", "initial_access": "user",
-           "assignment_type": "direct", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "direct", "objective": {"entra_role": GA_ROLE}}
     users, apps = _users(1), _apps(["app-hp"])
     result = _mgr().macro_cloud_app_administrator_abuse(
         cfg, users, apps, "contoso.com", mode="random", path_name="cadm")

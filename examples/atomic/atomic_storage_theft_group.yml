@@ -16,8 +16,12 @@ baseline:
     storage_accounts: 1
 attack_paths:
   storage_theft_group:
-    privilege_escalation: StorageCertificateTheft
-    assignment_type: group_member
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: group_member
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f

@@ -92,107 +92,145 @@ baseline:
 # Each named path is active by default; set `enabled: false` to PARK a path (keep it
 # defined in the file but skip deploying it). A path is authored in one of two tiers:
 #
-#   TIER 1 (built-in):         `privilege_escalation: <Name>` + a few knobs. BadZure auto-wires
-#                              the whole chain and picks victims/targets from the
-#                              baseline. Easiest; one technique per path.
+#   TIER 1 (atomic):           `privilege_escalation: { technique: <Name> }` + `initial_access:`
+#                              + `objective:` sections. BadZure auto-wires the whole chain and
+#                              picks victims/targets from the baseline. One technique per path.
 #   TIER 2 (explicit graph):   hand-author `objective` + `assignments` + `data_injects`
 #                              for arbitrary multi-hop chains. See the last path.
 #
-# Atomic knobs (shared):
-#   initial_access:  user (default) | service_principal       (compromised identity)
-#                    exposed_rdp | exposed_ssh                 (ManagedIdentityAbuse + source_type: vm only:
-#                                                               brute-force an internet-exposed VM -> code exec)
-#   assignment_type: direct (default) | group_member | group_owner
-#   method:          AzureADRole  -> entra_role: <GUID> | [GUIDs] | random
-#                    APIPermission -> api_type: graph (default) | exchange
-#                                     app_role:  <GUID> | [GUIDs] | random
-# Per-technique knobs are noted on each path below.
+# Atomic sections (per path):
+#   initial_access:                                  how the attacker lands (optional; omit -> user)
+#     vector: compromised_credential                 + principal_type: user | service_principal
+#             exposed_rdp | exposed_ssh | vulnerable_web_app   ManagedIdentityAbuse footholds
+#     expose_to_internet | credential | variant      foothold-only options
+#   privilege_escalation:
+#     technique: <Name>
+#     assignment_type: direct (default) | group_member | group_owner
+#     (+ per-technique knobs, noted on each path below)
+#   objective:                                       the access the attacker ends up holding
+#     entra_role:     <GUID> | [GUIDs]
+#     api_permission: { graph|exchange: <GUID> | [GUIDs] }
+#     azure_role:     [ { role, scope, scope_ref? } ]
 # =============================================================================
 attack_paths:
 
   # ---------------------------------------------------------------------------
   # 1. ApplicationOwnershipAbuse — you OWN a high-priv app; add creds; become it.
-  #    Knobs: initial_access, method/entra_role/app_role.
+  #    Knobs: initial_access, objective (entra_role / api_permission).
   #    NOTE: group_member/group_owner are NOT supported (Azure forbids group app
   #    owners) and silently fall back to direct — use Application/CloudApp Admin
   #    for group-based app attacks.
   # ---------------------------------------------------------------------------
   app_ownership:
-    privilege_escalation: ApplicationOwnershipAbuse
-    initial_access: user                 # or: service_principal
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user             # or: service_principal
+    privilege_escalation:
+      technique: ApplicationOwnershipAbuse
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
 
   # ---------------------------------------------------------------------------
   # 2. ApplicationAdministratorAbuse — hold the App Admin role; manage ANY app.
   #    Extra knob: scope: directory (default) | application (role scoped to 1 app).
   # ---------------------------------------------------------------------------
   app_admin:
-    privilege_escalation: ApplicationAdministratorAbuse
-    initial_access: service_principal
-    scope: application                   # tenant-wide if omitted
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: application                 # tenant-wide if omitted
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
 
   # ---------------------------------------------------------------------------
   # 3. CloudAppAdministratorAbuse — narrower-scope cousin of App Admin.
   #    Shown here inherited through a GROUP (assignment_type: group_member).
   # ---------------------------------------------------------------------------
   cloud_app_admin:
-    privilege_escalation: CloudAppAdministratorAbuse
-    assignment_type: group_member        # or: group_owner | direct
-    method: APIPermission
-    api_type: graph                      # or: exchange
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8     # RoleManagement.ReadWrite.Directory
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CloudAppAdministratorAbuse
+      scope: directory                   # or: application (role scoped to 1 app)
+      assignment_type: group_member      # or: group_owner | direct
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8   # RoleManagement.ReadWrite.Directory
 
   # ---------------------------------------------------------------------------
   # 4. KeyVaultSecretTheft — read a high-priv app's secret out of a Key Vault.
-  #    Needs a key_vault in the baseline (above). `random` picks a high-priv role.
+  #    Needs a key_vault in the baseline (above).
   # ---------------------------------------------------------------------------
   kv_theft:
-    privilege_escalation: KeyVaultSecretTheft
-    method: AzureADRole
-    entra_role: random                   # any high-privileged Entra role
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: KeyVaultSecretTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
 
   # ---------------------------------------------------------------------------
   # 5. StorageCertificateTheft — steal an app's certificate from blob storage.
   #    Needs a storage_account. SP initial access + multiple Graph permissions.
   # ---------------------------------------------------------------------------
   storage_theft:
-    privilege_escalation: StorageCertificateTheft
-    initial_access: service_principal
-    method: APIPermission
-    api_type: graph
-    app_role:
-      - 06b708a9-e830-4db3-a914-8e69da51d44f   # AppRoleAssignment.ReadWrite.All
-      - 19dbc75e-c2e2-444c-a770-ec69d8559fc7   # Directory.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+          - 06b708a9-e830-4db3-a914-8e69da51d44f   # AppRoleAssignment.ReadWrite.All
+          - 19dbc75e-c2e2-444c-a770-ec69d8559fc7   # Directory.ReadWrite.All
 
   # ---------------------------------------------------------------------------
   # 6. CosmosDBSecretTheft — read an app secret from Cosmos DB. Needs a cosmos_db.
   #    Shown here via GROUP OWNERSHIP (you own a group that holds the access).
   # ---------------------------------------------------------------------------
   cosmos_theft:
-    privilege_escalation: CosmosDBSecretTheft
-    assignment_type: group_owner
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CosmosDBSecretTheft
+      assignment_type: group_owner
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
 
   # ---------------------------------------------------------------------------
   # 7. ManagedIdentityAbuse — control a compute resource, steal its managed
   #    identity, pivot to a data resource holding an app credential.
   #    Knobs: source_type (vm | logic_app | automation_account | function_app | app_service),
+  #           privilege_source (stored_credential default — the courier; or
+  #             managed_identity — the MI itself is over-privileged, objective: azure_role),
   #           target_resource_type (key_vault | storage_account | cosmos_db),
   #           credential_type (secret | certificate).
   #    Needs the source compute + target resource in the baseline (vm + key_vault).
   # ---------------------------------------------------------------------------
   mi_abuse:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: vm
-    target_resource_type: key_vault
-    credential_type: secret
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f   # AppRoleAssignment.ReadWrite.All
 
   # 7a. ManagedIdentityAbuse with an App Service source. The attacker holds
   #     Website Contributor on the app and steals its managed identity token via
@@ -200,13 +238,19 @@ attack_paths:
   #     app_service in the baseline.
   # ---------------------------------------------------------------------------
   mi_abuse_app_service:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: app_service
-    target_resource_type: key_vault
-    credential_type: secret
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: app_service
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f   # AppRoleAssignment.ReadWrite.All
 
   # 7b. ManagedIdentityAbuse reached via an EXPOSED-HOST foothold (initial access).
   #     Instead of a compromised identity, the attacker brute-forces an internet-
@@ -218,15 +262,19 @@ attack_paths:
   #       brute-forceable one. The build surfaces the VM public IP + admin credentials.
   # ---------------------------------------------------------------------------
   mi_abuse_exposed_rdp:
-    privilege_escalation: ManagedIdentityAbuse
-    initial_access: exposed_rdp
-    source_type: vm
-    target_resource_type: key_vault
-    expose_to_internet: false            # set true to open RDP/SSH to 0.0.0.0/0
-    credential: known                    # set weak for a brute-forceable password
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: exposed_rdp
+      expose_to_internet: false          # set true to open RDP/SSH to 0.0.0.0/0
+      credential: known                  # set weak for a brute-forceable password
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f   # AppRoleAssignment.ReadWrite.All
 
   # 7c. ManagedIdentityAbuse reached via a VULNERABLE WEB APP foothold (initial
   #     access). Instead of a compromised identity, the attacker exploits an
@@ -240,15 +288,19 @@ attack_paths:
   #     app_service in the baseline.
   # ---------------------------------------------------------------------------
   mi_abuse_vulnerable_webapp:
-    privilege_escalation: ManagedIdentityAbuse
-    initial_access: vulnerable_web_app
-    source_type: app_service
-    target_resource_type: key_vault
-    variant: rce                         # command-injection diagnostics page
-    expose_to_internet: false            # set true to open the app to the internet
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f     # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: vulnerable_web_app
+      variant: rce                       # command-injection diagnostics page
+      expose_to_internet: false          # set true to open the app to the internet
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: app_service
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f   # AppRoleAssignment.ReadWrite.All
 
   # ---------------------------------------------------------------------------
   # 8. TIER 2 — explicit graph (power users / LLM-authored).

@@ -2581,6 +2581,16 @@ WEBAPP_FOOTHOLD_VECTORS = ['vulnerable_web_app']
 # step). VM-specific behavior keeps keying off RESOURCE_FOOTHOLD_VECTORS.
 RESOURCE_SEED_VECTORS = RESOURCE_FOOTHOLD_VECTORS + WEBAPP_FOOTHOLD_VECTORS
 
+# The credential entry vector: the attacker already holds an existing identity's
+# credentials. `principal_type` (required) names which identity type. This replaces the
+# former `user` / `service_principal` vectors — those are now principal_type values.
+COMPROMISED_CREDENTIAL_VECTOR = 'compromised_credential'
+CREDENTIAL_PRINCIPAL_TYPES = ('user', 'service_principal')
+
+# Every vector an atomic `initial_access:` accepts: the credential vector + the
+# resource-seed footholds.
+ATOMIC_INITIAL_ACCESS_VECTORS = [COMPROMISED_CREDENTIAL_VECTOR] + RESOURCE_SEED_VECTORS
+
 # Web-app vuln variants that are actually built, mapped to the in-repo app
 # directory under terraform/webapp/ the builder projects onto the foothold app.
 WEBAPP_VARIANT_DIR = {'rce': 'vulnerable_rce'}

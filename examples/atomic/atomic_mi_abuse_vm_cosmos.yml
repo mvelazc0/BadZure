@@ -17,8 +17,15 @@ baseline:
     cosmos_dbs: 1
 attack_paths:
   mi_abuse_vm_cosmos:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: vm
-    target_resource_type: cosmos_db
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: cosmos_db
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10

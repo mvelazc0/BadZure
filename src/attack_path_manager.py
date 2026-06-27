@@ -8,9 +8,7 @@ import logging
 from typing import Dict, List, Tuple, Optional
 from src.constants import (
     HIGH_PRIVILEGED_ENTRA_ROLES,
-    HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS,
     ALL_HIGH_PRIVILEGED_PERMISSIONS,
-    API_REGISTRY,
     APP_ADMIN_ROLE_ID,
     CLOUD_APP_ADMIN_ROLE_ID,
     RECON_DIRECTORY_READ_ALL_ID,
@@ -119,28 +117,87 @@ class AttackPathManager:
         return f"attack-path-{aid}"
 
     def _app_privilege_primitives(self, attack_config: Dict, app_name: str, key: str):
-        """Translate the looted app's privileges (method/entra_role/app_role) into
-        EntraRoleAssignment / ApiPermission primitives. Reuses the legacy resolver.
+        """Emit the looted app's entitlements (the `objective:` section) as primitives
+        on the app's service principal.
         Returns (primitives, entra_role_ids, api_perm_ids, api_type)."""
-        legacy_roles, legacy_perms = {}, {}
-        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
-        prims, entra_role_ids, api_perm_ids, api_type = [], [], [], None
-        if key in legacy_roles:
-            entra_role_ids = legacy_roles[key]['role_ids']
+        objective = attack_config.get('objective') or {}
+        return self._objective_primitives(
+            objective, key, principal_ref=app_name, principal_type='service_principal')
+
+    def _objective_primitives(self, objective: Dict, key: str, principal_ref: str,
+                              principal_type: str, mi_source_type: Optional[str] = None):
+        """Emit the typed `objective:` entitlement keys as generic primitives on the
+        given terminal principal. Several keys may be present at once (the principal
+        holds the union):
+          - entra_role:     GUID | [GUIDs] | 'random'                  -> EntraRoleAssignment(s)
+          - api_permission: {graph|exchange: GUID|[GUIDs]|'random'}    -> ApiPermission(s)
+          - azure_role:     [{role, scope, scope_ref?, scope_resource_type?}] -> AzureRbacAssignment(s)
+        Returns (primitives, entra_role_ids, api_perm_ids, api_type); the id/type
+        fields feed the macro summary and the output formatter."""
+        prims: List = []
+        entra_role_ids: List = []
+        api_perm_ids: List = []
+        api_type = None
+
+        er = objective.get('entra_role')
+        if er is not None:
+            entra_role_ids = self._resolve_entra_role_ids(er)
             for idx, role_id in enumerate(entra_role_ids):
                 prims.append(EntraRoleAssignment(
                     f"{key}_app_role_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, principal_type="service_principal", role=role_id,
+                    principal_ref=principal_ref, principal_type=principal_type, role=role_id,
                 ))
-        if key in legacy_perms:
-            api_perm_ids = legacy_perms[key]['api_permission_ids']
-            api_type = legacy_perms[key].get('api_type', 'graph')
-            for idx, perm_id in enumerate(api_perm_ids):
-                prims.append(ApiPermission(
-                    f"{key}_app_perm_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
+
+        ap = objective.get('api_permission')
+        if ap is not None:
+            for a_type in ('graph', 'exchange'):
+                if a_type not in ap:
+                    continue
+                ids = self._resolve_api_perm_ids(ap[a_type], a_type)
+                api_perm_ids.extend(ids)
+                api_type = api_type or a_type
+                for idx, perm_id in enumerate(ids):
+                    prims.append(ApiPermission(
+                        f"{key}_app_perm_{a_type}_{idx}", ATTACK_PATH,
+                        principal_ref=principal_ref, permission_id=perm_id, api_type=a_type,
+                    ))
+
+        az = objective.get('azure_role')
+        if az is not None:
+            for idx, entry in enumerate(az):
+                role = entry['role'] if isinstance(entry, dict) else entry
+                scope = entry.get('scope', 'subscription') if isinstance(entry, dict) else 'subscription'
+                scope_ref = entry.get('scope_ref') if isinstance(entry, dict) else None
+                scope_rtype = entry.get('scope_resource_type') if isinstance(entry, dict) else None
+                prims.append(AzureRbacAssignment(
+                    f"{key}_app_rbac_{idx}", ATTACK_PATH,
+                    principal_ref=principal_ref, principal_type=principal_type, role=role,
+                    scope_type=scope, scope_ref=scope_ref, scope_resource_type=scope_rtype,
+                    mi_source_type=mi_source_type if principal_type == 'managed_identity' else None,
                 ))
+
         return prims, entra_role_ids, api_perm_ids, api_type
+
+    @staticmethod
+    def _resolve_entra_role_ids(val):
+        """An `entra_role` value -> a list of role GUIDs (list as-is; 'random' -> one
+        high-privileged role; a single GUID -> a one-element list)."""
+        if isinstance(val, list):
+            return list(val)
+        if val == 'random':
+            return [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
+        return [val]
+
+    @staticmethod
+    def _resolve_api_perm_ids(val, api_type):
+        """An `api_permission.<api>` value -> a list of permission GUIDs (list as-is;
+        'random' -> one high-privileged permission of that API; a single GUID -> a list)."""
+        if isinstance(val, list):
+            return list(val)
+        if val == 'random':
+            catalog = ALL_HIGH_PRIVILEGED_PERMISSIONS.get(api_type, {})
+            return [random.choice([perm["id"] for perm in catalog.values()])]
+        return [val]
 
     def _initial_access_credentials(self, identity_type, principal_name, users, domain,
                                     entry_point, key, primitives):
@@ -387,9 +444,23 @@ class AttackPathManager:
         identity_type = 'user' if is_foothold else ia_vector
         credential_type = attack_config.get('credential_type', 'secret')
         assignment_type = attack_config.get('assignment_type', 'direct')
+        # Flavor: 'stored_credential' (courier — the MI loots an app credential from a
+        # target data resource) or 'managed_identity' (direct — the MI itself holds the
+        # objective, typically Azure RBAC; no target, no looted app).
+        privilege_source = attack_config.get('privilege_source', 'stored_credential')
+        direct = privilege_source == 'managed_identity'
 
         key = self._attack_path_key(mode, path_name)
-        if mode == 'random':
+        if direct:
+            # Direct over-privileged identity: the MI itself holds the objective. No
+            # looted app, no target data resource — select only the source compute (and
+            # the compromised principal, for the credential vectors).
+            app_name, target_name = None, None
+            source_name, principal_name = self._select_mi_direct_entities(
+                source_type, virtual_machines, logic_apps, automation_accounts,
+                function_apps, app_services, users, applications, identity_type,
+                is_foothold, mode, entities, used_users, used_sources, path_name)
+        elif mode == 'random':
             app_name, target_name, source_name, principal_name = self._select_random_entities_mi_theft(
                 applications, key_vaults, storage_accounts, virtual_machines, logic_apps,
                 automation_accounts, function_apps, users, source_type, target_resource_type,
@@ -448,46 +519,56 @@ class AttackPathManager:
                 principal_type=identity_type, role=src_role, scope_type='resource',
                 scope_resource_type=src_scope_rtype, scope_ref=source_name))
 
-        # 2. The source's managed identity gains access to the target.
-        mi_common = dict(
-            principal_ref=source_name, principal_type='managed_identity',
-            mi_source_type=source_type, scope_type='resource',
-            scope_resource_type=target_resource_type, scope_ref=target_name)
-        if target_resource_type == 'key_vault':
-            roles = list(self.MI_KV_ROLES)
-            if credential_type == 'certificate':
-                roles.append(self.MI_KV_CERTIFICATE_ROLE)
-            for idx, role in enumerate(roles):
-                primitives.append(AzureRbacAssignment(f"{key}_mi_kv_{idx}", ATTACK_PATH, role=role, **mi_common))
-        elif target_resource_type == 'storage_account':
-            for idx, role in enumerate(self.MI_STORAGE_ROLES):
-                primitives.append(AzureRbacAssignment(f"{key}_mi_sa_{idx}", ATTACK_PATH, role=role, **mi_common))
-        elif target_resource_type == 'cosmos_db':
-            primitives.append(AzureRbacAssignment(
-                f"{key}_mi_cosmos", ATTACK_PATH, role=self.COSMOS_DATA_CONTRIBUTOR_ROLE,
-                data_plane='cosmos_sql', **mi_common))
-
-        # 3. Mint the looted app's credential + 4. plant it in the target.
-        app_cred_key = f"{key}_app_credential"
-        cert_paths = None
-        if credential_type == 'certificate':
-            cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
-            cert_paths = {"cert": cert_path, "key": key_path, "pfx": pfx_path}
-            primitives.append(AppCredential(
-                app_cred_key, ATTACK_PATH, app_ref=app_name, type="certificate",
-                certificate_path=cert_path, display_name="BadZureClientCertificate"))
+        # 2.-5. Courier flavor: the MI loots an app credential from a target data
+        # resource. Direct flavor: the MI itself holds the objective (azure_role).
+        if direct:
+            priv_prims, entra_role_ids, api_perm_ids, api_type = self._objective_primitives(
+                attack_config.get('objective') or {}, key, source_name,
+                'managed_identity', mi_source_type=source_type)
+            primitives.extend(priv_prims)
         else:
-            primitives.append(AppCredential(
-                app_cred_key, ATTACK_PATH, app_ref=app_name, type="password",
-                display_name="BadZureClientSecret"))
-        primitives.extend(self._mi_data_injects(
-            key, target_resource_type, target_name, app_name, credential_type,
-            app_cred_key, cert_paths))
+            # 2. The source's managed identity gains access to the target.
+            mi_common = dict(
+                principal_ref=source_name, principal_type='managed_identity',
+                mi_source_type=source_type, scope_type='resource',
+                scope_resource_type=target_resource_type, scope_ref=target_name)
+            if target_resource_type == 'key_vault':
+                roles = list(self.MI_KV_ROLES)
+                if credential_type == 'certificate':
+                    roles.append(self.MI_KV_CERTIFICATE_ROLE)
+                for idx, role in enumerate(roles):
+                    primitives.append(AzureRbacAssignment(f"{key}_mi_kv_{idx}", ATTACK_PATH, role=role, **mi_common))
+            elif target_resource_type == 'storage_account':
+                for idx, role in enumerate(self.MI_STORAGE_ROLES):
+                    primitives.append(AzureRbacAssignment(f"{key}_mi_sa_{idx}", ATTACK_PATH, role=role, **mi_common))
+            elif target_resource_type == 'cosmos_db':
+                primitives.append(AzureRbacAssignment(
+                    f"{key}_mi_cosmos", ATTACK_PATH, role=self.COSMOS_DATA_CONTRIBUTOR_ROLE,
+                    data_plane='cosmos_sql', **mi_common))
 
-        # 5. The looted app's privileges + 6/7. initial-access credentials.
-        priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
-            attack_config, app_name, key)
-        primitives.extend(priv_prims)
+            # 3. Mint the looted app's credential + 4. plant it in the target.
+            app_cred_key = f"{key}_app_credential"
+            cert_paths = None
+            if credential_type == 'certificate':
+                cert_path, key_path, pfx_path = generate_certificate_and_key(app_name)
+                cert_paths = {"cert": cert_path, "key": key_path, "pfx": pfx_path}
+                primitives.append(AppCredential(
+                    app_cred_key, ATTACK_PATH, app_ref=app_name, type="certificate",
+                    certificate_path=cert_path, display_name="BadZureClientCertificate"))
+            else:
+                primitives.append(AppCredential(
+                    app_cred_key, ATTACK_PATH, app_ref=app_name, type="password",
+                    display_name="BadZureClientSecret"))
+            primitives.extend(self._mi_data_injects(
+                key, target_resource_type, target_name, app_name, credential_type,
+                app_cred_key, cert_paths))
+
+            # 5. The looted app's privileges (the objective: entitlements).
+            priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
+                attack_config, app_name, key)
+            primitives.extend(priv_prims)
+
+        # 6/7. initial-access credentials.
         if is_foothold:
             credentials = self._foothold_credentials(ia_vector, source_name, source_type)
             foothold_kind = ("vulnerable-web-app foothold"
@@ -500,21 +581,66 @@ class AttackPathManager:
                 identity_type, principal_name, users, domain, entry_point, key, primitives)
             source_line = f"Source Resource: {source_type} - {source_name} (with {src_role})"
 
+        access_lines = [source_line]
+        if direct:
+            access_lines.append("Managed Identity is itself over-privileged (objective on the MI)")
+        else:
+            access_lines.append(
+                f"Managed Identity → Target: {target_resource_type} - {target_name}")
         summary = {
             "path_name": path_name, "key": key, "technique": "ManagedIdentityAbuse",
             "identity_type": identity_type, "principal_name": principal_name,
             "assignment_type": assignment_type, "group_name": group_name, "app_name": app_name,
             "source_type": source_type, "source_name": source_name,
+            "privilege_source": privilege_source,
             "target_resource_type": target_resource_type, "target_name": target_name,
             "initial_access_vector": ia_vector if is_foothold else None,
-            "access_lines": [
-                source_line,
-                f"Managed Identity → Target: {target_resource_type} - {target_name}",
-            ],
-            "show_target_app": True,
+            "access_lines": access_lines,
+            "show_target_app": not direct,
             "entra_role_ids": entra_role_ids, "api_perm_ids": api_perm_ids, "api_type": api_type,
         }
         return {"primitives": primitives, "credentials": credentials, "groups": groups, "summary": summary}
+
+    def _select_mi_direct_entities(self, source_type, virtual_machines, logic_apps,
+                                   automation_accounts, function_apps, app_services, users,
+                                   applications, identity_type, is_foothold, mode, entities,
+                                   used_users, used_sources, path_name):
+        """Pick the source compute (and, for the credential vectors, the compromised
+        principal) for a DIRECT ManagedIdentityAbuse path — no app/target involved."""
+        source_pool = {
+            'vm': virtual_machines, 'logic_app': logic_apps,
+            'automation_account': automation_accounts, 'function_app': function_apps,
+            'app_service': app_services or {},
+        }.get(source_type, virtual_machines)
+        if mode == 'targeted' and entities:
+            inline = entities.get({
+                'vm': 'virtual_machines', 'logic_app': 'logic_apps',
+                'automation_account': 'automation_accounts', 'function_app': 'function_apps',
+                'app_service': 'app_services',
+            }.get(source_type, 'virtual_machines')) or []
+            source_keys = [s['name'] for s in inline] or list(source_pool.keys())
+        else:
+            source_keys = list(source_pool.keys())
+        if not source_keys:
+            raise ValueError(
+                f"{path_name}: ManagedIdentityAbuse source_type '{source_type}' requires "
+                f"a {source_type} in the baseline.")
+        if mode == 'targeted':
+            source_name = source_keys[0]
+        else:
+            avail = [s for s in source_keys if not used_sources or s not in used_sources]
+            source_name = random.choice(avail or source_keys)
+
+        principal_name = None
+        if not is_foothold:
+            if identity_type == 'user':
+                ukeys = list(users.keys())
+                if mode == 'random' and used_users:
+                    ukeys = [u for u in ukeys if u not in used_users] or ukeys
+                principal_name = random.choice(ukeys)
+            else:  # service_principal
+                principal_name = random.choice(list(applications.keys()))
+        return source_name, principal_name
 
     def _mi_data_injects(self, key, target_type, target_name, app_name, credential_type,
                          app_cred_key, cert_paths):
@@ -709,27 +835,10 @@ class AttackPathManager:
                 scope_resource_type="key_vault", scope_ref=kv_name,
             ))
 
-        # 4. The looted app's privileges. Reuse the legacy resolver, then
-        #    translate its output into entra_role / api_permission blocks.
-        legacy_roles, legacy_perms = {}, {}
-        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
-        entra_role_ids, api_perm_ids, api_type = [], [], None
-        if key in legacy_roles:
-            entra_role_ids = legacy_roles[key]['role_ids']
-            for idx, role_id in enumerate(entra_role_ids):
-                primitives.append(EntraRoleAssignment(
-                    f"{key}_app_role_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, principal_type="service_principal",
-                    role=role_id,
-                ))
-        if key in legacy_perms:
-            api_perm_ids = legacy_perms[key]['api_permission_ids']
-            api_type = legacy_perms[key].get('api_type', 'graph')
-            for idx, perm_id in enumerate(api_perm_ids):
-                primitives.append(ApiPermission(
-                    f"{key}_app_perm_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
-                ))
+        # 4. The looted app's privileges (the objective: entitlements).
+        priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
+            attack_config, app_name, key)
+        primitives.extend(priv_prims)
 
         # 5. Initial-access credentials for the operator.
         if identity_type == 'user':
@@ -904,26 +1013,10 @@ class AttackPathManager:
                 scope_resource_type="storage_account", scope_ref=sa_name,
             ))
 
-        # 4. The looted app's privileges. Reuse the legacy resolver, then translate.
-        legacy_roles, legacy_perms = {}, {}
-        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
-        entra_role_ids, api_perm_ids, api_type = [], [], None
-        if key in legacy_roles:
-            entra_role_ids = legacy_roles[key]['role_ids']
-            for idx, role_id in enumerate(entra_role_ids):
-                primitives.append(EntraRoleAssignment(
-                    f"{key}_app_role_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, principal_type="service_principal",
-                    role=role_id,
-                ))
-        if key in legacy_perms:
-            api_perm_ids = legacy_perms[key]['api_permission_ids']
-            api_type = legacy_perms[key].get('api_type', 'graph')
-            for idx, perm_id in enumerate(api_perm_ids):
-                primitives.append(ApiPermission(
-                    f"{key}_app_perm_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
-                ))
+        # 4. The looted app's privileges (the objective: entitlements).
+        priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
+            attack_config, app_name, key)
+        primitives.extend(priv_prims)
 
         # 5. Initial-access credentials for the operator.
         if identity_type == 'user':
@@ -1096,26 +1189,10 @@ class AttackPathManager:
                 data_plane="cosmos_sql",
             ))
 
-        # 4. The looted app's privileges. Reuse the legacy resolver, then translate.
-        legacy_roles, legacy_perms = {}, {}
-        self._assign_app_privileges(attack_config, app_name, key, legacy_roles, legacy_perms)
-        entra_role_ids, api_perm_ids, api_type = [], [], None
-        if key in legacy_roles:
-            entra_role_ids = legacy_roles[key]['role_ids']
-            for idx, role_id in enumerate(entra_role_ids):
-                primitives.append(EntraRoleAssignment(
-                    f"{key}_app_role_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, principal_type="service_principal",
-                    role=role_id,
-                ))
-        if key in legacy_perms:
-            api_perm_ids = legacy_perms[key]['api_permission_ids']
-            api_type = legacy_perms[key].get('api_type', 'graph')
-            for idx, perm_id in enumerate(api_perm_ids):
-                primitives.append(ApiPermission(
-                    f"{key}_app_perm_{idx}", ATTACK_PATH,
-                    principal_ref=app_name, permission_id=perm_id, api_type=api_type,
-                ))
+        # 4. The looted app's privileges (the objective: entitlements).
+        priv_prims, entra_role_ids, api_perm_ids, api_type = self._app_privilege_primitives(
+            attack_config, app_name, key)
+        primitives.extend(priv_prims)
 
         # 5. Initial-access credentials for the operator.
         if identity_type == 'user':
@@ -1814,69 +1891,3 @@ class AttackPathManager:
                 principal_name = random.choice(list(users.keys()))
         
         return app_name, target_name, source_name, principal_name
-    
-    # ========================================================================
-    # Privilege Assignment (Shared Logic)
-    # ========================================================================
-    
-    def _assign_app_privileges(
-        self, attack_config: Dict, app_name: str, key: str,
-        app_role_assignments: Dict, app_api_permission_assignments: Dict
-    ) -> None:
-        """Assign privileges to application based on method (shared logic for both modes)."""
-        method = attack_config.get('method')
-        
-        if method == "AzureADRole":
-            if isinstance(attack_config['entra_role'], list):
-                role_ids = attack_config['entra_role']
-            elif attack_config['entra_role'] == 'random':
-                role_ids = [random.choice(list(HIGH_PRIVILEGED_ENTRA_ROLES.values()))]
-            else:
-                role_ids = [attack_config['entra_role']]
-            
-            app_role_assignments[key] = {
-                'app_name': app_name,
-                'role_ids': role_ids
-            }
-        
-        elif method == "GraphAPIPermission":
-            # Backward compatibility: GraphAPIPermission always uses Microsoft Graph
-            if isinstance(attack_config['app_role'], list):
-                api_permission_ids = attack_config['app_role']
-            elif attack_config['app_role'] != 'random':
-                api_permission_ids = [attack_config['app_role']]
-            else:
-                api_permission_ids = [random.choice(
-                    [perm["id"] for perm in HIGH_PRIVILEGED_GRAPH_API_PERMISSIONS.values()]
-                )]
-            
-            app_api_permission_assignments[key] = {
-                'app_name': app_name,
-                'api_permission_ids': api_permission_ids,
-                'api_type': 'graph'  # Always graph for backward compatibility
-            }
-        
-        elif method == "APIPermission":
-            # New method supporting multiple API types (graph, exchange, etc.)
-            api_type = attack_config.get('api_type', 'graph')
-            
-            # Validate api_type
-            if api_type not in API_REGISTRY:
-                logging.warning(f"Invalid api_type '{api_type}', defaulting to 'graph'")
-                api_type = 'graph'
-            
-            if isinstance(attack_config['app_role'], list):
-                api_permission_ids = attack_config['app_role']
-            elif attack_config['app_role'] != 'random':
-                api_permission_ids = [attack_config['app_role']]
-            else:
-                # Get random permission from the specified API type
-                api_permission_ids = [random.choice(
-                    [perm["id"] for perm in ALL_HIGH_PRIVILEGED_PERMISSIONS[api_type].values()]
-                )]
-            
-            app_api_permission_assignments[key] = {
-                'app_name': app_name,
-                'api_permission_ids': api_permission_ids,
-                'api_type': api_type
-            }

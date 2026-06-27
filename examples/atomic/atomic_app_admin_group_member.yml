@@ -13,7 +13,12 @@ baseline:
     applications: 2
 attack_paths:
   app_admin_group_member:
-    privilege_escalation: ApplicationAdministratorAbuse
-    assignment_type: group_member
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: directory
+      assignment_type: group_member
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10

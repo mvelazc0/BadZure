@@ -21,10 +21,16 @@ baseline:
     app_services: 1
 attack_paths:
   mi_abuse_appservice_kv:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: app_service
-    target_resource_type: key_vault
-    credential_type: secret
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: app_service
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f

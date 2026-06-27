@@ -22,25 +22,32 @@ baseline:
     virtual_machines: 6
 attack_paths:
   exposed_rdp_to_keyvault:
-    privilege_escalation: ManagedIdentityAbuse
-    initial_access: exposed_rdp        # brute-force an internet-exposed VM -> code exec
-    source_type: vm                     # the foothold VM is the managed-identity source
-    target_resource_type: key_vault
-    expose_to_internet: true           # flip to true to open RDP/SSH to 0.0.0.0/0
-    credential: known                   # 'weak' sets a brute-forceable admin password
-    method: APIPermission
-    api_type: graph
-    app_role:
-    - 06b708a9-e830-4db3-a914-8e69da51d44f
-
+    initial_access:
+      vector: exposed_rdp
+      expose_to_internet: true
+      credential: known
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph:
+        - 06b708a9-e830-4db3-a914-8e69da51d44f
   exposed_ssh_to_keyvault:
-    privilege_escalation: ManagedIdentityAbuse
-    initial_access: exposed_ssh      # brute-force an internet-exposed VM -> code exec
-    source_type: vm                     # the foothold VM is the managed-identity source
-    target_resource_type: key_vault
-    expose_to_internet: true           # flip to true to open RDP/SSH to 0.0.0.0/0
-    credential: known                   # 'weak' sets a brute-forceable admin password
-    method: APIPermission
-    api_type: graph
-    app_role:
-    - 06b708a9-e830-4db3-a914-8e69da51d44f
+    initial_access:
+      vector: exposed_ssh
+      expose_to_internet: true
+      credential: known
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph:
+        - 06b708a9-e830-4db3-a914-8e69da51d44f

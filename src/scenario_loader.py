@@ -45,6 +45,7 @@ from src.primitives import (
 from src.primitive_handlers import SCOPE_RESOURCE_TO_MAP, MI_SOURCE_TO_MAP
 from src.constants import (
     VALID_TECHNIQUES, RESOURCE_SEED_VECTORS, WEBAPP_FOOTHOLD_VECTORS,
+    COMPROMISED_CREDENTIAL_VECTOR,
 )
 
 
@@ -903,19 +904,22 @@ class ScenarioLoader:
         Entity sourcing (decision #1): a path with inline `identities:`/`resources:`
         runs the macro in `targeted` mode against those named entities; otherwise it
         runs `random` and the macro picks victims/targets from the baseline."""
-        technique = path["privilege_escalation"]
+        pe = path.get("privilege_escalation")
+        technique = pe.get("technique") if isinstance(pe, dict) else pe
         if technique not in VALID_TECHNIQUES:
             raise ScenarioConfigError(
                 f"{path_name}: unknown technique '{technique}'. "
                 f"Valid: {', '.join(VALID_TECHNIQUES)}.")
+        # Flatten the nested sections into the flat dict the macros consume.
+        attack_config = self._normalize_technique_path(path)
         has_inline = bool(path.get("identities") or path.get("resources"))
         mode = "targeted" if has_inline else "random"
         macro_entities = self._legacy_entities_from_path(path) if has_inline else None
         if mode == "random":
-            self._require_baseline_entities(technique, path, entities, path_name)
+            self._require_baseline_entities(technique, attack_config, entities, path_name)
 
         result = self._dispatch_macro(
-            technique, path, entities, domain, mode, macro_entities, path_name,
+            technique, attack_config, entities, domain, mode, macro_entities, path_name,
             used_apps, used_users, used_sources)
 
         primitives.extend(result["primitives"])
@@ -1005,6 +1009,34 @@ class ScenarioLoader:
             f"{path_name}: unknown technique '{technique}'.")
 
     @staticmethod
+    def _normalize_technique_path(path: Dict) -> Dict:
+        """Flatten the nested atomic sections (`initial_access:` / `privilege_escalation:`
+        / `objective:`) into the flat `attack_config` the macros consume via `.get()`:
+          - every `privilege_escalation` knob except `technique` becomes a top-level key
+            (source_type, assignment_type, scope, scenario, privilege_source, ...),
+          - `initial_access.vector` becomes the flat `initial_access` the macros read as the
+            identity_type / foothold vector: `compromised_credential` maps to its
+            `principal_type` (user / service_principal); a foothold vector maps to itself.
+            Its foothold options (expose_to_internet / credential / variant) pass through,
+          - the whole `objective:` section is carried under `objective`."""
+        pe = path.get("privilege_escalation") or {}
+        ia = path.get("initial_access")
+        flat: Dict = {k: v for k, v in pe.items() if k != "technique"}
+        if isinstance(ia, dict):
+            vector = ia.get("vector", COMPROMISED_CREDENTIAL_VECTOR)
+            if vector == COMPROMISED_CREDENTIAL_VECTOR:
+                flat["initial_access"] = ia.get("principal_type", "user") or "user"
+            else:
+                flat["initial_access"] = vector
+            for k in ("expose_to_internet", "credential", "variant"):
+                if k in ia:
+                    flat[k] = ia[k]
+        else:
+            flat["initial_access"] = "user"
+        flat["objective"] = path.get("objective") or {}
+        return flat
+
+    @staticmethod
     def _legacy_entities_from_path(path: Dict) -> Dict[str, List[Dict]]:
         """Flatten a technique path's inline `identities:`/`resources:` into the legacy
         `entities:` shape the macros' targeted selectors expect ({kind: [{name, ...}]}),
@@ -1025,19 +1057,26 @@ class ScenarioLoader:
                                    entities: Dict[str, Dict], path_name: str) -> None:
         """mode=random sources victims/targets from the baseline; if a required entity
         type is absent, fail clearly (the baseline-first contract) instead of letting
-        the macro's random.choice blow up on an empty map."""
-        needs: List = [("applications", "an application")]
+        the macro's random.choice blow up on an empty map. `path` here is the flattened
+        attack_config."""
+        direct_mi = (technique == "ManagedIdentityAbuse"
+                     and path.get("privilege_source", "stored_credential") == "managed_identity")
+        needs: List = []
+        # A direct over-privileged-MI path has no looted application.
+        if not direct_mi:
+            needs.append(("applications", "an application"))
         if path.get("initial_access", "user") == "user":
             needs.append(("users", "a user"))
         if technique in _TECHNIQUE_REQUIRED_RESOURCE:
             needs.append(_TECHNIQUE_REQUIRED_RESOURCE[technique])
         if technique == "ManagedIdentityAbuse":
             src = _MI_SOURCE_MAP.get(path.get("source_type", "vm"))
-            tgt = _MI_TARGET_MAP.get(path.get("target_resource_type"))
             if src:
                 needs.append((src, f"a {path.get('source_type', 'vm')}"))
-            if tgt:
-                needs.append((tgt, f"a {path.get('target_resource_type')}"))
+            if not direct_mi:
+                tgt = _MI_TARGET_MAP.get(path.get("target_resource_type"))
+                if tgt:
+                    needs.append((tgt, f"a {path.get('target_resource_type')}"))
         missing = [human for attr, human in needs if not entities.get(attr)]
         if missing:
             raise ScenarioConfigError(
@@ -1051,8 +1090,15 @@ class ScenarioLoader:
         """Build a (capability, target) objective from the macro summary so the
         reachability gate adjudicates the technique path like an explicit one."""
         if technique == "ManagedIdentityAbuse":
-            capability = _MI_TARGET_CAPABILITY.get(summary.get("target_resource_type"))
-            target = summary.get("target_name")
+            if summary.get("privilege_source") == "managed_identity":
+                # Direct flavor: the attacker ends up controlling the over-privileged
+                # managed identity (the source compute). Controlling the compute already
+                # implies controlling its MI, so the objective is reaching that source.
+                capability = "control_principal"
+                target = summary.get("source_name")
+            else:
+                capability = _MI_TARGET_CAPABILITY.get(summary.get("target_resource_type"))
+                target = summary.get("target_name")
         else:
             capability, target_key = _TECHNIQUE_OBJECTIVES[technique]
             target = summary.get(target_key)

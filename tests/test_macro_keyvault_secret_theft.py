@@ -59,7 +59,7 @@ def test_user_direct_azureadrole():
     """Direct user access + Entra-role app privilege → the four core blocks,
     and the builder produces a valid tfvars (refs all resolve)."""
     cfg = {"privilege_escalation": "KeyVaultSecretTheft", "initial_access": "user",
-           "assignment_type": "direct", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "direct", "objective": {"entra_role": GA_ROLE}}
     users, applications, key_vaults = _entities()
     result = _mgr().macro_keyvault_secret_theft(
         cfg, applications, key_vaults, users, applications, "contoso.com",
@@ -106,8 +106,7 @@ def test_user_apipermission_list():
     perms = ["06b708a9-e830-4db3-a914-8e69da51d44f",
              "19dbc75e-c2e2-444c-a770-ec69d8559fc7"]
     cfg = {"privilege_escalation": "KeyVaultSecretTheft", "initial_access": "user",
-           "assignment_type": "direct", "method": "APIPermission",
-           "api_type": "graph", "app_role": perms}
+           "assignment_type": "direct", "objective": {"api_permission": {"graph": perms}}}
     users, applications, key_vaults = _entities()
     result = _mgr().macro_keyvault_secret_theft(
         cfg, applications, key_vaults, users, applications, "contoso.com",
@@ -127,7 +126,7 @@ def test_sp_initial_access_mints_surfaced_credential():
     own secret) and records the origin-prefixed key for the TF output read-back."""
     cfg = {"privilege_escalation": "KeyVaultSecretTheft",
            "initial_access": "service_principal", "assignment_type": "direct",
-           "method": "AzureADRole", "entra_role": GA_ROLE}
+           "objective": {"entra_role": GA_ROLE}}
     two_apps = {"app-highpriv": {"display_name": "app-highpriv"},
                 "app-initial": {"display_name": "app-initial"}}
     users, applications, key_vaults = _entities(two_apps)
@@ -155,8 +154,7 @@ def test_group_member_routes_rbac_to_group():
     """group_member: KV Contributor goes to the group, and the principal is a
     member of it. The group is created as an entity."""
     cfg = {"privilege_escalation": "KeyVaultSecretTheft", "initial_access": "user",
-           "assignment_type": "group_member", "method": "AzureADRole",
-           "entra_role": GA_ROLE}
+           "assignment_type": "group_member", "objective": {"entra_role": GA_ROLE}}
     users, applications, key_vaults = _entities()
     result = _mgr().macro_keyvault_secret_theft(
         cfg, applications, key_vaults, users, applications, "contoso.com",
@@ -182,8 +180,7 @@ def test_group_member_routes_rbac_to_group():
 def test_group_owner_routes_rbac_to_group():
     """group_owner: KV Contributor goes to the group, principal owns it."""
     cfg = {"privilege_escalation": "KeyVaultSecretTheft", "initial_access": "user",
-           "assignment_type": "group_owner", "method": "AzureADRole",
-           "entra_role": GA_ROLE}
+           "assignment_type": "group_owner", "objective": {"entra_role": GA_ROLE}}
     users, applications, key_vaults = _entities()
     result = _mgr().macro_keyvault_secret_theft(
         cfg, applications, key_vaults, users, applications, "contoso.com",

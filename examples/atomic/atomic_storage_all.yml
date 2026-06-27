@@ -16,25 +16,39 @@ baseline:
     storage_accounts: 8
 attack_paths:
   storage_user:
-    privilege_escalation: StorageCertificateTheft
-    initial_access: user
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10
   storage_sp:
-    privilege_escalation: StorageCertificateTheft
-    initial_access: service_principal
-    method: APIPermission
-    api_type: graph
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
   storage_group_member:
-    privilege_escalation: StorageCertificateTheft
-    initial_access: user
-    assignment_type: group_member
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: group_member
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10
   storage_group_owner:
-    privilege_escalation: StorageCertificateTheft
-    initial_access: user
-    assignment_type: group_owner
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: group_owner
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10

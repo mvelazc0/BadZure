@@ -71,7 +71,7 @@ def _rbac(out):
 def test_vm_to_keyvault_secret():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "user",
-           "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "credential_type": "secret", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     rbac = _rbac(out)
     # source Contributor on the VM, to the user
@@ -95,7 +95,7 @@ def test_vm_to_keyvault_secret():
 def test_vm_to_keyvault_certificate():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "user",
-           "credential_type": "certificate", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "credential_type": "certificate", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     mi = [r for r in _rbac(out) if r["principal_type"] == "managed_identity"]
     assert "Key Vault Certificate User" in {r["role"] for r in mi}   # 4th role for cert
@@ -110,7 +110,7 @@ def test_vm_to_keyvault_certificate():
 def test_vm_to_storage_secret():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "storage_account", "initial_access": "user",
-           "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "credential_type": "secret", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     mi = [r for r in _rbac(out) if r["principal_type"] == "managed_identity"]
     assert {r["role"] for r in mi} == {"Storage Blob Data Reader", "Storage Account Contributor"}
@@ -127,7 +127,7 @@ def _cosmos_document_injects(result):
 def test_vm_to_cosmos_plants_secret_documents():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "cosmos_db", "initial_access": "user",
-           "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "credential_type": "secret", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     mi = [r for r in _rbac(out) if r["principal_type"] == "managed_identity"]
     assert len(mi) == 1 and mi[0]["role"] == COSMOS_ROLE and mi[0]["data_plane"] == "cosmos_sql"
@@ -143,7 +143,7 @@ def test_vm_to_cosmos_plants_secret_documents():
 def test_vm_to_cosmos_cert_plants_certificate_document():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "cosmos_db", "initial_access": "user",
-           "credential_type": "certificate", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "credential_type": "certificate", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     assert not out.get("attack_path_data_injects")
     injects = _cosmos_document_injects(result)
@@ -156,7 +156,7 @@ def test_vm_to_cosmos_cert_plants_certificate_document():
 def test_group_member_routes_source_contributor_to_group():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "user",
-           "assignment_type": "group_member", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "assignment_type": "group_member", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     assert len(result["groups"]) == 1
     src = next(r for r in _rbac(out) if r["role"] == "Virtual Machine Contributor")
@@ -168,7 +168,7 @@ def test_group_member_routes_source_contributor_to_group():
 def test_sp_initial_access_mints_secret():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
            "target_resource_type": "key_vault", "initial_access": "service_principal",
-           "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "credential_type": "secret", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     sp_key = result["credentials"]["generic_credential_key"]
     assert sp_key.startswith("ap:") and sp_key.split("ap:", 1)[1] in out["attack_path_app_credentials"]
@@ -179,7 +179,7 @@ def test_sp_initial_access_mints_secret():
 def test_app_service_to_keyvault_secret():
     cfg = {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "app_service",
            "target_resource_type": "key_vault", "initial_access": "user",
-           "credential_type": "secret", "method": "AzureADRole", "entra_role": GA_ROLE}
+           "credential_type": "secret", "objective": {"entra_role": GA_ROLE}}
     result, out = _run(cfg)
     rbac = _rbac(out)
     # source Website Contributor on the App Service, to the user

@@ -53,18 +53,51 @@ _BASELINE = {
 }
 
 
+def _nest_atomic(flat):
+    """Translate a flat atomic-path knob dict (the legacy authoring shorthand) into the
+    nested `initial_access:` / `privilege_escalation:` / `objective:` sections."""
+    flat = dict(flat)
+    pe = {"technique": flat.pop("privilege_escalation")}
+    ia, obj = {}, {}
+    if "initial_access" in flat:
+        v = flat.pop("initial_access")
+        if v in ("user", "service_principal"):
+            ia["vector"] = "compromised_credential"
+            ia["principal_type"] = v
+        else:
+            ia["vector"] = v
+    for k in ("expose_to_internet", "credential", "variant"):
+        if k in flat:
+            ia[k] = flat.pop(k)
+    if "entra_role" in flat:
+        obj["entra_role"] = flat.pop("entra_role")
+    if "app_role" in flat:
+        obj["api_permission"] = {flat.pop("api_type", "graph"): flat.pop("app_role")}
+    flat.pop("method", None)
+    for k in ("source_type", "target_resource_type", "credential_type",
+              "assignment_type", "scope", "scenario", "privilege_source"):
+        if k in flat:
+            pe[k] = flat.pop(k)
+    path = {"privilege_escalation": pe}
+    if ia:
+        path["initial_access"] = ia
+    if obj:
+        path["objective"] = obj
+    path.update(flat)  # leftover keys (identities/resources/enabled)
+    return path
+
+
 def _atomic_config(**knobs):
-    path = {
+    flat = {
         "privilege_escalation": "ManagedIdentityAbuse",
         "initial_access": "exposed_rdp",
         "source_type": "vm",
         "target_resource_type": "key_vault",
-        "method": "APIPermission",
         "api_type": "graph",
         "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f",
     }
-    path.update(knobs)
-    return {"baseline": _BASELINE, "attack_paths": {"p": path}}
+    flat.update(knobs)
+    return {"baseline": _BASELINE, "attack_paths": {"p": _nest_atomic(flat)}}
 
 
 # ---------------------------------------------------------------------------
@@ -132,14 +165,14 @@ def test_two_mi_paths_pick_distinct_sources():
         "baseline": {"identities": {"users": 3, "applications": 4},
                      "resources": {"key_vaults": 1, "virtual_machines": 5}},
         "attack_paths": {
-            "rdp": {"privilege_escalation": "ManagedIdentityAbuse",
+            "rdp": _nest_atomic({"privilege_escalation": "ManagedIdentityAbuse",
                     "initial_access": "exposed_rdp", "source_type": "vm",
-                    "target_resource_type": "key_vault", "method": "APIPermission",
-                    "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
-            "ssh": {"privilege_escalation": "ManagedIdentityAbuse",
+                    "target_resource_type": "key_vault",
+                    "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"}),
+            "ssh": _nest_atomic({"privilege_escalation": "ManagedIdentityAbuse",
                     "initial_access": "exposed_ssh", "source_type": "vm",
-                    "target_resource_type": "key_vault", "method": "APIPermission",
-                    "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
+                    "target_resource_type": "key_vault",
+                    "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"}),
         },
     }
     for _ in range(10):  # selection is random; assert it never collides
@@ -155,12 +188,12 @@ def test_mi_paths_exhausting_sources_fails_clearly():
         "baseline": {"identities": {"users": 3, "applications": 4},
                      "resources": {"key_vaults": 1, "virtual_machines": 1}},
         "attack_paths": {
-            "p1": {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
-                   "target_resource_type": "key_vault", "method": "APIPermission",
-                   "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
-            "p2": {"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
-                   "target_resource_type": "key_vault", "method": "APIPermission",
-                   "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
+            "p1": _nest_atomic({"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
+                   "target_resource_type": "key_vault",
+                   "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"}),
+            "p2": _nest_atomic({"privilege_escalation": "ManagedIdentityAbuse", "source_type": "vm",
+                   "target_resource_type": "key_vault",
+                   "api_type": "graph", "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"}),
         },
     }
     with pytest.raises(ScenarioConfigError, match="not enough distinct 'vm'"):
@@ -185,11 +218,11 @@ def test_baseline_vm_gets_no_public_ip():
         "baseline": {"identities": {"users": 2, "applications": 2},
                      "resources": {"key_vaults": 1, "virtual_machines": 2}},
         "attack_paths": {
-            "p": {"privilege_escalation": "ManagedIdentityAbuse",
+            "p": _nest_atomic({"privilege_escalation": "ManagedIdentityAbuse",
                   "initial_access": "exposed_rdp", "source_type": "vm",
-                  "target_resource_type": "key_vault", "method": "APIPermission",
+                  "target_resource_type": "key_vault",
                   "api_type": "graph",
-                  "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
+                  "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"}),
         },
     }
     scenario = _load(cfg)
@@ -284,8 +317,9 @@ def test_builder_rejects_unimplemented_method():
 # ---------------------------------------------------------------------------
 def test_validator_rejects_foothold_on_non_mi_technique():
     cfg = {"baseline": _BASELINE,
-           "attack_paths": {"p": {"privilege_escalation": "KeyVaultSecretTheft",
-                                  "initial_access": "exposed_rdp"}}}
+           "attack_paths": {"p": {"privilege_escalation": {"technique": "KeyVaultSecretTheft"},
+                                  "objective": {"entra_role": "random"},
+                                  "initial_access": {"vector": "exposed_rdp"}}}}
     with pytest.raises(_Cfg, match="only supported with ManagedIdentityAbuse"):
         scenario_validator.validate(cfg)
 
@@ -322,18 +356,17 @@ _WEBAPP_BASELINE = {
 
 
 def _atomic_webapp_config(**knobs):
-    path = {
+    flat = {
         "privilege_escalation": "ManagedIdentityAbuse",
         "initial_access": "vulnerable_web_app",
         "source_type": "app_service",
         "target_resource_type": "key_vault",
         "variant": "rce",
-        "method": "APIPermission",
         "api_type": "graph",
         "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f",
     }
-    path.update(knobs)
-    return {"baseline": _WEBAPP_BASELINE, "attack_paths": {"p": path}}
+    flat.update(knobs)
+    return {"baseline": _WEBAPP_BASELINE, "attack_paths": {"p": _nest_atomic(flat)}}
 
 
 def test_atomic_webapp_foothold_compiles_and_reaches():
@@ -399,11 +432,11 @@ def test_baseline_app_service_gets_no_variant():
         "baseline": {"identities": {"users": 2, "applications": 2},
                      "resources": {"key_vaults": 1, "app_services": 2}},
         "attack_paths": {
-            "p": {"privilege_escalation": "ManagedIdentityAbuse",
+            "p": _nest_atomic({"privilege_escalation": "ManagedIdentityAbuse",
                   "initial_access": "vulnerable_web_app", "source_type": "app_service",
                   "target_resource_type": "key_vault", "variant": "rce",
-                  "method": "APIPermission", "api_type": "graph",
-                  "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"},
+                  "api_type": "graph",
+                  "app_role": "06b708a9-e830-4db3-a914-8e69da51d44f"}),
         },
     }
     scenario = _load(cfg)
@@ -488,8 +521,9 @@ def test_builder_rejects_non_app_service_target_for_webapp():
 
 def test_validator_rejects_webapp_foothold_on_non_mi_technique():
     cfg = {"baseline": _WEBAPP_BASELINE,
-           "attack_paths": {"p": {"privilege_escalation": "KeyVaultSecretTheft",
-                                  "initial_access": "vulnerable_web_app"}}}
+           "attack_paths": {"p": {"privilege_escalation": {"technique": "KeyVaultSecretTheft"},
+                                  "objective": {"entra_role": "random"},
+                                  "initial_access": {"vector": "vulnerable_web_app"}}}}
     with pytest.raises(_Cfg, match="only supported with ManagedIdentityAbuse"):
         scenario_validator.validate(cfg)
 
@@ -506,6 +540,60 @@ def test_validator_rejects_unknown_webapp_variant():
 
 def test_validator_accepts_valid_atomic_webapp_foothold():
     scenario_validator.validate(_atomic_webapp_config())  # no raise
+
+
+# ===========================================================================
+# compromised_credential vector + principal_type
+# ===========================================================================
+_GA = "62e90394-69f5-4237-9190-012177145e10"
+
+
+def _cc_config(initial_access):
+    return {
+        "baseline": {"identities": {"users": 3, "applications": 3},
+                     "resources": {"key_vaults": 1}},
+        "attack_paths": {"p": {
+            "initial_access": initial_access,
+            "privilege_escalation": {"technique": "KeyVaultSecretTheft"},
+            "objective": {"entra_role": _GA},
+        }},
+    }
+
+
+def test_cc_valid_user():
+    cfg = _cc_config({"vector": "compromised_credential", "principal_type": "user"})
+    scenario_validator.validate(cfg)                       # no raise
+    scenario = _load(cfg)
+    assert scenario.attack_paths[0].reachability["status"] == reachability.REACHED
+
+
+def test_cc_valid_service_principal():
+    cfg = _cc_config({"vector": "compromised_credential",
+                      "principal_type": "service_principal"})
+    scenario_validator.validate(cfg)                       # no raise
+    scenario = _load(cfg)
+    assert scenario.attack_paths[0].reachability["status"] == reachability.REACHED
+
+
+def test_cc_missing_principal_type():
+    cfg = _cc_config({"vector": "compromised_credential"})
+    with pytest.raises(_Cfg, match="requires a `principal_type`"):
+        scenario_validator.validate(cfg)
+
+
+def test_cc_invalid_principal_type():
+    cfg = _cc_config({"vector": "compromised_credential", "principal_type": "admin"})
+    with pytest.raises(
+            _Cfg,
+            match="principal_type 'admin' is not valid; expected one of: "
+                  "service_principal, user"):
+        scenario_validator.validate(cfg)
+
+
+def test_cc_invalid_vector():
+    cfg = _cc_config({"vector": "phish", "principal_type": "user"})
+    with pytest.raises(_Cfg, match="initial_access.vector 'phish' is invalid"):
+        scenario_validator.validate(cfg)
 
 
 if __name__ == "__main__":
