@@ -59,7 +59,8 @@ baseline:
     administrative_units: 2
 
   # Azure resources to create. Only declare the types your attack paths need —
-  # these cost real money and time. (Resource groups are created automatically.)
+  # these cost real money and time. Declare `resource_groups` to set how many groups
+  # the resources spread across; if omitted, BadZure creates one.
   resources:
     key_vaults: 2
     storage_accounts: 1

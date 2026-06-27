@@ -1,10 +1,13 @@
 # ManagedIdentityAbuse
 
-**Category:** Identity-Based Privilege Escalation
+**Category:** Identity Based Privilege Escalation
 
-An attacker compromises an identity with **contributor access** to an Azure resource that has a **managed identity**. The attacker extracts the managed identity token from the resource, then uses it to retrieve application credentials from a Key Vault, Storage Account, or Cosmos DB. The target application has high privileges, completing the escalation chain.
+An attacker compromises an identity with **contributor access** to an Azure resource that has a **managed identity**, or lands on the resource through a foothold. The attacker steals the managed identity token from the resource. The path then takes one of two flavors, selected by `privilege_source`:
 
-This is the most complex attack path BadZure supports, with multiple source resources, target resources, and credential types.
+- **`stored_credential`** (the courier): the managed identity reads an application credential from a Key Vault, Storage Account, or Cosmos DB, and the attacker authenticates as that privileged application.
+- **`managed_identity`** (direct): the managed identity is itself over privileged, and the attacker holds its standing Azure RBAC directly.
+
+This is the most configurable attack path BadZure supports, with multiple source resources, target resources, credential types, and the two privilege source flavors.
 
 ## Posture
 
@@ -36,6 +39,24 @@ graph LR
 5. The attacker uses the retrieved credentials to **authenticate as a privileged application**
 
 ## Variations
+
+### By Privilege Source
+
+`privilege_source` selects what the stolen managed identity gives the attacker.
+
+=== "Stored credential (default)"
+
+    The managed identity reads an application credential from a target data resource (Key Vault, Storage Account, or Cosmos DB), and the attacker authenticates as that application. This flavor uses `target_resource_type` and `credential_type`.
+
+    - **Config value:** `privilege_source: stored_credential`
+    - **Objective:** `entra_role` or `api_permission` on the looted application
+
+=== "Managed identity (direct)"
+
+    The managed identity itself holds a high Azure RBAC role, so controlling the source resource grants that access directly. This flavor has no target resource and no looted application.
+
+    - **Config value:** `privilege_source: managed_identity`
+    - **Objective:** `azure_role` on the managed identity (for example Owner on the subscription)
 
 ### By Source Type
 
@@ -161,6 +182,8 @@ graph TD
 
 ### By Identity Type
 
+For the `compromised_credential` vector, `principal_type` under `initial_access` selects whether the attacker starts from a user or a service principal.
+
 === "User (default)"
 
     A user account with contributor access to the source resource. Simulates a compromised developer or operator.
@@ -193,7 +216,7 @@ The exposed-host vectors apply only to `source_type: vm` (the foothold host is t
 
     An internet-reachable VM with RDP open, brute-forced to gain code execution.
 
-    - **Config value:** `initial_access: exposed_rdp`
+    - **Config value:** `vector: exposed_rdp` (under `initial_access`)
     - **Requires:** `source_type: vm`
 
     ``` mermaid
@@ -207,14 +230,21 @@ The exposed-host vectors apply only to `source_type: vm` (the foothold host is t
 
     An internet-reachable VM with SSH open, brute-forced to gain code execution.
 
-    - **Config value:** `initial_access: exposed_ssh`
+    - **Config value:** `vector: exposed_ssh` (under `initial_access`)
     - **Requires:** `source_type: vm`
+
+    ``` mermaid
+    graph LR
+        A(("Attacker")) -->|"brute-force SSH"| RES(("Virtual<br/>Machine"))
+        RES -->|"has"| MI(("Managed<br/>Identity"))
+        MI -->|"access"| TGT(("Target<br/>Resource"))
+    ```
 
 === "Vulnerable Web App"
 
     An internet-facing App Service running a deliberately vulnerable app, exploited to gain code execution in the app's process context and read its managed-identity token.
 
-    - **Config value:** `initial_access: vulnerable_web_app`
+    - **Config value:** `vector: vulnerable_web_app` (under `initial_access`)
     - **Requires:** `source_type: app_service`
     - **Variant:** `variant: rce` (a command-injection diagnostics page)
 
@@ -278,14 +308,21 @@ baseline:
   resources:  { virtual_machines: 1, key_vaults: 1 }
 attack_paths:
   mi_vm_keyvault:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: vm
-    target_resource_type: key_vault
-    method: APIPermission
-    api_type: graph
-    app_role:
-      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
-      - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+          - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+          - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 ```
 
 The remaining examples show just the `attack_paths:` entry — make sure the baseline declares the matching `source_type` compute and `target_resource_type` resource.
@@ -295,12 +332,18 @@ Logic App to Storage Account with service principal:
 ```yaml
 attack_paths:
   mi_logicapp_storage:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: logic_app
-    target_resource_type: storage_account
-    initial_access: service_principal
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: logic_app
+      privilege_source: stored_credential
+      target_resource_type: storage_account
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 Function App with certificate-based credentials:
@@ -308,13 +351,19 @@ Function App with certificate-based credentials:
 ```yaml
 attack_paths:
   mi_functionapp_cert:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: function_app
-    target_resource_type: key_vault
-    credential_type: certificate
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: function_app
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: certificate
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 Automation Account with group-based assignment:
@@ -322,13 +371,19 @@ Automation Account with group-based assignment:
 ```yaml
 attack_paths:
   mi_automation_group:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: automation_account
-    target_resource_type: key_vault
-    assignment_type: group_member
-    method: APIPermission
-    api_type: graph
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: automation_account
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: group_member
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
 App Service to Key Vault. The attacker holds Website Contributor on the app and steals its managed identity token through the Kudu/SCM REST API:
@@ -336,12 +391,19 @@ App Service to Key Vault. The attacker holds Website Contributor on the app and 
 ```yaml
 attack_paths:
   mi_appservice_keyvault:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: app_service
-    target_resource_type: key_vault
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: app_service
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 VM to Cosmos DB with Graph API permissions:
@@ -349,14 +411,21 @@ VM to Cosmos DB with Graph API permissions:
 ```yaml
 attack_paths:
   mi_vm_cosmos:
-    privilege_escalation: ManagedIdentityAbuse
-    source_type: vm
-    target_resource_type: cosmos_db
-    method: APIPermission
-    api_type: graph
-    app_role:
-      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
-      - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: cosmos_db
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+          - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+          - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 ```
 
 Exposed-host foothold (exposed RDP) to Key Vault. The attacker brute-forces an internet-exposed VM and pivots through its managed identity:
@@ -364,15 +433,19 @@ Exposed-host foothold (exposed RDP) to Key Vault. The attacker brute-forces an i
 ```yaml
 attack_paths:
   mi_exposed_rdp_keyvault:
-    privilege_escalation: ManagedIdentityAbuse
-    initial_access: exposed_rdp
-    source_type: vm
-    target_resource_type: key_vault
-    expose_to_internet: false   # set true to open RDP/SSH to 0.0.0.0/0
-    credential: known           # set weak for a brute-forceable password
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: exposed_rdp
+      expose_to_internet: false   # set true to open RDP/SSH to 0.0.0.0/0
+      credential: known           # set weak for a brute-forceable password
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 Vulnerable-web-app foothold to Key Vault. The attacker exploits an internet-facing App Service and pivots through its managed identity:
@@ -380,14 +453,37 @@ Vulnerable-web-app foothold to Key Vault. The attacker exploits an internet-faci
 ```yaml
 attack_paths:
   mi_vulnerable_webapp_keyvault:
-    privilege_escalation: ManagedIdentityAbuse
-    initial_access: vulnerable_web_app
-    source_type: app_service
-    target_resource_type: key_vault
-    variant: rce                # command-injection diagnostics page
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: vulnerable_web_app
+      variant: rce                # command-injection diagnostics page
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: app_service
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+```
+
+Direct over privileged managed identity. The VM's managed identity is Owner on the subscription, so controlling the VM grants that access directly. This flavor has no target resource and uses an `azure_role` objective:
+
+```yaml
+attack_paths:
+  mi_overprivileged:
+    initial_access:
+      vector: exposed_rdp
+      expose_to_internet: true
+      credential: weak
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: managed_identity
+    objective:
+      azure_role:
+        - role: Owner
+          scope: subscription
 ```
 
 ## Further Reading

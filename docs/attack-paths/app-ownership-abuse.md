@@ -1,6 +1,6 @@
 # ApplicationOwnershipAbuse
 
-**Category:** Identity-Based Privilege Escalation
+**Category:** Identity Based Privilege Escalation
 
 An attacker compromises an identity that **owns** an application registration with high privileges. The attacker adds new credentials to the owned application, then authenticates as that application to gain elevated access.
 
@@ -91,9 +91,14 @@ baseline:
   identities: { users: 2, applications: 2 }
 attack_paths:
   app_ownership_basic:
-    privilege_escalation: ApplicationOwnershipAbuse
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationOwnershipAbuse
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 Service-principal owner with multiple Graph API permissions (just the `attack_paths:` entry — add it to a config with a baseline like the one above):
@@ -101,13 +106,17 @@ Service-principal owner with multiple Graph API permissions (just the `attack_pa
 ```yaml
 attack_paths:
   app_ownership_sp:
-    privilege_escalation: ApplicationOwnershipAbuse
-    initial_access: service_principal
-    method: APIPermission
-    api_type: graph
-    app_role:
-      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
-      - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ApplicationOwnershipAbuse
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+          - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+          - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
 ## Further Reading

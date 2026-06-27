@@ -1,6 +1,6 @@
 # CloudAppAdministratorAbuse
 
-**Category:** Identity-Based Privilege Escalation
+**Category:** Identity Based Privilege Escalation
 
 An attacker compromises an identity with the **Cloud Application Administrator** Entra ID role, which grants the ability to manage application registrations in the tenant. The attacker identifies an application with high privileges, adds new credentials to it, and authenticates as that application.
 
@@ -37,9 +37,15 @@ baseline:
   identities: { users: 2, applications: 2, groups: 1 }
 attack_paths:
   cloud_app_admin_role:
-    privilege_escalation: CloudAppAdministratorAbuse
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CloudAppAdministratorAbuse
+      scope: directory
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 The remaining examples show just the `attack_paths:` entry — add them to a config with a baseline like the one above.
@@ -49,10 +55,15 @@ Application-scoped role assignment:
 ```yaml
 attack_paths:
   cloud_app_admin_scoped:
-    privilege_escalation: CloudAppAdministratorAbuse
-    scope: application
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CloudAppAdministratorAbuse
+      scope: application
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 Group-based assignment with API permissions:
@@ -60,11 +71,16 @@ Group-based assignment with API permissions:
 ```yaml
 attack_paths:
   cloud_app_admin_group:
-    privilege_escalation: CloudAppAdministratorAbuse
-    assignment_type: group_member
-    method: APIPermission
-    api_type: graph
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CloudAppAdministratorAbuse
+      scope: directory
+      assignment_type: group_member
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
 ## See Also

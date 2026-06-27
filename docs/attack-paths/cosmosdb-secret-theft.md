@@ -1,6 +1,6 @@
 # CosmosDBSecretTheft
 
-**Category:** Resource-Based Privilege Escalation
+**Category:** Resource Based Privilege Escalation
 
 An attacker compromises an identity with **direct access to Azure Cosmos DB** and retrieves application client secrets stored as JSON documents. The attacker uses the secrets to authenticate as a privileged application.
 
@@ -110,9 +110,14 @@ baseline:
   resources:  { cosmos_dbs: 1 }
 attack_paths:
   cosmos_theft_basic:
-    privilege_escalation: CosmosDBSecretTheft
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CosmosDBSecretTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 The remaining examples show just the `attack_paths:` entry — add them to a config with the baseline above.
@@ -122,13 +127,17 @@ Service principal with Graph API permissions:
 ```yaml
 attack_paths:
   cosmos_theft_sp:
-    privilege_escalation: CosmosDBSecretTheft
-    initial_access: service_principal
-    method: APIPermission
-    api_type: graph
-    app_role:
-      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
-      - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: CosmosDBSecretTheft
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+          - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+          - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 ```
 
 Group-based assignment:
@@ -136,11 +145,15 @@ Group-based assignment:
 ```yaml
 attack_paths:
   cosmos_theft_group:
-    privilege_escalation: CosmosDBSecretTheft
-    assignment_type: group_member
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: CosmosDBSecretTheft
+      assignment_type: group_member
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 !!! tip

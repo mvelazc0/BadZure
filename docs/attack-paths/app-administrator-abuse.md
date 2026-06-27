@@ -1,6 +1,6 @@
 # ApplicationAdministratorAbuse
 
-**Category:** Identity-Based Privilege Escalation
+**Category:** Identity Based Privilege Escalation
 
 An attacker compromises an identity with the **Application Administrator** Entra ID role, which grants the ability to manage **any** application registration in the tenant. The attacker identifies an application with high privileges, adds new credentials to it, and authenticates as that application.
 
@@ -130,10 +130,16 @@ baseline:
   identities: { users: 2, applications: 2, groups: 1 }
 attack_paths:
   app_admin_exchange:
-    privilege_escalation: ApplicationAdministratorAbuse
-    method: APIPermission
-    api_type: exchange
-    app_role: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: directory
+      assignment_type: direct
+    objective:
+      api_permission:
+        exchange: dc890d15-9560-4a4c-9b7f-a736ec74ec40  # full_access_as_app
 ```
 
 The remaining examples show just the `attack_paths:` entry — add them to a config with a baseline like the one above.
@@ -143,10 +149,15 @@ Service principal with Application Administrator targeting Global Admin role:
 ```yaml
 attack_paths:
   app_admin_sp:
-    privilege_escalation: ApplicationAdministratorAbuse
-    initial_access: service_principal
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: directory
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 Group-based assignment with Graph API permissions:
@@ -154,11 +165,16 @@ Group-based assignment with Graph API permissions:
 ```yaml
 attack_paths:
   app_admin_group:
-    privilege_escalation: ApplicationAdministratorAbuse
-    assignment_type: group_member
-    method: APIPermission
-    api_type: graph
-    app_role: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: directory
+      assignment_type: group_member
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8  # RoleManagement.ReadWrite.Directory
 ```
 
 Application-scoped role assignment (role only applies to the target application):
@@ -166,10 +182,15 @@ Application-scoped role assignment (role only applies to the target application)
 ```yaml
 attack_paths:
   app_admin_scoped:
-    privilege_escalation: ApplicationAdministratorAbuse
-    scope: application
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      scope: application
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 ## See Also

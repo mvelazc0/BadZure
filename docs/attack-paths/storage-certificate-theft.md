@@ -1,6 +1,6 @@
 # StorageCertificateTheft
 
-**Category:** Resource-Based Privilege Escalation
+**Category:** Resource Based Privilege Escalation
 
 An attacker compromises an identity with **read access to Azure Blob Storage** and downloads application certificates and private keys stored in a storage container. The attacker uses certificate-based authentication to impersonate a privileged application.
 
@@ -122,9 +122,14 @@ baseline:
   resources:  { storage_accounts: 1 }
 attack_paths:
   storage_theft_basic:
-    privilege_escalation: StorageCertificateTheft
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 The remaining examples show just the `attack_paths:` entry — add them to a config with the baseline above.
@@ -134,13 +139,17 @@ Service principal with Graph API permissions:
 ```yaml
 attack_paths:
   storage_theft_sp:
-    privilege_escalation: StorageCertificateTheft
-    initial_access: service_principal
-    method: APIPermission
-    api_type: graph
-    app_role:
-      - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
-      - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+          - 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+          - 19dbc75e-c2e2-444c-a770-ec69d8559fc7  # Directory.ReadWrite.All
 ```
 
 Group-based assignment:
@@ -148,11 +157,15 @@ Group-based assignment:
 ```yaml
 attack_paths:
   storage_theft_group:
-    privilege_escalation: StorageCertificateTheft
-    assignment_type: group_member
-    method: APIPermission
-    api_type: graph
-    app_role: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: group_member
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f  # AppRoleAssignment.ReadWrite.All
 ```
 
 !!! tip

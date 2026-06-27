@@ -38,17 +38,20 @@ nav:
     - Home: index.md
     - What Are Cloud Attack Paths?: what-are-cloud-attack-paths.md
     - Getting Started: getting-started.md
-    - Configuration Guide: configuration.md
-    - Talks & Demos: talks-and-demos.md
   - Attack Paths:
     - Overview: attack-paths/index.md
-    - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
-    - ApplicationAdministratorAbuse: attack-paths/app-administrator-abuse.md
-    - CloudAppAdministratorAbuse: attack-paths/cloud-app-administrator-abuse.md
-    - ManagedIdentityAbuse: attack-paths/managed-identity-abuse.md
-    - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
-    - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
-    - CosmosDBSecretTheft: attack-paths/cosmosdb-secret-theft.md
+    - Atomic:
+      - Overview: attack-paths/atomic.md
+      - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
+      - ApplicationAdministratorAbuse: attack-paths/app-administrator-abuse.md
+      - CloudAppAdministratorAbuse: attack-paths/cloud-app-administrator-abuse.md
+      - ManagedIdentityAbuse: attack-paths/managed-identity-abuse.md
+      - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
+      - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
+      - CosmosDBSecretTheft: attack-paths/cosmosdb-secret-theft.md
+    - Chained: attack-paths/chained.md
+  - Configuration Guide: configuration.md
+  - Talks & Demos: talks-and-demos.md
 
 markdown_extensions:
   - admonition
