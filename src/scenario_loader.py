@@ -95,7 +95,7 @@ ASSIGNMENT_TYPES = frozenset({
 
 # Default resource group synthesized for inline resources that don't name one.
 _DEFAULT_RG = "badzure-default-rg"
-_DEFAULT_RG_LOCATION = "West US"
+_DEFAULT_RG_LOCATION = "West US 2"
 
 # -- Tier-1 `technique:` sugar -------------------------------------------------
 # A technique path fires a macro that wires the whole chain; the loader then
@@ -176,7 +176,7 @@ class ScenarioLoader:
     # -- public API -----------------------------------------------------------
     def load(self, config: Dict, tenant_id: str = "", domain: str = "",
              subscription_id: str = "", public_ip: str = "",
-             azure_config_dir: str = "") -> ScenarioModel:
+             azure_config_dir: str = "", enforce_reachability: bool = True) -> ScenarioModel:
         # 0. Structural validation up front (registry-driven). Aggregates malformed
         #    objectives / unknown assignment types / dangling step links into one
         #    error before we build anything. Lazy import avoids an import cycle
@@ -281,7 +281,8 @@ class ScenarioLoader:
         #    mixed-origin primitive set (an attack can leverage baseline edges too).
         report = reachability.analyze(model, overlays, self.resolver)
         reachability.attach_derived_steps(overlays, report)
-        reachability.enforce(report)  # <- comment out this line to bypass the gate
+        if enforce_reachability:
+            reachability.enforce(report)  # gate; `check` passes enforce_reachability=False to report instead
 
         return ScenarioModel(model=model, attack_paths=overlays)
 

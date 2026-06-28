@@ -5,6 +5,9 @@ Implements build, show, and destroy commands.
 import os
 import logging
 import time
+import json
+import webbrowser
+from pathlib import Path
 from typing import Dict, Optional
 import yaml
 from src.config_manager import ConfigManager
@@ -13,6 +16,9 @@ from src.terraform_manager import TerraformManager
 from src.output_formatter import OutputFormatter
 from src.terraform_builder import build_tfvars
 from src.scenario_loader import ScenarioLoader
+from src import reachability
+from src import graph_builder
+from src import name_uniquifier
 import src.dataplane as dataplane
 import src.utils as utils
 from src.constants import WEBAPP_FOOTHOLD_VECTORS
@@ -311,6 +317,250 @@ class BuildCommand:
         logging.info("")
 
 
+class CheckCommand:
+    """Handles `check`: compile a declarative config and report attack-path
+    reachability WITHOUT deploying (no Terraform, no Azure). This is the Gatekeeper
+    tool and the offline-preview for the agentic demo — see
+    dev-docs/demo/agentic-badzure-plan.md (Phase 0).
+
+    Exit codes: 0 = all paths reachable (or none), 1 = at least one unreachable,
+    2 = config/compile error.
+    """
+
+    # Verdict markers mirror OutputFormatter._declarative_reachability's vocabulary.
+    _MARKERS = {
+        reachability.REACHED: '[reachable]',
+        reachability.UNVERIFIED: '[unverified]',
+        reachability.BLOCKED: '[UNREACHABLE]',
+        reachability.INVALID: '[INVALID]',
+    }
+
+    def __init__(self):
+        self.config_mgr = ConfigManager()
+        self.generator = EntityGenerator()
+
+    def execute(self, config_file: str, json_output: bool = False,
+                verbose: bool = False) -> int:
+        # In JSON mode keep stdout clean: silence the info-level log stream so the
+        # only thing on stdout is the verdict object the Gatekeeper subagent parses.
+        if json_output:
+            logging.getLogger().setLevel(logging.WARNING)
+
+        try:
+            config = self.config_mgr.load_config(config_file)
+        except (FileNotFoundError, yaml.YAMLError) as e:
+            return self._fail(config_file, f"Could not load config: {e}", json_output)
+
+        if not isinstance(config, dict) or BuildCommand._is_legacy_config(config):
+            return self._fail(
+                config_file,
+                "Not a declarative config (legacy 'mode:' shape or invalid). Convert it "
+                "to the baseline:/attack_paths: shape — see badzure.yml.",
+                json_output)
+
+        # Compile + run the reachability gate, but DO NOT enforce: an unreachable
+        # path must be reported, not raised. Placeholder domain — `check` never deploys.
+        loader = ScenarioLoader(self.generator)
+        try:
+            scenario = loader.load(config, domain="example.com",
+                                   enforce_reachability=False)
+        except ValueError as e:  # ScenarioConfigError / validation errors subclass ValueError
+            return self._fail(config_file, f"Config error: {e}", json_output)
+
+        results = [self._verdict(ov) for ov in (scenario.attack_paths or [])]
+        reachable = sum(1 for r in results if r['reachable'])
+        unreachable = len(results) - reachable
+        ok = unreachable == 0
+
+        if json_output:
+            print(json.dumps({
+                "config": config_file,
+                "ok": ok,
+                "summary": {"total": len(results),
+                            "reachable": reachable, "unreachable": unreachable},
+                "paths": results,
+            }, indent=2))
+        else:
+            self._render_human(config_file, results, reachable, unreachable, verbose)
+
+        return 0 if ok else 1
+
+    @staticmethod
+    def _verdict(overlay) -> Dict:
+        reach = overlay.reachability or {}
+        status = reach.get('status')
+        objective = overlay.objective or {}
+        target = objective.get('role') or objective.get('target_ref')
+        steps = [
+            {"name": s.get('name'), "target_ref": s.get('target_ref'),
+             "action": s.get('action')}
+            for s in (overlay.steps or [])
+        ]
+        return {
+            "name": overlay.name,
+            "objective": {"name": objective.get('name'),
+                          "capability": objective.get('capability'), "target": target,
+                          "description": objective.get('description')},
+            "status": status,
+            "reachable": status in (reachability.REACHED, reachability.UNVERIFIED),
+            "reason": reach.get('reason', ''),
+            "steps": steps,
+        }
+
+    @classmethod
+    def _render_human(cls, config_file, results, reachable, unreachable, verbose) -> None:
+        logging.info(f"Checking declarative config: {config_file}  (offline - no Azure)")
+        logging.info("=" * 60)
+        if not results:
+            logging.info("No attack paths to check (baseline-only config).")
+            logging.info("=" * 60)
+            return
+        for r in results:
+            log = logging.info if r['reachable'] else logging.error
+            log(f"{r['name']}")
+            obj_name = r['objective'].get('name')
+            if obj_name:
+                log(f"  Objective: {obj_name}")
+            cap = r['objective'].get('capability')
+            if cap:
+                tgt = r['objective'].get('target')
+                log(f"  Goal: {cap}" + (f" -> {tgt}" if tgt else ""))
+            desc = r['objective'].get('description')
+            if desc:
+                log(f"  Narrative: {desc}")
+            marker = cls._MARKERS.get(r['status'], r['status'] or '[unknown]')
+            log(f"  Reachability: {marker} {r['reason']}".rstrip())
+            log(f"  Steps: {len(r['steps'])}")
+            if verbose:
+                for i, s in enumerate(r['steps'], 1):
+                    arrow = f" -> {s['target_ref']}" if s.get('target_ref') else ""
+                    act = f" [{s['action']}]" if s.get('action') else ""
+                    log(f"    {i}. {s.get('name', 'step')}{arrow}{act}")
+        logging.info("=" * 60)
+        summary = (f"{len(results)} path(s) checked: "
+                   f"{reachable} reachable, {unreachable} unreachable.")
+        (logging.info if unreachable == 0 else logging.error)(summary)
+
+    @staticmethod
+    def _fail(config_file: str, message: str, json_output: bool) -> int:
+        if json_output:
+            print(json.dumps({"config": config_file, "ok": False, "error": message},
+                             indent=2))
+        else:
+            logging.error(message)
+        return 2
+
+
+class GraphCommand:
+    """Handles `graph`: render a declarative config as offline Mermaid diagrams
+    (identity / resources / attack) in a standalone HTML page, then open it. The
+    human-in-the-loop REVIEW SURFACE for the agentic demo (Phase 2) — see
+    dev-docs/demo/agentic-badzure-plan.md. No Terraform, no Azure.
+
+    Exit codes: 0 = rendered, 2 = config/compile error.
+    """
+
+    _SECTIONS = {
+        "identity": ("Identity / Org structure", "identity_mermaid"),
+        "resources": ("Resources", "resource_mermaid"),
+        "attack": ("Attack paths", "attack_mermaid"),
+    }
+
+    def __init__(self):
+        self.config_mgr = ConfigManager()
+        self.generator = EntityGenerator()
+
+    def execute(self, config_file: str, view: str = "all", output: Optional[str] = None,
+                open_browser: bool = True, verbose: bool = False) -> int:
+        try:
+            config = self.config_mgr.load_config(config_file)
+        except (FileNotFoundError, yaml.YAMLError) as e:
+            logging.error(f"Could not load config: {e}")
+            return 2
+
+        if not isinstance(config, dict) or BuildCommand._is_legacy_config(config):
+            logging.error("Not a declarative config (legacy 'mode:' shape or invalid).")
+            return 2
+
+        loader = ScenarioLoader(self.generator)
+        try:
+            scenario = loader.load(config, domain="example.com",
+                                   enforce_reachability=False)
+        except ValueError as e:
+            logging.error(f"Config error: {e}")
+            return 2
+
+        model = scenario.model
+        overlays = scenario.attack_paths or []
+
+        wanted = list(self._SECTIONS) if view == "all" else [view]
+        sections = []
+        for key in wanted:
+            heading, fn = self._SECTIONS[key]
+            if key == "attack":
+                mermaid = graph_builder.attack_mermaid(overlays)
+            else:
+                mermaid = getattr(graph_builder, fn)(model)
+            sections.append((heading, mermaid))
+
+        title = f"BadZure lab: {os.path.basename(config_file)}"
+        page = graph_builder.render_html(title, sections)
+
+        if not output:
+            base = os.path.splitext(os.path.basename(config_file))[0]
+            output = f"{base}.graph.html"
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(page)
+        logging.info(f"Wrote graph to {output} ({', '.join(wanted)})")
+
+        if open_browser:
+            try:
+                webbrowser.open(Path(output).resolve().as_uri())
+            except Exception as e:  # noqa: BLE001 — opening a browser must never fail the command
+                logging.warning(f"Could not open browser automatically: {e}")
+        return 0
+
+
+class UniquifyCommand:
+    """Handles `uniquify`: rewrite globally-unique Azure resource names (key vaults,
+    storage, cosmos, function apps, app services) with a short suffix so a generated
+    config builds first-try on a real tenant (Phase 3a). Pure config transform — no
+    Terraform, no Azure.
+
+    Exit codes: 0 = rewritten (or nothing to do), 2 = config/load error.
+    """
+
+    def __init__(self):
+        self.config_mgr = ConfigManager()
+
+    def execute(self, config_file: str, output: Optional[str] = None,
+                suffix: Optional[str] = None, verbose: bool = False) -> int:
+        try:
+            config = self.config_mgr.load_config(config_file)
+        except (FileNotFoundError, yaml.YAMLError) as e:
+            logging.error(f"Could not load config: {e}")
+            return 2
+        if not isinstance(config, dict):
+            logging.error("Config is not a valid YAML mapping.")
+            return 2
+
+        new_config, rename = name_uniquifier.uniquify_config(config, suffix=suffix)
+        out_path = output or config_file
+        with open(out_path, "w", encoding="utf-8") as f:
+            yaml.safe_dump(new_config, f, sort_keys=False, default_flow_style=False,
+                           width=100)
+
+        if rename:
+            logging.info(f"Uniquified {len(rename)} globally-unique resource name(s) "
+                         f"-> {out_path}")
+            if verbose:
+                for old, new in rename.items():
+                    logging.info(f"  {old} -> {new}")
+        else:
+            logging.info(f"No globally-unique resource names to rewrite -> {out_path}")
+        return 0
+
+
 class ShowCommand:
     """Handles the show command to display created resources."""
     
@@ -388,11 +638,12 @@ class DestroyCommand:
 
 
 class GenerateCommand:
-    """Handles `generate`: author a declarative config from a natural-language
-    prompt via an LLM, write it to disk for REVIEW, then deploy with `build`.
+    """Handles `generate`: author a declarative config from natural language via an LLM,
+    write it to disk for REVIEW, then deploy with `build`.
 
-    Composable / layer-aware (decision #8): `--prompt` authors the baseline org;
-    `--attack-prompt` / `--input` are reserved for the later attack-path layer.
+    `--prompt` authors the baseline org (OrgGenerator); `--attack-prompt` (+ optional
+    `--input` to extend an existing config) authors a reachability-verified attack path
+    into it (AttackPathGenerator). Either or both may be given.
     """
 
     def __init__(self):
@@ -402,14 +653,9 @@ class GenerateCommand:
     def execute(self, prompt: Optional[str] = None, attack_prompt: Optional[str] = None,
                 input_config: Optional[str] = None, output: str = "generated.yml",
                 model: Optional[str] = None, verbose: bool = False) -> None:
-        if attack_prompt:
-            logging.warning("--attack-prompt is not implemented yet (attack-path "
-                            "generation is a later slice); ignoring it.")
-        if input_config:
-            logging.warning("--input is reserved for extending an existing config with "
-                            "generated attack paths (a later slice); ignoring it.")
-        if not prompt:
-            logging.error("Provide --prompt describing the organization to generate.")
+        if not prompt and not attack_prompt:
+            logging.error("Provide --prompt (org baseline) and/or --attack-prompt "
+                          "(attack path, with --input an existing config).")
             return
 
         # Resolve LLM settings (CLI --model > env > config llm: block).
@@ -422,19 +668,42 @@ class GenerateCommand:
         # Lazy imports: keep build/show/destroy free of the LLM dependency surface.
         from src.llm_provider import LLMProvider, LLMError
         from src.org_generator import OrgGenerator, OrgGenerationError
+        from src.attack_generator import AttackPathGenerator, AttackGenerationError
 
         provider = LLMProvider(model=llm["model"], api_key=llm["api_key"],
                                base_url=llm["base_url"])
-        org_gen = OrgGenerator(provider, self.generator)
 
-        logging.info(f"Generating an org baseline from your prompt using {llm['model']}")
-        try:
-            config = org_gen.generate_baseline(prompt)
-        except (OrgGenerationError, LLMError) as e:
-            logging.error(f"Generation failed: {e}")
+        # 1. Org baseline. From --prompt, or loaded from --input when only attacking.
+        config: Optional[Dict] = None
+        if prompt:
+            logging.info(f"Generating an org baseline from your prompt using {llm['model']}")
+            try:
+                config = OrgGenerator(provider, self.generator).generate_baseline(prompt)
+            except (OrgGenerationError, LLMError) as e:
+                logging.error(f"Generation failed: {e}")
+                return
+        elif input_config:
+            try:
+                config = self.config_mgr.load_config(input_config)
+            except (FileNotFoundError, Exception) as e:  # noqa: BLE001
+                logging.error(f"Could not load --input config: {e}")
+                return
+        elif attack_prompt:
+            logging.error("--attack-prompt needs a baseline: pass --prompt too, or "
+                          "--input an existing config.")
             return
 
-        self._write_config(config, output, prompt, llm["model"])
+        # 2. Attack path layer (optional) — author a reachable chain into the config.
+        if attack_prompt:
+            logging.info(f"Generating an attack path from your prompt using {llm['model']}")
+            try:
+                config = AttackPathGenerator(provider, self.generator).generate_attack_paths(
+                    config or {}, attack_prompt)
+            except (AttackGenerationError, LLMError) as e:
+                logging.error(f"Attack-path generation failed: {e}")
+                return
+
+        self._write_config(config, output, prompt or attack_prompt, llm["model"])
         logging.info(f"Wrote generated config to {output}")
         logging.info(f"Review it, then deploy with:  python badzure.py build --config {output}")
 
@@ -450,3 +719,65 @@ class GenerateCommand:
         body = yaml.safe_dump(config, sort_keys=False, default_flow_style=False, width=100)
         with open(output, "w") as f:
             f.write(header + body)
+
+
+class CompileBaselineCommand:
+    """Handles `compile-baseline`: deterministically compile an org-design JSON into a
+    declarative baseline config (no LLM, no Azure). This is the offline counterpart to
+    `generate` for the agentic flow — a Claude Code agent (or any tool) authors the
+    compact org-design JSON itself, then this command expands it into realistic named
+    users/groups/etc. and validates it (the org-side equivalent of `check`).
+
+    Exit codes: 0 = compiled + validated, 2 = malformed design / validation error.
+    """
+
+    def __init__(self):
+        self.generator = EntityGenerator()
+
+    def execute(self, design_file: str, output: str = "generated.yml",
+                verbose: bool = False) -> int:
+        from src.org_generator import OrgGenerator, OrgGenerationError
+
+        try:
+            with open(design_file, "r", encoding="utf-8") as f:
+                design = json.load(f)
+        except FileNotFoundError:
+            logging.error(f"Org-design file not found: {design_file}")
+            return 2
+        except json.JSONDecodeError as e:
+            logging.error(f"Org-design is not valid JSON: {e}")
+            return 2
+
+        # No provider needed: compile_design + validate are pure/offline.
+        org_gen = OrgGenerator(provider=None, entity_generator=self.generator)
+        try:
+            config = org_gen.compile_design(design)
+            org_gen.validate(config)
+        except (OrgGenerationError, ValueError) as e:
+            logging.error(f"Org design invalid: {e}")
+            return 2
+
+        header = (
+            "# BadZure baseline compiled by `badzure compile-baseline`.\n"
+            f"# Source design: {design_file}\n"
+            "# Review/edit before deploying. Run `uniquify` for globally-unique names.\n\n"
+        )
+        body = yaml.safe_dump(config, sort_keys=False, default_flow_style=False, width=100)
+        with open(output, "w", encoding="utf-8") as f:
+            f.write(header + body)
+        n_users = len((config.get("baseline", {}).get("identities", {}) or {}).get("users", []))
+        logging.info(f"Compiled org baseline -> {output} ({n_users} users)")
+        return 0
+
+
+class BaselineSpecCommand:
+    """Handles `baseline-spec`: print the org-design authoring contract (vocabulary +
+    schema + rules) that a design must follow — the SAME contract `generate`'s inner LLM
+    is given. An agent reads this, authors an org-design JSON, then runs
+    `compile-baseline`. Printing from the source avoids any drift from `vocabulary.py`."""
+
+    @staticmethod
+    def execute() -> int:
+        from src.org_generator import OrgGenerator
+        print(OrgGenerator._system_prompt())
+        return 0

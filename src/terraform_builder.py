@@ -32,9 +32,11 @@ Three cross-block jobs that don't belong to a single handler live here:
      origin, not the inject's — hence a cross-block lookup.
 """
 from typing import Dict, List
+import logging
 
 from src.primitives import (
-    DeploymentModel, Primitive, EntraRoleAssignment, AppCredential, DataInject,
+    DeploymentModel, Primitive, EntraRoleAssignment, AzureRbacAssignment, ApiPermission,
+    AppCredential, DataInject, GroupMembership, GroupOwnership, AppOwnership, AuMembership,
     InitialAccessVector, RANDOM, ATTACK_PATH, value_fields,
 )
 from src.primitive_handlers import handler_for, CREDENTIAL, DATAPLANE_LOCATION_TYPES
@@ -50,6 +52,40 @@ class LabValidationError(ValueError):
 
 _ORIGIN_FAMILY_PREFIX = {RANDOM: "random", ATTACK_PATH: "attack_path"}
 _ORIGIN_KEY_PREFIX = {RANDOM: "random:", ATTACK_PATH: "ap:"}
+
+# Relationship assignments whose Azure/Terraform resource is FULLY defined by their
+# value-fields, and which Azure rejects as a duplicate if emitted twice (e.g. an
+# azure_rbac role assignment -> 409 RoleAssignmentExists; a repeated group membership /
+# ownership / Entra-role / API permission). Two of these with identical value-fields
+# create the SAME resource, so they are collapsed to one before emit — making any config
+# robust no matter how it was authored (LLM, agent, or by hand). They are idempotent, so
+# dropping the duplicate is a no-op semantically. Credentials / data_injects / initial-
+# access vectors are NOT deduped (a credential_ref binds to one by key, and identical-
+# looking injects/creds can be legitimately distinct).
+_DEDUPE_TYPES = (
+    EntraRoleAssignment, AzureRbacAssignment, ApiPermission,
+    GroupMembership, GroupOwnership, AppOwnership, AuMembership,
+)
+
+
+def dedupe_assignments(primitives: List[Primitive]) -> "tuple[List[Primitive], int]":
+    """Return (deduped_primitives, n_removed): collapse relationship assignments that
+    would create the SAME Azure resource (same type + identical value-fields, regardless
+    of origin), keeping the first occurrence. Non-relationship primitives pass through."""
+    seen = set()
+    out: List[Primitive] = []
+    removed = 0
+    for p in primitives:
+        if isinstance(p, _DEDUPE_TYPES):
+            identity = (type(p).__name__,
+                        tuple((f, getattr(p, f)) for f in value_fields(type(p))))
+            if identity in seen:
+                removed += 1
+                continue
+            seen.add(identity)
+        out.append(p)
+    return out, removed
+
 
 
 def origin_prefixed_key(bare_key: str, origin: str) -> str:
@@ -81,6 +117,14 @@ _MATERIAL_REQUIRES = {
 class TerraformBuilder:
     def __init__(self, model: DeploymentModel):
         self.model = model
+        # Collapse semantically-duplicate relationship assignments BEFORE any pass reads
+        # the primitives, so a duplicate role assignment can never reach `terraform apply`
+        # (where Azure 409s with RoleAssignmentExists). Idempotent: safe to run repeatedly.
+        deduped, n_removed = dedupe_assignments(model.primitives)
+        if n_removed:
+            model.primitives = deduped
+            logging.info(
+                f"Collapsed {n_removed} duplicate assignment(s) before emit ")
         # bare AppCredential key -> origin, for credential_ref prefixing.
         self._credential_origin: Dict[str, str] = {}
         for p in model.primitives:
