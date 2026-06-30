@@ -1,6 +1,6 @@
 """
 test_compile_baseline_command.py — offline test of `badzure compile-baseline` (the
-agent-authored org-baseline path: org-design JSON -> deterministic compile + validate ->
+agent-authored org-baseline path: org-design YAML -> deterministic compile + validate ->
 generated.yml, no LLM, no Azure). Mirrors the org_generator compiler tests.
 
 Runs two ways:
@@ -9,7 +9,7 @@ Runs two ways:
 """
 import os
 import sys
-import json
+import yaml
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -49,8 +49,8 @@ def _cmd():
 
 
 def _write(tmp_path, design):
-    p = tmp_path / "design.json"
-    p.write_text(json.dumps(design))
+    p = tmp_path / "design.yml"
+    p.write_text(yaml.safe_dump(design))
     return str(p)
 
 
@@ -67,13 +67,21 @@ def test_compiles_and_validates(tmp_path):
 
 
 def test_missing_file_exits_two():
-    code = _cmd().execute(os.path.join(_REPO, "nope_design.json"))
+    code = _cmd().execute(os.path.join(_REPO, "nope_design.yml"))
     assert code == 2
 
 
-def test_invalid_json_exits_two(tmp_path):
-    p = tmp_path / "bad.json"
-    p.write_text("{ not json")
+def test_invalid_yaml_exits_two(tmp_path):
+    p = tmp_path / "bad.yml"
+    p.write_text("{ not: valid: yaml: here")
+    code = _cmd().execute(str(p))
+    assert code == 2
+
+
+def test_non_mapping_design_exits_two(tmp_path):
+    # Valid YAML, but a scalar/list rather than a mapping -> rejected with a clear error.
+    p = tmp_path / "scalar.yml"
+    p.write_text("just a string")
     code = _cmd().execute(str(p))
     assert code == 2
 
@@ -102,7 +110,8 @@ if __name__ == "__main__":
     failures = 0
     with tempfile.TemporaryDirectory() as d:
         tp = Path(d)
-        for fn in (test_compiles_and_validates, test_invalid_json_exits_two,
+        for fn in (test_compiles_and_validates, test_invalid_yaml_exits_two,
+                   test_non_mapping_design_exits_two,
                    test_dangling_ref_exits_two, test_unknown_role_exits_two):
             try:
                 fn(tp)

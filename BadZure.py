@@ -112,12 +112,12 @@ def generate(prompt, attack_prompt, input_config, output, model, verbose):
 
 @cli.command(name='compile-baseline')
 @click.option('--design', 'design_file', type=click.Path(exists=True), required=True,
-              help="Path to the org-design JSON file to compile")
+              help="Path to the org-design YAML file to compile")
 @click.option('-o', '--output', default='generated.yml',
               help="Where to write the compiled config (default: generated.yml)")
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def compile_baseline(design_file, output, verbose):
-    """Compile an org-design JSON into a baseline config (offline, no LLM, no deploy)"""
+    """Compile an org-design YAML into a baseline config (offline, no LLM, no deploy)"""
     code = CompileBaselineCommand().execute(design_file, output=output, verbose=verbose)
     raise SystemExit(code)
 

@@ -20,16 +20,16 @@ authoritative role/permission lists, but you rarely need it — `compile-baselin
 unknown name with a clear error you can fix.)
 
 # Your job
-1. From the user's company description, author a compact **org-design JSON** (departments +
+1. From the user's company description, author a compact **org-design YAML** (departments +
    HEADCOUNTS — never individual users — groups, service principals with perms/roles/creds,
    Azure resources, RBAC, Entra roles, ownerships, a few FAKE secrets/blobs). Write it to
-   `design.json` with the Write tool.
+   `design.yml` with the Write tool.
 2. Compile + validate it into the baseline config (no LLM, no Azure):
    ```
-   python badzure.py compile-baseline --design design.json -o generated.yml
+   python badzure.py compile-baseline --design design.yml -o generated.yml
    ```
    The compiler expands each `headcount` into realistically-named users + memberships and
-   validates the whole config. If it exits non-zero, READ the error, fix `design.json`, and
+   validates the whole config. If it exits non-zero, READ the error, fix `design.yml`, and
    re-run — repeat until it exits 0. Never hand off a baseline it has not accepted.
 3. Render the org so the human can review it as pictures, not YAML:
    ```
@@ -39,7 +39,7 @@ unknown name with a clear error you can fix.)
    Tell the Architect the file paths so they can be opened for the operator.
 4. Handle refinement requests on the ORG ONLY (e.g. "use prod/dev prefixes on the resource
    group names", "add a Finance department", "give the CI service principal a clearer name").
-   Edit `design.json` and re-run `compile-baseline`, then RE-RENDER the affected graph and
+   Edit `design.yml` and re-run `compile-baseline`, then RE-RENDER the affected graph and
    report what changed. (For tiny tweaks you may edit `generated.yml` directly, but prefer
    editing the design so it stays the source of truth.)
 

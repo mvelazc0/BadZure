@@ -1,6 +1,6 @@
 # Baseline-authoring cheat-sheet (for the Org Builder agent)
 
-How to author a BadZure **org-design JSON** that `badzure compile-baseline` expands into a
+How to author a BadZure **org-design YAML** that `badzure compile-baseline` expands into a
 realistic, deployable org baseline. This is the org-side equivalent of the attack cheat-sheet.
 
 The schema, rules, and a curated vocabulary are below — this file is self-sufficient, exactly
@@ -18,12 +18,12 @@ ownerships, AUs, and planted fake secrets — and validates the result. You neve
 hundreds of users; you give a `headcount` and the compiler generates them.
 
 ## Flow
-1. Author the design as a single JSON object (see schema below) and save it to `design.json`.
+1. Author the design as a single YAML mapping (see schema below) and save it to `design.yml`.
 2. Compile + validate it (no LLM, no Azure):
    ```
-   python badzure.py compile-baseline --design design.json -o generated.yml
+   python badzure.py compile-baseline --design design.yml -o generated.yml
    ```
-3. If it exits non-zero, read the error, FIX `design.json`, and re-run — the same self-repair
+3. If it exits non-zero, read the error, FIX `design.yml`, and re-run — the same self-repair
    loop the Adversary uses with `check`. Repeat until it exits 0.
 4. Render the graphs for review:
    ```
@@ -32,29 +32,40 @@ hundreds of users; you give a `headcount` and the compiler generates them.
    ```
 
 ## Org-design schema (all top-level keys optional except `departments`)
-```json
-{
-  "company": {"name": "Helix Bio", "industry": "biotech", "size": "mid"},
-  "departments": [{"name": "Research", "headcount": 78}, {"name": "IT", "headcount": 12}],
-  "groups": [{"ref": "IT-Admins", "department": "IT"}],
-  "service_principals": [
-    {"ref": "ci-deploy", "purpose": "CI/CD",
-     "api_permissions": ["User.Read.All"],
-     "azure_roles": [{"role": "Contributor", "scope": "rg-prod"}],
-     "credentials": [{"display_name": "github-actions"}]}
-  ],
-  "administrative_units": [{"ref": "Research-Unit", "departments": ["Research"]}],
-  "resources": {
-    "resource_groups": [{"ref": "rg-prod", "location": "West US 2"}],
-    "key_vaults": [{"ref": "kvhxprod01", "resource_group": "rg-prod"}],
-    "storage_accounts": [{"ref": "sthxprod01", "resource_group": "rg-prod"}]
-  },
-  "rbac": [{"principal": "IT-Admins", "role": "Reader", "scope": "rg-prod"}],
-  "entra_roles": [{"principal": "IT-Admins", "role": "Helpdesk Administrator"}],
-  "ownerships": [{"owner": "IT", "target": "ci-deploy"}],
-  "secrets": [{"vault": "kvhxprod01", "name": "db-connection-string"}],
-  "blobs": [{"storage": "sthxprod01", "name": "backup.json"}]
-}
+```yaml
+company: { name: "Helix Bio", industry: "biotech", size: "mid" }
+departments:
+  - { name: "Research", headcount: 78 }
+  - { name: "IT", headcount: 12 }
+groups:
+  - { ref: "IT-Admins", department: "IT" }
+service_principals:
+  - ref: "ci-deploy"
+    purpose: "CI/CD"
+    api_permissions: ["User.Read.All"]
+    azure_roles:
+      - { role: "Contributor", scope: "rg-prod" }
+    credentials:
+      - { display_name: "github-actions" }
+administrative_units:
+  - { ref: "Research-Unit", departments: ["Research"] }
+resources:
+  resource_groups:
+    - { ref: "rg-prod", location: "West US 2" }
+  key_vaults:
+    - { ref: "kvhxprod01", resource_group: "rg-prod" }
+  storage_accounts:
+    - { ref: "sthxprod01", resource_group: "rg-prod" }
+rbac:
+  - { principal: "IT-Admins", role: "Reader", scope: "rg-prod" }
+entra_roles:
+  - { principal: "IT-Admins", role: "Helpdesk Administrator" }
+ownerships:
+  - { owner: "IT", target: "ci-deploy" }
+secrets:
+  - { vault: "kvhxprod01", name: "db-connection-string" }
+blobs:
+  - { storage: "sthxprod01", name: "backup.json" }
 ```
 
 ## Vocabulary (the common, realistic palette)

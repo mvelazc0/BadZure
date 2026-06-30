@@ -722,10 +722,10 @@ class GenerateCommand:
 
 
 class CompileBaselineCommand:
-    """Handles `compile-baseline`: deterministically compile an org-design JSON into a
+    """Handles `compile-baseline`: deterministically compile an org-design YAML into a
     declarative baseline config (no LLM, no Azure). This is the offline counterpart to
     `generate` for the agentic flow — a Claude Code agent (or any tool) authors the
-    compact org-design JSON itself, then this command expands it into realistic named
+    compact org-design YAML itself, then this command expands it into realistic named
     users/groups/etc. and validates it (the org-side equivalent of `check`).
 
     Exit codes: 0 = compiled + validated, 2 = malformed design / validation error.
@@ -740,12 +740,15 @@ class CompileBaselineCommand:
 
         try:
             with open(design_file, "r", encoding="utf-8") as f:
-                design = json.load(f)
+                design = yaml.safe_load(f)
         except FileNotFoundError:
             logging.error(f"Org-design file not found: {design_file}")
             return 2
-        except json.JSONDecodeError as e:
-            logging.error(f"Org-design is not valid JSON: {e}")
+        except yaml.YAMLError as e:
+            logging.error(f"Org-design is not valid YAML: {e}")
+            return 2
+        if not isinstance(design, dict):
+            logging.error("Org-design must be a YAML mapping (key: value structure).")
             return 2
 
         # No provider needed: compile_design + validate are pure/offline.

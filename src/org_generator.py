@@ -88,7 +88,7 @@ class OrgGenerator:
         """Deterministically expand an org design into the explicit-baseline IR
         (the Slice-1 config shape). Pure/offline — no LLM, no Azure."""
         if not isinstance(design, dict):
-            raise OrgGenerationError("org design must be a JSON object.")
+            raise OrgGenerationError("org design must be a mapping (object).")
 
         expander = _UserExpander(self.generator)
         users_by_dept: Dict[str, List[str]] = {}

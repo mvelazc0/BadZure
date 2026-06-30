@@ -12,8 +12,15 @@ HTML page embedding it). The CLI (`badzure graph`) compiles the model and opens 
 HTML; this module never touches Azure or the browser, so it is fully unit-testable.
 """
 import html
+import os
 import re
 from typing import Dict, List, Tuple
+
+# Vendored Mermaid UMD build (src/assets/mermaid.min.js) so graphs render fully
+# offline — no CDN dependency on the demo/recording machine.
+_MERMAID_JS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "assets", "mermaid.min.js")
+_MERMAID_INIT = ("mermaid.initialize({ startOnLoad: true, theme: 'dark', "
+                 "securityLevel: 'loose' });")
 
 from src.primitives import (
     DeploymentModel, GroupMembership, GroupOwnership, AppOwnership, AuMembership,
@@ -225,9 +232,26 @@ def attack_mermaid(overlays: List) -> str:
 # ---------------------------------------------------------------------------
 # HTML wrapper
 # ---------------------------------------------------------------------------
+def _mermaid_script() -> str:
+    """The <script> block that loads Mermaid. Inlines the vendored UMD build for a
+    fully self-contained, offline page; falls back to the CDN only if the vendored
+    asset is missing (so a stripped checkout still renders with network access)."""
+    try:
+        with open(_MERMAID_JS, "r", encoding="utf-8") as f:
+            js = f.read()
+        return f"<script>{js}</script>\n<script>{_MERMAID_INIT}</script>"
+    except OSError:
+        return ("<script type=\"module\">\n"
+                "  import mermaid from "
+                "'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';\n"
+                f"  {_MERMAID_INIT}\n"
+                "</script>")
+
+
 def render_html(title: str, sections: List[Tuple[str, str]]) -> str:
     """A standalone HTML page rendering each (heading, mermaid-source) section.
-    Mermaid is loaded from a CDN and renders client-side — no server needed."""
+    Mermaid is inlined from the vendored build and renders client-side — no server
+    and no network needed."""
     blocks = []
     for heading, mermaid in sections:
         blocks.append(
@@ -235,6 +259,7 @@ def render_html(title: str, sections: List[Tuple[str, str]]) -> str:
             f'<pre class="mermaid">\n{html.escape(mermaid)}\n</pre></section>'
         )
     body = "\n".join(blocks)
+    script = _mermaid_script()
     return f"""<!DOCTYPE html>
 <html lang="en">
 <head>
@@ -253,10 +278,7 @@ def render_html(title: str, sections: List[Tuple[str, str]]) -> str:
 <body>
 <h1>{html.escape(title)}</h1>
 {body}
-<script type="module">
-  import mermaid from 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.esm.min.mjs';
-  mermaid.initialize({{ startOnLoad: true, theme: 'dark', securityLevel: 'loose' }});
-</script>
+{script}
 </body>
 </html>
 """
