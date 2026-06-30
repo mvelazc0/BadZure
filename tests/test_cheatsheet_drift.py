@@ -1,16 +1,16 @@
 """
-test_cheatsheet_drift.py — drift tripwire for the agent reference cheat-sheets.
+test_cheatsheet_drift.py — drift tripwire for the agent authoring skills.
 
-The `.claude/reference/*-cheatsheet.md` files embed a curated vocabulary of Entra-role
-and Graph-permission NAMES so the Org Builder / Adversary subagents are self-sufficient.
-That embedded list can silently drift from the source of truth (`src/constants.py`, via
-`NameResolver`) — e.g. if a role is renamed in code, the cheat-sheet keeps the old name and
-an agent authors something the resolver rejects only at runtime.
+The `.claude/skills/badzure-*-authoring/SKILL.md` files embed a curated vocabulary of
+Entra-role and Graph-permission NAMES so the Org Builder / Adversary subagents are
+self-sufficient. That embedded list can silently drift from the source of truth
+(`src/constants.py`, via `NameResolver`) — e.g. if a role is renamed in code, the skill keeps
+the old name and an agent authors something the resolver rejects only at runtime.
 
-This test parses the vocabulary sections out of the cheat-sheets and asserts every name
-still resolves. If it fails, the cheat-sheet and the code have diverged — fix whichever is
-stale. (Azure RBAC role names are intentionally NOT checked: they have no offline catalog in
-constants.py — they pass through to Terraform/azurerm, which validates them at apply time.)
+This test parses the vocabulary sections out of the skills and asserts every name still
+resolves. If it fails, the skill and the code have diverged — fix whichever is stale. (Azure
+RBAC role names are intentionally NOT checked: they have no offline catalog in constants.py —
+they pass through to Terraform/azurerm, which validates them at apply time.)
 
 Runs two ways:
     python tests/test_cheatsheet_drift.py
@@ -25,11 +25,14 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from src.name_resolver import NameResolver, NameResolutionError  # noqa: E402
 
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_REF = os.path.join(_REPO, ".claude", "reference")
+_SKILLS = os.path.join(_REPO, ".claude", "skills")
+
+_BASELINE_SKILL = os.path.join("badzure-baseline-authoring", "SKILL.md")
+_ATTACK_SKILL = os.path.join("badzure-attack-authoring", "SKILL.md")
 
 
-def _read(name: str) -> str:
-    with open(os.path.join(_REF, name), "r", encoding="utf-8") as f:
+def _read(rel_path: str) -> str:
+    with open(os.path.join(_SKILLS, rel_path), "r", encoding="utf-8") as f:
         return f.read()
 
 
@@ -55,7 +58,7 @@ def _attack_entra_roles(attack_text: str):
 
 def test_graph_permissions_resolve():
     resolver = NameResolver()
-    perms = _graph_permissions(_read("baseline-authoring-cheatsheet.md"))
+    perms = _graph_permissions(_read(_BASELINE_SKILL))
     assert len(perms) >= 5, f"too few Graph permissions parsed ({len(perms)}) — parser drift?"
     bad = []
     for p in perms:
@@ -68,8 +71,8 @@ def test_graph_permissions_resolve():
 
 def test_entra_roles_resolve():
     resolver = NameResolver()
-    roles = (_baseline_entra_roles(_read("baseline-authoring-cheatsheet.md"))
-             + _attack_entra_roles(_read("attack-authoring-cheatsheet.md")))
+    roles = (_baseline_entra_roles(_read(_BASELINE_SKILL))
+             + _attack_entra_roles(_read(_ATTACK_SKILL)))
     assert len(roles) >= 5, f"too few Entra roles parsed ({len(roles)}) — parser drift?"
     bad = []
     for r in roles:

@@ -1,13 +1,19 @@
-# Baseline-authoring cheat-sheet (for the Org Builder agent)
+---
+name: badzure-baseline-authoring
+description: Authoring contract for a BadZure org-design YAML (departments + headcounts, groups, service principals, Azure resources, RBAC, Entra roles, ownerships, fake secrets) that `compile-baseline` expands into a realistic, deployable lab baseline. Use when generating or refining a BadZure organization/tenant baseline. Not for attack paths.
+user-invocable: false
+---
+
+# BadZure baseline authoring
 
 How to author a BadZure **org-design YAML** that `badzure compile-baseline` expands into a
-realistic, deployable org baseline. This is the org-side equivalent of the attack cheat-sheet.
+realistic, deployable org baseline. This is the org-side equivalent of the attack-authoring skill.
 
-The schema, rules, and a curated vocabulary are below — this file is self-sufficient, exactly
-like the Adversary's attack cheat-sheet. `compile-baseline` is the gate: it rejects any unknown
-role/permission name (or dangling ref) with a clear error you then fix, so you don't need an
-exhaustive list to author confidently. For the FULL authoritative role/permission lists you may
-optionally run `python badzure.py baseline-spec`, but you rarely need to.
+The schema, rules, and a curated vocabulary are below — this skill is self-sufficient.
+`compile-baseline` is the gate: it rejects any unknown role/permission name (or dangling ref)
+with a clear error you then fix, so you don't need an exhaustive list to author confidently. For
+the FULL authoritative role/permission lists you may optionally run
+`python badzure.py baseline-spec`, but you rarely need to.
 
 ---
 

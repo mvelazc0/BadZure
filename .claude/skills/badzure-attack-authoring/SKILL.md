@@ -1,4 +1,10 @@
-# Attack-authoring cheat-sheet (for the Adversary agent)
+---
+name: badzure-attack-authoring
+description: Authoring contract for a BadZure chained attack path as YAML (objective, initial_access, identities/resources, assignments, credentials, data_injects) that the deterministic reachability gate (`badzure check`) confirms is traversable. Use when designing or refining a multi-hop privilege-escalation path through a BadZure org baseline. Not for the org baseline itself.
+user-invocable: false
+---
+
+# BadZure attack authoring
 
 A practical, condensed reference for authoring a **chained** BadZure attack path as YAML.
 Canonical sources: `docs/attack-paths/chained.md`, `docs/configuration.md`, and the worked
