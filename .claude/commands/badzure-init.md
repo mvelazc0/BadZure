@@ -60,15 +60,24 @@ for review:
   **adversary**, re-verify with the **gatekeeper**, and re-render.
 
 # STEP 4 — Deploy (after they approve the attack)
-1. Make the resource names globally unique and valid (offline):
+1. **Verify reachability YOURSELF before deploying — do not take the Gatekeeper's word for it.**
+   Run the deterministic gate as your own final check and read the exit code:
+   ```
+   python badzure.py check --config generated.yml --json
+   ```
+   Proceed ONLY if `ok: true`. If it is not, the path is not real yet: hand the failing `reason`
+   back to the **adversary** to repair, re-verify, and do NOT advance to deploy until it passes.
+   (`build` itself also refuses to deploy an unreachable path — this is your fail-fast, and it
+   keeps an unverified path from ever reaching Azure even if a subagent reported otherwise.)
+2. Make the resource names globally unique and valid (offline):
    ```
    python badzure.py uniquify --config generated.yml
    ```
-2. **Confirm before touching Azure.** Tell the operator this next step creates REAL Azure +
+3. **Confirm before touching Azure.** Tell the operator this next step creates REAL Azure +
    Entra resources in their tenant and incurs cost, and that it needs them to be `az login`'d as
    Global Administrator + subscription Owner. Ask them to confirm they want to deploy now, and
    WAIT for a clear yes.
-3. On yes, **run the build yourself** (via your Bash tool) so they never touch a terminal:
+4. On yes, **run the build yourself** (via your Bash tool) so they never touch a terminal:
    ```
    python badzure.py build --config generated.yml
    ```
@@ -77,9 +86,10 @@ for review:
    attack-path summary (objective, reachability verdict, ordered steps), the initial-access
    credentials it prints, and the `users.txt` note — so they see exactly what was created without
    reading the raw log. Lead with the narrative again, then the concrete creds/resources.
-4. If the build fails, report the error plainly and offer the fix (common ones: not `az login`'d;
+5. If the build fails, report the error plainly and offer the fix (common ones: not `az login`'d;
+   an unreachable path — `build` refuses to deploy it, repair via the **adversary** and re-`check`;
    a global name clash — re-run `uniquify`; a region/SKU/quota issue). Then offer to retry.
-5. Remind them they can tear the whole lab down when finished:
+6. Remind them they can tear the whole lab down when finished:
    ```
    python badzure.py destroy
    ```

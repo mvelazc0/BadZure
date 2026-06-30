@@ -54,7 +54,39 @@ class BuildCommand:
             )
             return
 
+        # Code-enforced reachability gate (offline, BEFORE any network/Azure call):
+        # build proves for ITSELF that every attack path is reachable and refuses to
+        # create a tenant otherwise. It does not trust an upstream agent's claim that
+        # the path was verified — the deterministic gate is the only authority.
+        self._reachability_gate(config_file)
+
         self._build_declarative_mode(config, verbose)
+
+    def _reachability_gate(self, config_file: str) -> None:
+        """Refuse to deploy a config whose attack path isn't provably reachable.
+
+        Runs the SAME deterministic verdict as `badzure check` (offline, no Azure),
+        so build gates on exactly what the Gatekeeper reports — but verifies it here,
+        in code, rather than relying on any subagent's word. On an unreachable (exit 1)
+        or invalid (exit 2) config it logs a loud refusal and aborts with that exit
+        code; a reachable or baseline-only config (exit 0) passes through silently.
+        """
+        logging.info("Verifying attack-path reachability before deploy (offline gate)...")
+        code = CheckCommand().execute(config_file)
+        if code == 0:
+            return
+        logging.error("=" * 60)
+        if code == 1:
+            logging.error("REFUSING TO DEPLOY - an attack path is NOT reachable.")
+            logging.error(
+                "BadZure will not create a tenant for a path it cannot prove traversable. "
+                "Repair the failing hop shown above and retry; nothing was created."
+            )
+        else:
+            logging.error("REFUSING TO DEPLOY - the config is invalid (see the error above). "
+                          "Nothing was created.")
+        logging.error("=" * 60)
+        raise SystemExit(code)
 
     # Tenant-level entity-count keys that only the retired legacy shape used (the
     # declarative shape puts these under `baseline:`).
