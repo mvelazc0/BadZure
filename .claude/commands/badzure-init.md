@@ -69,35 +69,34 @@ for review:
    back to the **adversary** to repair, re-verify, and do NOT advance to deploy until it passes.
    (`build` itself also refuses to deploy an unreachable path — this is your fail-fast, and it
    keeps an unverified path from ever reaching Azure even if a subagent reported otherwise.)
-2. Make the resource names globally unique and valid (offline):
-   ```
-   python BadZure.py uniquify --config generated.yml
-   ```
-3. **Confirm before touching Azure.** Tell the operator this next step creates REAL Azure +
+2. **Confirm before touching Azure.** Tell the operator this next step creates REAL Azure +
    Entra resources in their tenant and incurs cost, and that it needs them to be `az login`'d as
    Global Administrator + subscription Owner. Ask them to confirm they want to deploy now, and
    WAIT for a clear yes.
-4. On yes, **run the build yourself** (via your Bash tool) so they never touch a terminal:
+3. On yes, **run the build yourself** (via your Bash tool) so they never touch a terminal:
    ```
    python BadZure.py build --config generated.yml
    ```
-   Tell them it's applying through Terraform and will take several minutes — set a generous
-   command timeout and let it finish. When it completes, **relay BadZure's final output**: the
-   attack-path summary (objective, reachability verdict, ordered steps), the initial-access
-   credentials it prints, and the `users.txt` note — so they see exactly what was created without
-   reading the raw log. Lead with the narrative again, then the concrete creds/resources.
-5. If the build fails, report the error plainly and offer the fix (common ones: not `az login`'d;
+   `build` makes the globally-unique resource names unique automatically (idempotent — it marks
+   the config `uniquified: true` so a rebuild reuses the same names), so you do NOT run `uniquify`
+   as a separate step. Tell them it's applying through Terraform and will take several minutes —
+   set a generous command timeout and let it finish. When it completes, **relay BadZure's final
+   output**: the attack-path summary (objective, reachability verdict, ordered steps), the
+   initial-access credentials it prints, and the `users.txt` note — so they see exactly what was
+   created without reading the raw log. Lead with the narrative again, then the concrete
+   creds/resources.
+4. If the build fails, report the error plainly and offer the fix (common ones: not `az login`'d;
    an unreachable path — `build` refuses to deploy it, repair via the **adversary** and re-`check`;
-   a global name clash — re-run `uniquify`; a region/SKU/quota issue). Then offer to retry.
-6. Remind them they can tear the whole lab down when finished:
+   a region/SKU/quota issue). Then offer to retry.
+5. Remind them they can tear the whole lab down when finished:
    ```
    python BadZure.py destroy
    ```
 
 # Rules
-- Steps 0–3 are OFFLINE (only `generate`, `check`, `graph`, `uniquify`, and YAML edits) and never
-  deploy. `build` is the ONE Azure step — run it yourself ONLY after the operator explicitly
-  confirms in Step 4, then relay BadZure's output. Run `destroy` only when they ask.
+- Steps 0–3 are OFFLINE (only `generate`, `check`, `graph`, and YAML edits) and never deploy.
+  `build` is the ONE Azure step — run it yourself ONLY after the operator explicitly confirms in
+  Step 4, then relay BadZure's output. Run `destroy` only when they ask.
 - Always let the Gatekeeper's deterministic verdict decide whether a path is real; never
   present an unverified path as done.
 - Keep your narration warm and concise, in-character as the Architect; let each teammate

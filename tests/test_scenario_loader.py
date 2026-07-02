@@ -532,6 +532,72 @@ def test_uninferable_principal_type_errors():
         assert "principal_type" in str(e)
 
 
+def test_certificate_leg_auto_mints_real_files_and_builds():
+    """A declarative path may DECLARE a certificate credential + app_certificate inject
+    WITHOUT supplying files; the loader deterministically mints real cert/key/pfx files
+    (Option A: in-memory at compile), fills the paths, and the full preflight
+    build_tfvars(verify_files=True) then passes. The credential and inject for the same
+    app share ONE minted cert triple."""
+    from src.primitives import AppCredential, DataInject
+    from src.terraform_builder import build_tfvars as _bt
+
+    config = {
+        "schema": "graph",
+        "attack_paths": {
+            "cert_theft": {
+                "objective": {"name": "Signing cert theft", "impact": "high"},
+                "initial_access": {"method": "compromised_identity",
+                                   "principal_ref": "alice"},
+                "identities": {
+                    "users": [{"ref": "alice"}],
+                    "applications": [{"ref": "app_highpriv"}],
+                },
+                "resources": {"storage_accounts": [{"ref": "sa01"}]},
+                "assignments": [
+                    {"id": "a1", "type": "azure_rbac", "principal_ref": "alice",
+                     "role": "Storage Blob Data Reader", "scope_ref": "sa01"},
+                    {"id": "a2", "type": "entra_role", "principal_ref": "app_highpriv",
+                     "role": GA_ROLE},
+                ],
+                "credentials": [
+                    {"ref": "signing_cert", "app_ref": "app_highpriv",
+                     "type": "certificate"},
+                ],
+                "data_injects": [
+                    {"id": "d1", "material": "app_certificate",
+                     "source_ref": "app_highpriv", "location": "storage_blob",
+                     "location_ref": "sa01", "name": "app_highpriv-signing.pfx"},
+                ],
+            }
+        },
+    }
+    scenario = _loader().load(config, domain="contoso.com", enforce_reachability=False)
+    model = scenario.model
+
+    cert_cred = next(p for p in model.primitives
+                     if isinstance(p, AppCredential) and p.type == "certificate")
+    cert_inject = next(p for p in model.primitives
+                       if isinstance(p, DataInject) and p.material == "app_certificate")
+    assert cert_cred.certificate_path, "certificate credential should be auto-minted a path"
+    assert cert_inject.file_path and cert_inject.file_path.endswith(".pfx")
+    # Same app -> one shared cert triple: <app>-<suffix>.pem / .key / .pfx.
+    assert cert_cred.certificate_path[:-4] == cert_inject.file_path[:-4]
+
+    key_sibling = cert_cred.certificate_path[:-4] + ".key"
+    minted = [cert_cred.certificate_path, cert_inject.file_path, key_sibling]
+    try:
+        for path in (cert_cred.certificate_path, cert_inject.file_path):
+            assert os.path.exists(os.path.join(_REPO, "terraform", path)), \
+                f"minted file {path} should exist on disk"
+        # Full preflight (verify_files=True) passes now that the files are real.
+        _bt(model, verify_files=True)
+    finally:
+        for path in minted:
+            fp = os.path.join(_REPO, "terraform", path)
+            if os.path.exists(fp):
+                os.remove(fp)
+
+
 def _main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

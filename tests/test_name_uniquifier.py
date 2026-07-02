@@ -154,6 +154,52 @@ def test_command_writes_output(tmp_path):
     assert "kv-bz-vault02-z9k2q" in refs
 
 
+# ---------------------------------------------------------------------------
+# Idempotence marker (uniquified: true) — build can safely re-run uniquify
+# ---------------------------------------------------------------------------
+def test_marker_stamped_on_output():
+    new, rename = name_uniquifier.uniquify_config(_apex(), suffix=_SUFFIX)
+    assert new.get("uniquified") is True
+    assert rename  # apex has global resources, so it actually renamed some
+
+
+def test_idempotent_second_pass_is_noop():
+    first, r1 = name_uniquifier.uniquify_config(_apex(), suffix=_SUFFIX)
+    assert r1
+    # A config already marked uniquified passes through untouched — NO second suffix.
+    second, r2 = name_uniquifier.uniquify_config(first, suffix="xxxxx")
+    assert r2 == {}
+    kvs = [r["ref"] for r in
+           second["attack_paths"]["apex_to_global_admin"]["resources"]["key_vaults"]]
+    assert "kv-bz-vault02-z9k2q" in kvs
+    assert not any(r.endswith("-xxxxx") for r in kvs)  # no stacked suffix
+
+
+def test_build_ensure_uniquified_marks_and_persists(tmp_path):
+    import yaml
+    from src.cli import BuildCommand
+    p = tmp_path / "c.yml"
+    p.write_text(yaml.safe_dump(_apex(), sort_keys=False))
+    cfg = ConfigManager().load_config(str(p))
+
+    out = BuildCommand()._ensure_uniquified(cfg, str(p))
+    assert out.get("uniquified") is True
+    # Persisted to disk with the marker + suffixed names.
+    on_disk = ConfigManager().load_config(str(p))
+    assert on_disk.get("uniquified") is True
+    kv_disk = [r["ref"] for r in
+               on_disk["attack_paths"]["apex_to_global_admin"]["resources"]["key_vaults"]]
+    assert any(r.startswith("kv-bz-vault02-") for r in kv_disk)
+
+    # Second build call on the now-marked, persisted config is a no-op (same names).
+    out2 = BuildCommand()._ensure_uniquified(on_disk, str(p))
+    kv1 = sorted(r["ref"] for r in
+                 out["attack_paths"]["apex_to_global_admin"]["resources"]["key_vaults"])
+    kv2 = sorted(r["ref"] for r in
+                 out2["attack_paths"]["apex_to_global_admin"]["resources"]["key_vaults"])
+    assert kv1 == kv2
+
+
 if __name__ == "__main__":
     import logging
     import tempfile
@@ -166,7 +212,8 @@ if __name__ == "__main__":
                test_deterministic_with_suffix,
                test_function_app_storage_derivation_keeps_suffix,
                test_no_double_or_trailing_hyphen, test_key_vault_starts_with_letter,
-               test_all_apex_names_within_limits, test_uniquified_config_still_reachable):
+               test_all_apex_names_within_limits, test_uniquified_config_still_reachable,
+               test_marker_stamped_on_output, test_idempotent_second_pass_is_noop):
         try:
             fn()
             print(f"PASS {fn.__name__}")
@@ -181,6 +228,12 @@ if __name__ == "__main__":
         except AssertionError as e:
             failures += 1
             print(f"FAIL test_command_writes_output: {e}")
+        try:
+            test_build_ensure_uniquified_marks_and_persists(Path(d))
+            print("PASS test_build_ensure_uniquified_marks_and_persists")
+        except AssertionError as e:
+            failures += 1
+            print(f"FAIL test_build_ensure_uniquified_marks_and_persists: {e}")
 
     print(f"\n{'ALL PASSED' if failures == 0 else str(failures) + ' FAILED'}")
     sys.exit(1 if failures else 0)

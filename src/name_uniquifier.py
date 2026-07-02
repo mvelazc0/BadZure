@@ -95,7 +95,15 @@ def uniquify_config(config: Dict, suffix: Optional[str] = None) -> Tuple[Dict, D
 
     A fixed `suffix` makes the transform deterministic (useful for tests / rehearsal);
     omit it to get a fresh random 5-char suffix.
+
+    IDEMPOTENT: a config already carrying the `uniquified: true` marker is returned
+    unchanged (empty rename map). This lets `build` always call uniquify without
+    stacking a second suffix onto names an earlier `uniquify` (agent or CLI) already
+    made unique. The marker is stamped onto every config this transform processes.
     """
+    if config.get("uniquified"):
+        return config, {}
+
     suffix = suffix or _suffix()
     rename: Dict[str, str] = {}
 
@@ -106,4 +114,5 @@ def uniquify_config(config: Dict, suffix: Optional[str] = None) -> Tuple[Dict, D
             _collect(path.get("resources") or {}, rename, suffix)
 
     new_config = _deep_replace(copy.deepcopy(config), rename)
+    new_config["uniquified"] = True
     return new_config, rename

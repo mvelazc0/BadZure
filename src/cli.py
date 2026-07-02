@@ -54,6 +54,15 @@ class BuildCommand:
             )
             return
 
+        # Make globally-unique Azure resource names (storage/cosmos/web-app/etc.) unique
+        # BEFORE any deploy step, so a name clash can never reach `terraform apply`. This
+        # is idempotent (a config already marked `uniquified: true` passes through
+        # untouched), so it is safe whether or not the operator ran `uniquify` first —
+        # the same reason the reachability gate runs here in code rather than trusting a
+        # prior step. The result is persisted so the file, Terraform state and Azure all
+        # agree, and a retry re-deploys the SAME names instead of orphaning the first.
+        config = self._ensure_uniquified(config, config_file)
+
         # Code-enforced reachability gate (offline, BEFORE any network/Azure call):
         # build proves for ITSELF that every attack path is reachable and refuses to
         # create a tenant otherwise. It does not trust an upstream agent's claim that
@@ -61,6 +70,24 @@ class BuildCommand:
         self._reachability_gate(config_file)
 
         self._build_declarative_mode(config, verbose)
+
+    def _ensure_uniquified(self, config: Dict, config_file: str) -> Dict:
+        """Ensure the config's globally-unique resource names are suffixed, persisting
+        the result back to `config_file`. Idempotent: a config already carrying the
+        `uniquified: true` marker is returned unchanged and the file is left alone.
+
+        Persisting matters: it stamps the marker (so a rebuild reuses the SAME names
+        rather than minting new ones and orphaning the first deploy) and keeps the file
+        the operator sees in sync with what actually deploys."""
+        new_config, rename = name_uniquifier.uniquify_config(config)
+        if rename:
+            with open(config_file, "w", encoding="utf-8") as f:
+                yaml.safe_dump(new_config, f, sort_keys=False,
+                               default_flow_style=False, width=100)
+            logging.info(
+                f"Made {len(rename)} globally-unique resource name(s) unique and marked "
+                f"'{config_file}' as uniquified (so a rebuild reuses these names).")
+        return new_config
 
     def _reachability_gate(self, config_file: str) -> None:
         """Refuse to deploy a config whose attack path isn't provably reachable.
@@ -397,6 +424,17 @@ class CheckCommand:
             scenario = loader.load(config, domain="example.com",
                                    enforce_reachability=False)
         except ValueError as e:  # ScenarioConfigError / validation errors subclass ValueError
+            return self._fail(config_file, f"Config error: {e}", json_output)
+
+        # Structural/semantic PREFLIGHT: run the same builder validation `build` runs,
+        # offline (no Azure). This catches deploy-breaking authoring errors — a bad
+        # ref, a missing credential companion, an app_secret pointing at a certificate
+        # credential, a certificate with no file, an impossible location/material combo
+        # — BEFORE `apply`, so the Adversary self-repair loop + the Gatekeeper see them
+        # here instead of 8 minutes into a terraform apply.
+        try:
+            build_tfvars(scenario.model)
+        except ValueError as e:  # LabValidationError subclasses ValueError
             return self._fail(config_file, f"Config error: {e}", json_output)
 
         results = [self._verdict(ov) for ov in (scenario.attack_paths or [])]

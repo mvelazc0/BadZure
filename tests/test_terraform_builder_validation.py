@@ -105,6 +105,80 @@ def test_valid_model_compiles():
     assert out["attack_path_data_injects"]["inj"]["credential_ref"] == "ap:cred"
 
 
+# --- credential type / certificate rules -------------------------------------
+def test_unknown_credential_type_rejected():
+    m = _base_model(primitives=[AppCredential("c", ATTACK_PATH, "app1", "token")])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_certificate_credential_without_path_rejected():
+    # A certificate credential must carry a file (generic.tf feeds it to file()).
+    m = _base_model(primitives=[AppCredential("c", ATTACK_PATH, "app1", "certificate")])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_certificate_credential_missing_file_rejected_when_verifying():
+    m = _base_model(primitives=[
+        AppCredential("c", ATTACK_PATH, "app1", "certificate", certificate_path="nope.pem")])
+    _assert_raises(lambda: build_tfvars(m, verify_files=True))
+
+
+def test_certificate_credential_missing_file_ok_when_not_verifying():
+    # Structural unit tests (placeholder cert paths, never deployed) skip the check.
+    m = _base_model(primitives=[
+        AppCredential("c", ATTACK_PATH, "app1", "certificate", certificate_path="nope.pem")])
+    build_tfvars(m, verify_files=False)  # must not raise
+
+
+# --- data_inject cross-type + location/material matrix -----------------------
+def test_app_secret_referencing_certificate_credential_rejected():
+    # THE regression: material app_secret reads azuread_application_password[ref], so it
+    # must bind a PASSWORD credential — binding a certificate credential is the bug that
+    # passed `check` and then crashed `terraform apply` (generic.tf:404).
+    m = _base_model(primitives=[
+        AppCredential("cred", ATTACK_PATH, "app1", "certificate", certificate_path="x.pem"),
+        DataInject("inj", ATTACK_PATH, "app_secret", "key_vault_secret", "kv1", "s",
+                   credential_ref="cred"),
+    ])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_unknown_location_type_rejected():
+    m = _base_model(primitives=[
+        AppCredential("cred", ATTACK_PATH, "app1", "password"),
+        DataInject("inj", ATTACK_PATH, "app_secret", "sql_row", "kv1", "s",
+                   credential_ref="cred"),
+    ])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_certificate_material_in_key_vault_secret_rejected():
+    # A KV secret stores a string value — it can't hold a certificate file.
+    m = _base_model(primitives=[
+        DataInject("inj", ATTACK_PATH, "app_certificate", "key_vault_secret", "kv1", "s",
+                   file_path="x.pfx"),
+    ])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_secret_material_in_key_vault_certificate_rejected():
+    # A KV certificate imports a PFX (filebase64) — it can't hold a plain secret.
+    m = _base_model(primitives=[
+        AppCredential("cred", ATTACK_PATH, "app1", "password"),
+        DataInject("inj", ATTACK_PATH, "app_secret", "key_vault_certificate", "kv1", "s",
+                   credential_ref="cred"),
+    ])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_app_certificate_missing_file_rejected_when_verifying():
+    m = _base_model(primitives=[
+        DataInject("inj", ATTACK_PATH, "app_certificate", "key_vault_certificate", "kv1",
+                   "c", source_ref="app1", file_path="nope.pfx"),
+    ])
+    _assert_raises(lambda: build_tfvars(m, verify_files=True))
+
+
 def _main():
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_")]
     failed = 0

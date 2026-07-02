@@ -22,7 +22,13 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import src.attack_path_manager as apm  # noqa: E402
 from src.attack_path_manager import AttackPathManager  # noqa: E402
 from src.primitives import DeploymentModel  # noqa: E402
-from src.terraform_builder import build_tfvars  # noqa: E402
+from src.terraform_builder import build_tfvars as _build_tfvars  # noqa: E402
+
+
+# Cert generation is monkeypatched to fake paths (no file I/O), so skip the on-disk
+# cert-existence check the real preflight enforces — this suite tests var emission.
+def build_tfvars(model):
+    return _build_tfvars(model, verify_files=False)
 
 GA_ROLE = "62e90394-69f5-4237-9190-012177145e10"  # Global Administrator
 

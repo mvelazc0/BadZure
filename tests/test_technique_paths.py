@@ -29,11 +29,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.entity_generator import EntityGenerator  # noqa: E402
 from src.scenario_loader import ScenarioLoader, ScenarioConfigError  # noqa: E402
-from src.terraform_builder import build_tfvars  # noqa: E402
+from src.terraform_builder import build_tfvars as _build_tfvars  # noqa: E402
 from src import reachability  # noqa: E402
 
 GA_ROLE = "62e90394-69f5-4237-9190-012177145e10"  # Global Administrator
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+# The macro test modules install a module-level stub for generate_certificate_and_key
+# that returns fake paths without writing files; imported globally, it reaches here too.
+# This suite tests compile+build STRUCTURE, so skip the on-disk cert-existence check the
+# real preflight enforces (the dedicated cert-automint tests own that coverage).
+def build_tfvars(model):
+    return _build_tfvars(model, verify_files=False)
 
 
 def _loader():

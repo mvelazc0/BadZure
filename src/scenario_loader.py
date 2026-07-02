@@ -32,6 +32,7 @@ from typing import Dict, List, Optional
 import random
 
 from src import reachability
+from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
 from src.name_resolver import NameResolver
 from src.baseline_generator import BaselineGenerator
@@ -172,6 +173,22 @@ class ScenarioLoader:
         # Drives `technique:` paths — the on-ramp tier that fires the macro library
         # (the SAME macros the legacy mode used) instead of an explicit assignment graph.
         self.attack_path_mgr = attack_path_mgr or AttackPathManager(self.generator)
+        # Per-app cert cache: app_ref -> (cert_pem, key, pfx) paths, so a certificate
+        # credential and any app_certificate data_inject for the SAME app share one
+        # minted cert triple. Populated lazily by _ensure_cert during compile.
+        self._cert_cache: Dict[str, tuple] = {}
+
+    def _ensure_cert(self, app_ref: str) -> tuple:
+        """Mint (once per app) a real self-signed cert/key/pfx for `app_ref` and return
+        the (cert_pem, key, pfx) file paths. This is the deterministic follow-through
+        that lets an author DECLARE a certificate leg (`type: certificate` /
+        `material: app_certificate`) without hand-supplying files: the LLM designs the
+        intent, this mints the artifact. Files land in terraform/ (gitignored), the
+        same place + format the macros use, so generic.tf's file()/filebase64() resolve
+        them at apply."""
+        if app_ref not in self._cert_cache:
+            self._cert_cache[app_ref] = generate_certificate_and_key(app_ref)
+        return self._cert_cache[app_ref]
 
     # -- public API -----------------------------------------------------------
     def load(self, config: Dict, tenant_id: str = "", domain: str = "",
@@ -650,23 +667,34 @@ class ScenarioLoader:
             ref = cred.get("ref") or f"cred{idx}"
             key = self._key("baseline", ref)
             cred_ref_to_key[ref] = key
+            cred_type = cred.get("type", "password")
+            cert_path = cred.get("certificate_path")
+            if cred_type == "certificate" and not cert_path:
+                cert_path, _key_path, _pfx_path = self._ensure_cert(cred["app_ref"])
             primitives.append(AppCredential(
                 key, RANDOM,
-                app_ref=cred["app_ref"], type=cred.get("type", "password"),
-                certificate_path=cred.get("certificate_path"),
+                app_ref=cred["app_ref"], type=cred_type,
+                certificate_path=cert_path,
                 display_name=cred.get("display_name", "BadZureBaselineCredential"),
             ))
         for idx, d in enumerate(baseline_config.get("data_injects") or []):
             did = d.get("id") or f"d{idx}"
             cref = d.get("credential_ref")
+            material = d["material"]
+            location_type = d.get("location_type") or d.get("location")
+            source_ref = d.get("source_ref")
+            file_path = d.get("file_path")
+            if material == "app_certificate" and not file_path and source_ref:
+                cert_path, key_path, pfx_path = self._ensure_cert(source_ref)
+                file_path = cert_path if location_type == "cosmos_document" else pfx_path
             primitives.append(DataInject(
                 self._key("baseline", did), RANDOM,
-                material=d["material"],
-                location_type=d.get("location_type") or d.get("location"),
+                material=material,
+                location_type=location_type,
                 location_ref=d["location_ref"], name=d["name"],
-                source_ref=d.get("source_ref"),
+                source_ref=source_ref,
                 credential_ref=cred_ref_to_key.get(cref, cref) if cref else None,
-                literal_value=d.get("literal_value"), file_path=d.get("file_path"),
+                literal_value=d.get("literal_value"), file_path=file_path,
                 pfx_password=d.get("pfx_password", ""),
             ))
 
@@ -685,10 +713,16 @@ class ScenarioLoader:
                 )
             key = self._key(path_name, ref)
             cred_ref_to_key[ref] = key
+            cred_type = cred.get("type", "password")
+            cert_path = cred.get("certificate_path")
+            # Auto-mint: a certificate credential with no supplied file gets a real
+            # cert minted for its app (the .pem is the public cert generic.tf uploads).
+            if cred_type == "certificate" and not cert_path:
+                cert_path, _key_path, _pfx_path = self._ensure_cert(cred["app_ref"])
             primitives.append(AppCredential(
                 key, ATTACK_PATH,
-                app_ref=cred["app_ref"], type=cred.get("type", "password"),
-                certificate_path=cred.get("certificate_path"),
+                app_ref=cred["app_ref"], type=cred_type,
+                certificate_path=cert_path,
                 display_name=cred.get("display_name", "BadZureCredential"),
             ))
 
@@ -705,14 +739,25 @@ class ScenarioLoader:
         for idx, d in enumerate(path.get("data_injects", [])):
             did = d.get("id") or f"d{idx}"
             cred_ref = d.get("credential_ref")
+            material = d["material"]
+            location_type = d.get("location_type") or d.get("location")
+            source_ref = d.get("source_ref")
+            file_path = d.get("file_path")
+            # Auto-mint: an app_certificate inject with no supplied file gets a real
+            # cert minted for its source app. KV cert-import + storage need the PFX
+            # (cert+key); a cosmos document holds the text PEM. Shares the app's cached
+            # triple with any certificate credential on the same app.
+            if material == "app_certificate" and not file_path and source_ref:
+                cert_path, key_path, pfx_path = self._ensure_cert(source_ref)
+                file_path = cert_path if location_type == "cosmos_document" else pfx_path
             primitives.append(DataInject(
                 self._key(path_name, did), ATTACK_PATH,
-                material=d["material"],
-                location_type=d.get("location_type") or d.get("location"),
+                material=material,
+                location_type=location_type,
                 location_ref=d["location_ref"], name=d["name"],
-                source_ref=d.get("source_ref"),
+                source_ref=source_ref,
                 credential_ref=cred_ref_to_key.get(cred_ref, cred_ref) if cred_ref else None,
-                literal_value=d.get("literal_value"), file_path=d.get("file_path"),
+                literal_value=d.get("literal_value"), file_path=file_path,
                 pfx_password=d.get("pfx_password", ""),
             ))
 

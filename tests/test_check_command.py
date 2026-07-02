@@ -122,6 +122,55 @@ def test_json_error_is_structured(capsys, tmp_path):
 
 
 # ---------------------------------------------------------------------------
+# Structural PREFLIGHT: check runs the builder validation, so a config that would
+# crash `terraform apply` is caught offline (exit 2) — the Adversary's self-repair
+# loop + the Gatekeeper see it here, not mid-apply.
+# ---------------------------------------------------------------------------
+def test_certificate_secret_mismatch_preflight_exits_two(capsys, tmp_path):
+    """The exact production bug: an app_secret data_inject bound to a CERTIFICATE
+    credential. It is reachability-valid but crashes apply (generic.tf:404). The
+    preflight must reject it with a clear password-vs-certificate message."""
+    import glob
+    ga = "62e90394-69f5-4237-9190-012177145e10"
+    cfg = tmp_path / "bug.yml"
+    cfg.write_text(
+        "schema: graph\n"
+        "attack_paths:\n"
+        "  bug:\n"
+        "    objective: {name: Secret theft, impact: high}\n"
+        "    initial_access: {method: compromised_identity, principal_ref: alice}\n"
+        "    identities:\n"
+        "      users: [{ref: alice}]\n"
+        "      applications: [{ref: bugcertapp}]\n"
+        "    resources:\n"
+        "      key_vaults: [{ref: kv01}]\n"
+        "    assignments:\n"
+        "      - {id: a1, type: azure_rbac, principal_ref: alice,\n"
+        "         role: Key Vault Secrets User, scope_ref: kv01}\n"
+        f"      - {{id: a2, type: entra_role, principal_ref: bugcertapp, role: {ga}}}\n"
+        "    credentials:\n"
+        "      - {ref: c1, app_ref: bugcertapp, type: certificate}\n"
+        "    data_injects:\n"
+        "      - {id: d1, material: app_secret, credential_ref: c1,\n"
+        "         location: key_vault_secret, location_ref: kv01, name: s}\n"
+    )
+    try:
+        code = _cmd().execute(str(cfg), json_output=True)
+        out = capsys.readouterr().out
+        payload = json.loads(out)
+        assert code == 2
+        assert payload["ok"] is False
+        assert "password" in payload["error"] and "certificate" in payload["error"]
+    finally:
+        # The loader auto-minted a cert for the certificate credential; clean it up.
+        tf = os.path.join(_REPO, "terraform")
+        for f in (glob.glob(os.path.join(tf, "bugcertapp-*.pem"))
+                  + glob.glob(os.path.join(tf, "bugcertapp-*.key"))
+                  + glob.glob(os.path.join(tf, "bugcertapp-*.pfx"))):
+            os.remove(f)
+
+
+# ---------------------------------------------------------------------------
 # Self-run support: `python tests/test_check_command.py`
 # ---------------------------------------------------------------------------
 if __name__ == "__main__":
