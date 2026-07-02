@@ -70,6 +70,40 @@ def test_identity_view_scales_to_many_users():
     assert out.count('["') <= 3
 
 
+def test_identity_view_folds_standalone_service_principals():
+    # An org with many SPs where only a couple sit on an ownership edge: the
+    # connected SPs get their own node; the standalone bulk folds into a count
+    # node, so the view stays legible while the SP total is still shown.
+    from src.primitives import DeploymentModel, AppOwnership
+    apps = {f"sp-noise-{i}": {} for i in range(20)}
+    apps["sp-owner"] = {}
+    apps["sp-owned"] = {}
+    m = DeploymentModel(applications=apps)
+    m.primitives = [
+        AppOwnership(key="o1", origin="random", principal_ref="sp-owner",
+                     principal_type="service_principal", app_ref="sp-owned"),
+    ]
+    out = graph_builder.identity_mermaid(m)
+    assert "Service Principals: 22" in out          # full count in the org summary
+    # the two ownership-connected SPs are drawn individually...
+    assert "SP: sp-owner" in out and "SP: sp-owned" in out
+    assert "sp-owner" in out and "-->|owns|" in out  # the edge is kept
+    # ...the 20 standalone SPs fold into one count node, not 20 nodes.
+    assert "Other Service Principals (20)" in out
+    assert "sp-noise-0" not in out
+
+
+def test_identity_view_collapses_all_sps_when_none_connected():
+    # No ownership edges among the SPs -> none are structural -> all fold into a
+    # single plain count node (no "Other" qualifier since nothing is drawn).
+    from src.primitives import DeploymentModel
+    m = DeploymentModel(applications={f"sp{i}": {} for i in range(25)})
+    out = graph_builder.identity_mermaid(m)
+    assert "Service Principals (25)" in out
+    assert "Other Service Principals" not in out
+    assert "SP: sp0" not in out
+
+
 def test_resource_view():
     model, _ = _model_and_overlays("chained_apex.yml")
     out = graph_builder.resource_mermaid(model)

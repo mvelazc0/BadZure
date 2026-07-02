@@ -393,6 +393,98 @@ def test_from_baseline_without_baseline_entities_errors():
         assert "baseline" in str(e).lower()
 
 
+def _named_baseline_match_config(match_value):
+    """A baseline with named users + one attack path that threads a NAMED baseline
+    employee via `{from: baseline, match: ...}`."""
+    return {
+        "baseline": {
+            "identities": {"users": [{"ref": "hannah.lee"}, {"ref": "raj.patel"}]},
+        },
+        "attack_paths": {
+            "targeted": {
+                "objective": {"name": "KV secrets", "impact": "high"},
+                "initial_access": {"principal_ref": "victim"},
+                "identities": {
+                    "users": [{"ref": "victim", "from": "baseline",
+                               "match": match_value}],
+                },
+                "resources": {"key_vaults": [{"ref": "kv01"}]},
+                "assignments": [
+                    {"id": "a1", "type": "azure_rbac", "principal_ref": "victim",
+                     "role": "Key Vault Contributor", "scope_ref": "kv01"},
+                ],
+            }
+        },
+    }
+
+
+def test_from_baseline_match_binds_named_employee_by_ref():
+    scenario = _load(_named_baseline_match_config("hannah.lee"))
+    out = build_tfvars(scenario.model)
+    rbac = out["attack_path_azure_rbac_assignments"]["targeted__a1"]
+    # the alias resolved to the SPECIFIC named baseline user, not a random pick
+    assert rbac["principal_ref"] == "hannah.lee"
+
+
+def test_from_baseline_match_resolves_display_name_case_insensitively():
+    # explicit baseline users get display_name "Hannah Lee" from the "hannah.lee" ref
+    scenario = _load(_named_baseline_match_config("hannah lee"))
+    out = build_tfvars(scenario.model)
+    rbac = out["attack_path_azure_rbac_assignments"]["targeted__a1"]
+    assert rbac["principal_ref"] == "hannah.lee"
+
+
+def test_from_baseline_match_unknown_errors_with_available_list():
+    try:
+        _load(_named_baseline_match_config("nope.nobody"))
+        assert False, "expected ScenarioConfigError for unmatched baseline name"
+    except ScenarioConfigError as e:
+        msg = str(e)
+        assert "nope.nobody" in msg and "hannah.lee" in msg  # lists what's available
+
+
+def test_match_without_from_baseline_errors():
+    config = {
+        "baseline": {"identities": {"users": [{"ref": "hannah.lee"}]}},
+        "attack_paths": {
+            "p": {
+                "identities": {"users": [{"ref": "victim", "match": "hannah.lee"}]},
+                "assignments": [],
+            }
+        },
+    }
+    try:
+        _load(config)
+        assert False, "expected ScenarioConfigError for match without from: baseline"
+    except ScenarioConfigError as e:
+        assert "match" in str(e).lower() and "baseline" in str(e).lower()
+
+
+def test_match_cannot_double_bind_one_baseline_entity():
+    config = {
+        "baseline": {"identities": {"users": [{"ref": "hannah.lee"}, {"ref": "raj.patel"}]}},
+        "attack_paths": {
+            "p": {
+                "objective": {"name": "x", "impact": "high"},
+                "initial_access": {"principal_ref": "v1"},
+                "identities": {"users": [
+                    {"ref": "v1", "from": "baseline", "match": "hannah.lee"},
+                    {"ref": "v2", "from": "baseline", "match": "hannah.lee"},
+                ]},
+                "assignments": [
+                    {"id": "a1", "type": "entra_role", "principal_ref": "v1",
+                     "role": GA_ROLE},
+                ],
+            }
+        },
+    }
+    try:
+        _load(config)
+        assert False, "expected ScenarioConfigError for double-bound baseline entity"
+    except ScenarioConfigError as e:
+        assert "already bound" in str(e).lower()
+
+
 def test_attack_group_excluded_from_baseline_noise():
     # A baseline with one group, used as an attack-path role principal: noise must
     # NOT add random members to it (it's the only group, so 0 memberships result).

@@ -305,9 +305,17 @@ class ScenarioLoader:
         def add_spec(kind: str, raw: Dict):
             ref = self._spec_name(raw)
             source = raw.get("from")
+            match = raw.get("match")
             if source == "baseline":
-                alias[ref] = self._pick_from_baseline(kind, baseline_entities, picked, ref)
+                alias[ref] = self._pick_from_baseline(
+                    kind, baseline_entities, picked, ref, match)
                 return
+            if match is not None:
+                raise ScenarioConfigError(
+                    f"Entity '{ref}' uses `match:` without `from: baseline`; "
+                    f"`match:` selects a NAMED baseline entity and is only valid "
+                    f"alongside `from: baseline`."
+                )
             if source:
                 raise ScenarioConfigError(
                     f"Entity '{ref}' has unknown source `from: {source}` "
@@ -399,13 +407,31 @@ class ScenarioLoader:
                             **explicit_entities.get(attr, {})}
         return merged
 
-    @staticmethod
-    def _pick_from_baseline(kind: str, baseline_entities: Dict[str, Dict],
-                            picked: Dict[str, set], ref: str) -> str:
-        """Bind a `from: baseline` ref to a random, not-yet-bound baseline entity of
-        `kind`."""
-        available = [k for k in baseline_entities.get(kind, {})
-                     if k not in picked.get(kind, set())]
+    @classmethod
+    def _pick_from_baseline(cls, kind: str, baseline_entities: Dict[str, Dict],
+                            picked: Dict[str, set], ref: str,
+                            match: Optional[str] = None) -> str:
+        """Bind a `from: baseline` ref to a baseline entity of `kind`.
+
+        With `match`, bind a SPECIFIC named baseline entity (so an attack can thread
+        the org's real `hannah.lee`); without it, pick a random not-yet-bound one.
+        Either way the chosen key is marked used so two refs never alias one entity.
+        """
+        kind_map = baseline_entities.get(kind, {})
+        already = picked.get(kind, set())
+
+        if match is not None:
+            chosen = cls._resolve_baseline_match(kind, kind_map, ref, match)
+            if chosen in already:
+                raise ScenarioConfigError(
+                    f"`{ref}` matches baseline {kind} '{chosen}', but that entity is "
+                    f"already bound to another attack-path ref; one baseline entity "
+                    f"can back only one ref."
+                )
+            picked.setdefault(kind, set()).add(chosen)
+            return chosen
+
+        available = [k for k in kind_map if k not in already]
         if not available:
             raise ScenarioConfigError(
                 f"`{ref}` requests a {kind} from the baseline, but the baseline has "
@@ -415,6 +441,43 @@ class ScenarioLoader:
         chosen = random.choice(available)
         picked.setdefault(kind, set()).add(chosen)
         return chosen
+
+    # Attributes that name a baseline entity, by priority, for `match:` lookup.
+    _MATCH_ATTRS = ("user_principal_name", "display_name", "name")
+
+    @classmethod
+    def _resolve_baseline_match(cls, kind: str, kind_map: Dict[str, Dict],
+                                ref: str, match: str) -> str:
+        """Resolve `match` to exactly one baseline key of `kind`. Accepts the entity's
+        key (its baseline `ref`) or a naming attribute (UPN / display name / resource
+        name), case-insensitively. Errors on no match (listing what's available) or an
+        ambiguous match (so a never-deployed alias can't slip through)."""
+        if not kind_map:
+            raise ScenarioConfigError(
+                f"`{ref}` asks to match baseline {kind} '{match}', but the baseline "
+                f"declares no {kind}."
+            )
+        if match in kind_map:  # exact key (the baseline ref) — unambiguous
+            return match
+
+        needle = match.strip().casefold()
+        hits = []
+        for key, attrs in kind_map.items():
+            candidates = [key] + [str(attrs[a]) for a in cls._MATCH_ATTRS if a in attrs]
+            if any(c.casefold() == needle for c in candidates):
+                hits.append(key)
+        if not hits:
+            available = ", ".join(sorted(kind_map)) or "(none)"
+            raise ScenarioConfigError(
+                f"`{ref}` asks to match baseline {kind} '{match}', but no such entity "
+                f"exists. Available {kind}: {available}."
+            )
+        if len(set(hits)) > 1:
+            raise ScenarioConfigError(
+                f"`{ref}` match '{match}' is ambiguous across baseline {kind} "
+                f"{sorted(set(hits))}; match on the unique baseline ref instead."
+            )
+        return hits[0]
 
     @staticmethod
     def _merge_entities(baseline_entities: Dict[str, Dict],
@@ -445,7 +508,7 @@ class ScenarioLoader:
     def _to_targeted_spec(cls, raw: Dict) -> Dict:
         """Translate a declarative `{ref: X, ...}` entity into the `{name: X, ...}`
         shape the EntityGenerator *_targeted methods expect."""
-        spec = {k: v for k, v in raw.items() if k not in ("ref", "from")}
+        spec = {k: v for k, v in raw.items() if k not in ("ref", "from", "match")}
         spec["name"] = cls._spec_name(raw)
         return spec
 
@@ -1048,7 +1111,7 @@ class ScenarioLoader:
             for kind, specs in (path.get(section) or {}).items():
                 out[kind] = [
                     {("name" if k == "ref" else k): v
-                     for k, v in spec.items() if k != "from"}
+                     for k, v in spec.items() if k not in ("from", "match")}
                     for spec in specs
                 ]
         return out

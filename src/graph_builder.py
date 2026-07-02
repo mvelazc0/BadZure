@@ -56,11 +56,13 @@ def _label(text: str) -> str:
 # ---------------------------------------------------------------------------
 # ---------------------------------------------------------------------------
 # Identity view — count-based and node-bounded so it stays legible at hundreds
-# of users. Nodes are ONLY groups, administrative units and service principals;
-# individual users are NEVER drawn — they appear as counts on labels.
+# of users. Individual users are NEVER drawn — they appear as counts on labels.
+# Groups and administrative units are drawn (below their caps). Service principals
+# are drawn ONLY when they sit on an ownership edge; standalone SPs fold into a
+# count node — so the view stays readable even at 20+ SPs.
 # ---------------------------------------------------------------------------
 _GROUP_NODE_CAP = 60      # above this, collapse groups to a single count node
-_APP_NODE_CAP = 40        # above this, collapse SPs to a single count node
+_APP_NODE_CAP = 40        # max individually-drawn (ownership-connected) SPs; above, collapse all
 
 
 def identity_mermaid(model: DeploymentModel) -> str:
@@ -137,19 +139,41 @@ def identity_mermaid(model: DeploymentModel) -> str:
         lines.append(f'  groups_all["Groups ({len(model.groups)})"]')
         lines.append('  org --> groups_all')
 
-    show_apps = bool(model.applications) and len(model.applications) <= _APP_NODE_CAP
-    if show_apps:
-        for app in model.applications:
-            owner_note = (f"<br/>owned by {app_user_owners[app]} user(s)"
-                          if app_user_owners.get(app) else "")
-            lines.append(f'  {_node_id("app", app)}(["SP: {_label(app)}{owner_note}"])')
-        if show_groups:
-            for owner, app in app_app_owners:
-                lines.append(f'  {_node_id("app", owner)} -->|owns| {_node_id("app", app)}')
-            for owner, app in app_group_owners:
+    # Service principals — like users, only the ones that carry STRUCTURE are drawn
+    # individually; the rest fold into a single count node so the view stays legible
+    # at 20+ SPs. An SP is "structural" when it sits on an ownership edge (it owns,
+    # or is owned by, another app or a group) — exactly the relationships an attack
+    # path threads through. Standalone SPs (incl. merely user-owned ones) become a
+    # count; the total is never lost (it's also in the org-summary header).
+    connected_apps = set()
+    for owner, app in app_app_owners:
+        connected_apps.add(owner)
+        connected_apps.add(app)
+    for _owner, app in app_group_owners:
+        connected_apps.add(app)
+
+    drawn_apps = [a for a in model.applications if a in connected_apps]
+    # Final guard: if even the connected set is pathologically large, draw none.
+    if len(drawn_apps) > _APP_NODE_CAP:
+        drawn_apps = []
+    drawn = set(drawn_apps)
+
+    for app in drawn_apps:
+        owner_note = (f"<br/>owned by {app_user_owners[app]} user(s)"
+                      if app_user_owners.get(app) else "")
+        lines.append(f'  {_node_id("app", app)}(["SP: {_label(app)}{owner_note}"])')
+    for owner, app in app_app_owners:
+        if owner in drawn and app in drawn:
+            lines.append(f'  {_node_id("app", owner)} -->|owns| {_node_id("app", app)}')
+    if show_groups:
+        for owner, app in app_group_owners:
+            if app in drawn:
                 lines.append(f'  {_node_id("g", owner)} -->|owns| {_node_id("app", app)}')
-    elif model.applications:
-        lines.append(f'  sps_all["Service Principals ({len(model.applications)})"]')
+
+    hidden = len(model.applications) - len(drawn_apps)
+    if hidden > 0:
+        label = "Other Service Principals" if drawn_apps else "Service Principals"
+        lines.append(f'  sps_all["{label} ({hidden})"]')
         lines.append('  org --> sps_all')
 
     return "\n".join(lines)

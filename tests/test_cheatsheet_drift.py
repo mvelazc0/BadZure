@@ -1,91 +1,76 @@
 """
-test_cheatsheet_drift.py — drift tripwire for the agent authoring skills.
+test_cheatsheet_drift.py — drift PREVENTION for the agent authoring skills.
 
-The `.claude/skills/badzure-*-authoring/SKILL.md` files embed a curated vocabulary of
-Entra-role and Graph-permission NAMES so the Org Builder / Adversary subagents are
-self-sufficient. That embedded list can silently drift from the source of truth
-(`src/constants.py`, via `NameResolver`) — e.g. if a role is renamed in code, the skill keeps
-the old name and an agent authors something the resolver rejects only at runtime.
+The `.claude/skills/badzure-*-authoring/SKILL.md` files quote Entra-role and
+Graph-permission NAMES so the Org Builder / Adversary subagents are self-sufficient.
+Those name-lists are no longer hand-maintained: `src/skill_vocab.py` owns them and
+generates each list (between `<!-- BADZURE:GEN ... -->` markers) from the single source
+of truth (`src/vocabulary.py` / `src/constants.py`). Regenerate with:
 
-This test parses the vocabulary sections out of the skills and asserts every name still
-resolves. If it fails, the skill and the code have diverged — fix whichever is stale. (Azure
-RBAC role names are intentionally NOT checked: they have no offline catalog in constants.py —
-they pass through to Terraform/azurerm, which validates them at apply time.)
+    python -m src.skill_vocab
+
+This test enforces that contract two ways:
+  - `test_skill_vocab_blocks_in_sync` — every generated block in the SKILL.md files
+    matches what the code would emit right now (so a vocabulary change that wasn't
+    regenerated cannot merge — drift is *prevented*, not just *detected*).
+  - `test_skill_vocab_names_resolve` — every advertised name still resolves (and the
+    baseline examples are still low-priv). The skill_vocab builders assert this while
+    rendering, so a removed/renamed role fails the regenerate; this test surfaces it
+    independently with a precise message.
+
+(Azure RBAC role names are intentionally NOT resolve-checked: they have no offline
+catalog in constants.py — they pass through to Terraform/azurerm, which validates them
+at apply time. They are still kept in sync structurally by the generator.)
 
 Runs two ways:
     python tests/test_cheatsheet_drift.py
     pytest tests/test_cheatsheet_drift.py
 """
 import os
-import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from src import skill_vocab, vocabulary  # noqa: E402
 from src.name_resolver import NameResolver, NameResolutionError  # noqa: E402
 
-_REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_SKILLS = os.path.join(_REPO, ".claude", "skills")
 
-_BASELINE_SKILL = os.path.join("badzure-baseline-authoring", "SKILL.md")
-_ATTACK_SKILL = os.path.join("badzure-attack-authoring", "SKILL.md")
-
-
-def _read(rel_path: str) -> str:
-    with open(os.path.join(_SKILLS, rel_path), "r", encoding="utf-8") as f:
-        return f.read()
+def test_skill_vocab_blocks_in_sync():
+    stale = skill_vocab.sync(check=True)
+    assert not stale, (
+        "agent SKILL.md vocabulary is out of sync with src/vocabulary.py: "
+        f"{stale}. Run `python -m src.skill_vocab` to regenerate.")
 
 
-def _graph_permissions(baseline_text: str):
-    """Dotted PascalCase tokens (e.g. User.Read.All) are exactly the Graph permission
-    names; nothing else in the cheat-sheet matches this shape."""
-    return sorted(set(re.findall(r"[A-Z][A-Za-z]+(?:\.[A-Za-z]+)+", baseline_text)))
-
-
-def _baseline_entra_roles(baseline_text: str):
-    """The 'e.g. <comma list>.' after the **Entra roles** label in the baseline sheet."""
-    m = re.search(r"e\.g\.\s*(.+?)\.\s*\(Full", baseline_text, re.S)
-    assert m, "baseline cheat-sheet: **Entra roles** 'e.g. …' list not found (structure changed)"
-    return [r.strip() for r in m.group(1).replace("\n", " ").split(",") if r.strip()]
-
-
-def _attack_entra_roles(attack_text: str):
-    """Backticked role names under the attack sheet's 'Escalation-worthy Entra roles'."""
-    m = re.search(r"Escalation-worthy Entra roles.*?\n(.*?)(?:\n##|\Z)", attack_text, re.S)
-    assert m, "attack cheat-sheet: 'Escalation-worthy Entra roles' section not found"
-    return [t.strip() for t in re.findall(r"`([^`]+)`", m.group(1))]
-
-
-def test_graph_permissions_resolve():
+def test_skill_vocab_names_resolve():
     resolver = NameResolver()
-    perms = _graph_permissions(_read(_BASELINE_SKILL))
-    assert len(perms) >= 5, f"too few Graph permissions parsed ({len(perms)}) — parser drift?"
-    bad = []
-    for p in perms:
-        try:
-            resolver.resolve_api_permission(p, "graph")
-        except NameResolutionError:
-            bad.append(p)
-    assert not bad, f"Graph permissions in the cheat-sheet no longer resolve: {bad}"
+    # Building the blocks runs skill_vocab's own assertions (low-priv / resolves /
+    # in-registry); do it here so a failure is attributed to this test.
+    skill_vocab.baseline_blocks()
+    skill_vocab.attack_blocks()
 
-
-def test_entra_roles_resolve():
-    resolver = NameResolver()
-    roles = (_baseline_entra_roles(_read(_BASELINE_SKILL))
-             + _attack_entra_roles(_read(_ATTACK_SKILL)))
-    assert len(roles) >= 5, f"too few Entra roles parsed ({len(roles)}) — parser drift?"
-    bad = []
-    for r in roles:
+    entra = (vocabulary.BASELINE_ENTRA_ROLE_EXAMPLES
+             + vocabulary.ESCALATION_ENTRA_ROLES)
+    bad_roles = []
+    for name in entra:
         try:
-            resolver.resolve_entra_role(r)
+            resolver.resolve_entra_role(name)
         except NameResolutionError:
-            bad.append(r)
-    assert not bad, f"Entra roles in the cheat-sheets no longer resolve: {bad}"
+            bad_roles.append(name)
+    assert not bad_roles, f"Entra roles in the skills no longer resolve: {bad_roles}"
+
+    bad_perms = []
+    for name in vocabulary.graph_permission_names():
+        try:
+            resolver.resolve_api_permission(name, "graph")
+        except NameResolutionError:
+            bad_perms.append(name)
+    assert not bad_perms, f"Graph permissions in the skills no longer resolve: {bad_perms}"
 
 
 if __name__ == "__main__":
     failures = 0
-    for fn in (test_graph_permissions_resolve, test_entra_roles_resolve):
+    for fn in (test_skill_vocab_blocks_in_sync, test_skill_vocab_names_resolve):
         try:
             fn()
             print(f"PASS {fn.__name__}")

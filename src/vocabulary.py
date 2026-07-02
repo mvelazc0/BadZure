@@ -92,6 +92,27 @@ COMMON_GRAPH_PERMISSIONS: List[str] = [
 ]
 
 
+# A short, curated SUBSET of the low-privileged Entra roles, advertised as examples
+# in the baseline authoring skill (the full ~80-name list lives behind `baseline-spec`).
+# Every name here MUST be a low-priv baseline role (asserted at skill-vocab render time
+# against `entra_role_names()`), so the skill can never advertise a role that code has
+# since promoted to high-priv or removed.
+BASELINE_ENTRA_ROLE_EXAMPLES: List[str] = [
+    "Directory Readers", "Message Center Reader", "Reports Reader",
+    "Service Support Administrator", "Groups Administrator", "Guest Inviter",
+    "Usage Summary Reports Reader",
+]
+
+# The common terminal / high-privileged Entra roles an attack path escalates TO,
+# advertised in the attack authoring skill. Each MUST resolve (asserted at render time)
+# so the skill can't name a role the resolver would reject on stage.
+ESCALATION_ENTRA_ROLES: List[str] = [
+    "Global Administrator", "Privileged Role Administrator", "Application Administrator",
+    "Cloud Application Administrator", "Privileged Authentication Administrator",
+    "User Administrator",
+]
+
+
 def entra_role_names() -> List[str]:
     """Low-privileged Entra role names for the baseline (the high-privileged roles
     are reserved for attack paths — baseline noise must not look like the escalation

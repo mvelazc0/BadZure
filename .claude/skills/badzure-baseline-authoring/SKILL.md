@@ -78,24 +78,34 @@ blobs:
 Use these NAMES verbatim. `compile-baseline` accepts any name the resolver knows; this curated
 set keeps generated orgs believable. (For the exhaustive list, `baseline-spec`.)
 
-**Azure RBAC roles** (for `rbac` and SP `azure_roles`): Owner, Contributor, Reader,
-Storage Blob Data Owner, Storage Blob Data Contributor, Storage Blob Data Reader,
-Storage Account Contributor, Storage Queue Data Contributor, Key Vault Administrator,
-Key Vault Secrets User, Key Vault Secrets Officer, Key Vault Reader, Key Vault Certificates
-Officer, Virtual Machine Contributor, Virtual Machine Administrator Login, Website Contributor,
-Web Plan Contributor, Cosmos DB Account Reader Role, DocumentDB Account Contributor,
-Network Contributor, Monitoring Reader, Monitoring Contributor, User Access Administrator.
+<!-- The name-lists below are GENERATED from src/vocabulary.py — do not hand-edit;
+     run `python -m src.skill_vocab` to refresh. The tripwire test enforces sync. -->
 
-**Graph application permissions** (for SP `api_permissions`): User.Read.All, User.ReadWrite.All,
-Group.Read.All, GroupMember.Read.All, Directory.Read.All, Application.Read.All, Mail.Read,
-Mail.Send, Files.Read.All, Sites.Read.All, Calendars.Read, People.Read.All, AuditLog.Read.All,
-Reports.Read.All.
+**Azure RBAC roles** (for `rbac` and SP `azure_roles`):
+<!-- BADZURE:GEN azure_rbac_roles -->
+Owner, Contributor, Reader, Storage Blob Data Owner, Storage Blob Data Contributor, Storage
+Blob Data Reader, Storage Account Contributor, Storage Queue Data Contributor, Key Vault
+Administrator, Key Vault Secrets User, Key Vault Secrets Officer, Key Vault Reader, Key
+Vault Certificates Officer, Virtual Machine Contributor, Virtual Machine Administrator
+Login, Website Contributor, Web Plan Contributor, Cosmos DB Account Reader Role, DocumentDB
+Account Contributor, Network Contributor, Monitoring Reader, Monitoring Contributor, User
+Access Administrator
+<!-- /BADZURE:GEN azure_rbac_roles -->
+
+**Graph application permissions** (for SP `api_permissions`):
+<!-- BADZURE:GEN graph_permissions -->
+User.Read.All, User.ReadWrite.All, Group.Read.All, GroupMember.Read.All, Directory.Read.All,
+Application.Read.All, Mail.Read, Mail.Send, Files.Read.All, Sites.Read.All, Calendars.Read,
+People.Read.All, AuditLog.Read.All, Reports.Read.All
+<!-- /BADZURE:GEN graph_permissions -->
 
 **Entra roles** (for `entra_roles` — use SPARINGLY, only LOW-privileged ones; high-priv roles are
-reserved for attack paths so the baseline doesn't look like the escalation a defender hunts):
-e.g. Directory Readers, Message Center Reader, Reports Reader, Service Support Administrator,
-Groups Administrator, Guest Inviter, Usage Summary Reports Reader. (Full low-priv list:
-`baseline-spec`.)
+reserved for attack paths so the baseline doesn't look like the escalation a defender hunts), e.g.
+<!-- BADZURE:GEN baseline_entra_roles -->
+Directory Readers, Message Center Reader, Reports Reader, Service Support Administrator,
+Groups Administrator, Guest Inviter, Usage Summary Reports Reader
+<!-- /BADZURE:GEN baseline_entra_roles -->
+(Full low-priv list: `baseline-spec`.)
 
 ## Key rules
 - Do NOT enumerate users — give each department a `headcount`; the compiler names them.

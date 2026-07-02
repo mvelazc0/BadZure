@@ -55,7 +55,12 @@ attack_paths:
           name: clinicaldatasync-client-secret }
 ```
 
-Borrow a baseline entity instead of declaring a new one: `{ ref: alice.chen, from: baseline }`.
+Borrow a baseline entity instead of declaring a new one: `{ ref: alice.chen, from: baseline }`
+picks a *random* unused baseline entity of that kind. To thread a **specific named**
+baseline employee/resource instead, add `match:` —
+`{ ref: victim, from: baseline, match: hannah.lee }` binds the org's real `hannah.lee`
+(matches the baseline ref, UPN, display name, or resource name, case-insensitively). Prefer
+`match:` when the narrative names a real person; one baseline entity can back only one ref.
 
 ## The 7 assignment building blocks (the only `type:` values)
 | type | required fields | meaning |
@@ -97,9 +102,12 @@ Borrow a baseline entity instead of declaring a new one: `{ ref: alice.chen, fro
    sit on an app/identity the attacker provably controls via the chain.
 
 ## Escalation-worthy Entra roles (common terminal/high-priv)
-`Global Administrator`, `Privileged Role Administrator`, `Application Administrator`,
-`Cloud Application Administrator`, `Privileged Authentication Administrator`,
-`User Administrator`. (Application/Cloud-App Admin → add creds to a higher-priv app → escalate.)
+<!-- GENERATED from src/vocabulary.py — run `python -m src.skill_vocab` to refresh. -->
+<!-- BADZURE:GEN escalation_entra_roles -->
+`Global Administrator`, `Privileged Role Administrator`, `Application Administrator`, `Cloud
+Application Administrator`, `Privileged Authentication Administrator`, `User Administrator`
+<!-- /BADZURE:GEN escalation_entra_roles -->
+(Application/Cloud-App Admin → add creds to a higher-priv app → escalate.)
 
 ## Self-check loop (ALWAYS do this)
 After writing/editing the `attack_paths:` block:
