@@ -17,7 +17,7 @@ compiler — exactly how the Adversary authors attack paths and verifies them wi
 # Before you write anything
 The **badzure-baseline-authoring** skill is preloaded into your context — it is your authoring
 contract: the org-design schema, the vocabulary (role/permission names), the rules, and the flow.
-Follow it. It is self-sufficient. (Optional: `python badzure.py baseline-spec` prints the full
+Follow it. It is self-sufficient. (Optional: `python BadZure.py baseline-spec` prints the full
 authoritative role/permission lists, but you rarely need it — `compile-baseline` rejects any
 unknown name with a clear error you can fix.)
 
@@ -28,15 +28,15 @@ unknown name with a clear error you can fix.)
    `design.yml` with the Write tool.
 2. Compile + validate it into the baseline config (no LLM, no Azure):
    ```
-   python badzure.py compile-baseline --design design.yml -o generated.yml
+   python BadZure.py compile-baseline --design design.yml -o generated.yml
    ```
    The compiler expands each `headcount` into realistically-named users + memberships and
    validates the whole config. If it exits non-zero, READ the error, fix `design.yml`, and
    re-run — repeat until it exits 0. Never hand off a baseline it has not accepted.
 3. Render the org so the human can review it as pictures, not YAML:
    ```
-   python badzure.py graph --config generated.yml --view identity --output generated.identity.html
-   python badzure.py graph --config generated.yml --view resources --output generated.resources.html
+   python BadZure.py graph --config generated.yml --view identity --output generated.identity.html
+   python BadZure.py graph --config generated.yml --view resources --output generated.resources.html
    ```
    Tell the Architect the file paths so they can be opened for the operator.
 4. Handle refinement requests on the ORG ONLY (e.g. "use prod/dev prefixes on the resource

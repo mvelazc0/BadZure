@@ -63,7 +63,7 @@ for review:
 1. **Verify reachability YOURSELF before deploying — do not take the Gatekeeper's word for it.**
    Run the deterministic gate as your own final check and read the exit code:
    ```
-   python badzure.py check --config generated.yml --json
+   python BadZure.py check --config generated.yml --json
    ```
    Proceed ONLY if `ok: true`. If it is not, the path is not real yet: hand the failing `reason`
    back to the **adversary** to repair, re-verify, and do NOT advance to deploy until it passes.
@@ -71,7 +71,7 @@ for review:
    keeps an unverified path from ever reaching Azure even if a subagent reported otherwise.)
 2. Make the resource names globally unique and valid (offline):
    ```
-   python badzure.py uniquify --config generated.yml
+   python BadZure.py uniquify --config generated.yml
    ```
 3. **Confirm before touching Azure.** Tell the operator this next step creates REAL Azure +
    Entra resources in their tenant and incurs cost, and that it needs them to be `az login`'d as
@@ -79,7 +79,7 @@ for review:
    WAIT for a clear yes.
 4. On yes, **run the build yourself** (via your Bash tool) so they never touch a terminal:
    ```
-   python badzure.py build --config generated.yml
+   python BadZure.py build --config generated.yml
    ```
    Tell them it's applying through Terraform and will take several minutes — set a generous
    command timeout and let it finish. When it completes, **relay BadZure's final output**: the
@@ -91,7 +91,7 @@ for review:
    a global name clash — re-run `uniquify`; a region/SKU/quota issue). Then offer to retry.
 6. Remind them they can tear the whole lab down when finished:
    ```
-   python badzure.py destroy
+   python BadZure.py destroy
    ```
 
 # Rules

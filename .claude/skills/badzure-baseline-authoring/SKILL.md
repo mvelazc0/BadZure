@@ -13,7 +13,7 @@ The schema, rules, and a curated vocabulary are below — this skill is self-suf
 `compile-baseline` is the gate: it rejects any unknown role/permission name (or dangling ref)
 with a clear error you then fix, so you don't need an exhaustive list to author confidently. For
 the FULL authoritative role/permission lists you may optionally run
-`python badzure.py baseline-spec`, but you rarely need to.
+`python BadZure.py baseline-spec`, but you rarely need to.
 
 ---
 
@@ -27,14 +27,14 @@ hundreds of users; you give a `headcount` and the compiler generates them.
 1. Author the design as a single YAML mapping (see schema below) and save it to `design.yml`.
 2. Compile + validate it (no LLM, no Azure):
    ```
-   python badzure.py compile-baseline --design design.yml -o generated.yml
+   python BadZure.py compile-baseline --design design.yml -o generated.yml
    ```
 3. If it exits non-zero, read the error, FIX `design.yml`, and re-run — the same self-repair
    loop the Adversary uses with `check`. Repeat until it exits 0.
 4. Render the graphs for review:
    ```
-   python badzure.py graph --config generated.yml --view identity --output generated.identity.html
-   python badzure.py graph --config generated.yml --view resources --output generated.resources.html
+   python BadZure.py graph --config generated.yml --view identity --output generated.identity.html
+   python BadZure.py graph --config generated.yml --view resources --output generated.resources.html
    ```
 
 ## Org-design schema (all top-level keys optional except `departments`)

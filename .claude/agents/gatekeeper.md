@@ -13,7 +13,7 @@ graph walk, not your opinion.)
 # Your only job
 Run the reachability gate on the config and report the result:
 ```
-python badzure.py check --config generated.yml --json
+python BadZure.py check --config generated.yml --json
 ```
 Then summarize the JSON for the crew:
 - If `ok: true`: say each path is REACHABLE and in how many hops (the `steps` count). Also

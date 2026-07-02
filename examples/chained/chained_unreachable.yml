@@ -7,15 +7,15 @@
 # REJECT this before any terraform apply.
 #
 # Expected result:
-#   python badzure.py build --config examples/chained/chained_unreachable.yml --verbose
+#   python BadZure.py build --config examples/chained/chained_unreachable.yml --verbose
 #   -> logs "Reachability gate rejected ... declarative_unreachable: no controlled
 #      principal ends up holding Entra role 'Global Administrator'." and EXITS.
 #   -> NOTHING is deployed (the gate runs in Python, before Terraform), so you do
 #      NOT need to replace kv-replace-me for this test, and there is nothing to destroy.
 #
 # To confirm the bypass instead, run with the env var set and it will proceed past
-# the gate (then `python badzure.py destroy --verbose`):
-#   $env:BADZURE_SKIP_REACHABILITY="1"; python badzure.py build --config examples/chained/chained_unreachable.yml --verbose
+# the gate (then `python BadZure.py destroy --verbose`):
+#   $env:BADZURE_SKIP_REACHABILITY="1"; python BadZure.py build --config examples/chained/chained_unreachable.yml --verbose
 
 tenant:
   tenant_id: null

@@ -14,8 +14,8 @@
 #   This file as-is creates ~8 attack paths + VMs/Key Vaults/Storage/Cosmos. Trim
 #   `attack_paths:` (and `baseline.resources`) to reduce cost/time.
 #
-# Run:   python badzure.py build            # uses this file (badzure.yml)
-#        python badzure.py destroy
+# Run:   python BadZure.py build            # uses this file (badzure.yml)
+#        python BadZure.py destroy
 # Docs:  https://www.badzure.com/configuration/
 # =============================================================================
 

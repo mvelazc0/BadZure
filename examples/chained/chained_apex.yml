@@ -67,8 +67,8 @@
 # and real Azure spend. This is a showcase/limits fixture, not a cheap one.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_apex.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_apex.yml --verbose
+#   python BadZure.py destroy --verbose
 # =============================================================================
 
 tenant:

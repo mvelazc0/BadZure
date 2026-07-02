@@ -2,8 +2,8 @@
 # (user / service_principal / group_member / group_owner; AzureADRole + APIPermission).
 # KeyVaultSecretTheft has no legacy `_all`; this is the declarative consolidated fixture.
 # Live test:
-#   python badzure.py build --config examples/atomic/atomic_kv_all.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/atomic/atomic_kv_all.yml --verbose
+#   python BadZure.py destroy --verbose
 
 tenant:
   tenant_id: null

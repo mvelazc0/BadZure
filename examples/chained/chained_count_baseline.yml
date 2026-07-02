@@ -6,8 +6,8 @@
 # After Slice 3b it supports the same 9 primitives as the explicit/LLM path.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_count_baseline.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_count_baseline.yml --verbose
+#   python BadZure.py destroy --verbose
 
 tenant:
   tenant_id: null

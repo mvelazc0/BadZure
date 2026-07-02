@@ -5,8 +5,8 @@
 # `vector:` shape feeding a hand-authored chain.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_exposed_rdp.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_exposed_rdp.yml --verbose
+#   python BadZure.py destroy --verbose
 #
 # kv-replace-me must be a GLOBALLY UNIQUE Key Vault name (3-24 chars, lowercase
 # alphanumerics + hyphens) — change it in all three places below.

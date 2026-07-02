@@ -737,7 +737,7 @@ class GenerateCommand:
 
         self._write_config(config, output, prompt or attack_prompt, llm["model"])
         logging.info(f"Wrote generated config to {output}")
-        logging.info(f"Review it, then deploy with:  python badzure.py build --config {output}")
+        logging.info(f"Review it, then deploy with:  python BadZure.py build --config {output}")
 
     @staticmethod
     def _write_config(config: Dict, output: str, prompt: str, model: str) -> None:

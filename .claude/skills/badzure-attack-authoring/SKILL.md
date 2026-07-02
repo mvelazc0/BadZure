@@ -112,7 +112,7 @@ Application Administrator`, `Privileged Authentication Administrator`, `User Adm
 ## Self-check loop (ALWAYS do this)
 After writing/editing the `attack_paths:` block:
 ```
-python badzure.py check --config <file> --json
+python BadZure.py check --config <file> --json
 ```
 - `ok: true` and your path `status: "reached"` → done.
 - `status: "blocked"/"invalid"` → read `reason`, it names where the walk dead-ends. Insert the

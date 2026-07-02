@@ -65,7 +65,7 @@ cd BadZure
 python -m venv venv && venv\Scripts\activate
 pip install -r requirements.txt
 az login
-python badzure.py build
+python BadZure.py build
 ```
 
 See the [Getting Started](getting-started.md) guide for full setup instructions.

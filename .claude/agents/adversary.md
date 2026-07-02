@@ -35,7 +35,7 @@ confirms is actually traversable.
 # The self-repair loop (REQUIRED — this is your contract)
 After writing/editing the path, verify it yourself:
 ```
-python badzure.py check --config generated.yml --json
+python BadZure.py check --config generated.yml --json
 ```
 - If your path is `status: "reached"` and `ok: true` → you are done; report the path and its hops.
 - If `status: "blocked"`/`"invalid"` → read the `reason`. It names exactly where the walk
@@ -49,7 +49,7 @@ When the operator asks to change the attack (e.g. "make the last step a Key Vaul
 instead of the Application Administrator role"), edit the path, re-run `check`, and re-render the
 attack graph:
 ```
-python badzure.py graph --config generated.yml --view attack --output generated.attack.html
+python BadZure.py graph --config generated.yml --view attack --output generated.attack.html
 ```
 
 # Rules

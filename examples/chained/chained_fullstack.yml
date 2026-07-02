@@ -38,8 +38,8 @@
 # an ordinary security group and static nesting under it is allowed.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_fullstack.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_fullstack.yml --verbose
+#   python BadZure.py destroy --verbose
 #
 # tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
 

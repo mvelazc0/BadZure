@@ -5,8 +5,8 @@
 # `initial_access` knob carries the vector; the vulnerable app IS the MI source.
 #
 # Live test:
-#   python badzure.py build --config examples/atomic/atomic_vulnerable_webapp_mi.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/atomic/atomic_vulnerable_webapp_mi.yml --verbose
+#   python BadZure.py destroy --verbose
 
 tenant:
   tenant_id: null
