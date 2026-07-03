@@ -367,7 +367,7 @@ locals {
       ) :
       v.mi_source_type == "logic_app" ? azurerm_logic_app_workflow.logic_apps[v.principal_ref].identity[0].principal_id :
       v.mi_source_type == "automation_account" ? azurerm_automation_account.automation_accounts[v.principal_ref].identity[0].principal_id :
-      v.mi_source_type == "function_app" ? azurerm_function_app_flex_consumption.function_apps[v.principal_ref].identity[0].principal_id :
+      v.mi_source_type == "function_app" ? azurerm_linux_function_app.function_apps[v.principal_ref].identity[0].principal_id :
       v.mi_source_type == "app_service" ? azurerm_linux_web_app.app_services[v.principal_ref].identity[0].principal_id :
       null
     )
@@ -384,7 +384,7 @@ locals {
       v.scope_resource_type == "cosmos_db" ? azurerm_cosmosdb_account.cosmos_dbs[v.scope_ref].id :
       v.scope_resource_type == "logic_app" ? azurerm_logic_app_workflow.logic_apps[v.scope_ref].id :
       v.scope_resource_type == "automation_account" ? azurerm_automation_account.automation_accounts[v.scope_ref].id :
-      v.scope_resource_type == "function_app" ? azurerm_function_app_flex_consumption.function_apps[v.scope_ref].id :
+      v.scope_resource_type == "function_app" ? azurerm_linux_function_app.function_apps[v.scope_ref].id :
       v.scope_resource_type == "app_service" ? azurerm_linux_web_app.app_services[v.scope_ref].id :
       v.scope_resource_type == "virtual_machine" ? (
         contains(keys(azurerm_linux_virtual_machine.linux_vms), v.scope_ref) ?
@@ -454,7 +454,7 @@ resource "azurerm_role_assignment" "generic_azure_rbac" {
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
-    azurerm_function_app_flex_consumption.function_apps,
+    azurerm_linux_function_app.function_apps,
     azurerm_linux_web_app.app_services,
     azurerm_resource_group.rgroups,
   ]
@@ -479,7 +479,7 @@ resource "azurerm_cosmosdb_sql_role_assignment" "generic_cosmos_rbac" {
     azurerm_windows_virtual_machine.windows_vms,
     azurerm_logic_app_workflow.logic_apps,
     azurerm_automation_account.automation_accounts,
-    azurerm_function_app_flex_consumption.function_apps,
+    azurerm_linux_function_app.function_apps,
     azurerm_linux_web_app.app_services,
   ]
 }

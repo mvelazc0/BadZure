@@ -184,7 +184,10 @@ resource "time_sleep" "wait_for_rbac" {
   create_duration = "180s" # Increased from 120s to 180s for better RBAC propagation
 }
 resource "azurerm_linux_virtual_machine" "linux_vms" {
-  for_each = { for k, v in var.virtual_machines : k => v if v.os_type == "Linux" }
+  # Case-insensitive os_type match: the generator/config may emit "Linux" or "linux".
+  # A case-sensitive compare would drop a VM from BOTH this and the Windows for_each,
+  # silently not creating it and breaking every reference to it.
+  for_each = { for k, v in var.virtual_machines : k => v if lower(v.os_type) == "linux" }
 
   name                            = each.value.name
   location                        = each.value.location
@@ -216,7 +219,8 @@ resource "azurerm_linux_virtual_machine" "linux_vms" {
 }
 
 resource "azurerm_windows_virtual_machine" "windows_vms" {
-  for_each = { for k, v in var.virtual_machines : k => v if v.os_type == "Windows" }
+  # Case-insensitive os_type match (see linux_vms above).
+  for_each = { for k, v in var.virtual_machines : k => v if lower(v.os_type) == "windows" }
 
   name                = each.value.name
   location            = each.value.location
@@ -274,7 +278,7 @@ resource "azurerm_network_interface" "vm_nics" {
     private_ip_address_allocation = "Dynamic"
     # Only foothold VMs (assign_public_ip) have an allocated public IP; baseline
     # VMs stay private (null = no public IP attached to the NIC).
-    public_ip_address_id          = each.value.assign_public_ip ? azurerm_public_ip.vm_public_ips[each.key].id : null
+    public_ip_address_id = each.value.assign_public_ip ? azurerm_public_ip.vm_public_ips[each.key].id : null
 
   }
 
@@ -436,26 +440,19 @@ resource "azurerm_storage_account" "function_storage" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
-# Storage Container for Function App (required for Flex Consumption)
-resource "azurerm_storage_container" "function_container" {
-  for_each = var.function_apps
-
-  name                  = "app-package-${replace(each.value.name, "func-", "")}-${substr(md5(each.value.name), 0, 7)}"
-  storage_account_id    = azurerm_storage_account.function_storage[each.key].id
-  container_access_type = "private"
-
-  depends_on = [azurerm_storage_account.function_storage]
-}
-
-# Service Plan for Flex Consumption Function Apps
+# Consumption (Y1) Service Plan for Function Apps. Classic Consumption is broadly
+# available across regions and subscriptions, unlike Flex Consumption (FC1), whose
+# per-subscription regional quota blocked creating more than one at a time on common
+# (e.g. VS/MSDN) subscriptions. Function Apps here are always Linux (Consumption Linux
+# is universally available); os_type on the spec is not honored for Function Apps.
 resource "azurerm_service_plan" "function_plan" {
   for_each = var.function_apps
 
   name                = "${each.value.name}-plan"
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
-  os_type             = each.value.os_type == "linux" ? "Linux" : "Windows"
-  sku_name            = "FC1"
+  os_type             = "Linux"
+  sku_name            = "Y1"
 
   depends_on = [azurerm_resource_group.rgroups]
 }
@@ -472,8 +469,10 @@ resource "azurerm_application_insights" "function_insights" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
-# Function App with Flex Consumption (supports both Linux and Windows)
-resource "azurerm_function_app_flex_consumption" "function_apps" {
+# Function App (Linux, classic Consumption). Replaces Flex Consumption so a lab can
+# deploy multiple Function Apps on quota-limited subscriptions. Keeps the
+# system-assigned managed identity the ManagedIdentityAbuse technique targets.
+resource "azurerm_linux_function_app" "function_apps" {
   for_each = var.function_apps
 
   name                = each.value.name
@@ -481,41 +480,28 @@ resource "azurerm_function_app_flex_consumption" "function_apps" {
   location            = each.value.location
   service_plan_id     = azurerm_service_plan.function_plan[each.key].id
 
-  # Storage configuration - Using connection string authentication
-  storage_container_type      = "blobContainer"
-  storage_container_endpoint  = "${azurerm_storage_account.function_storage[each.key].primary_blob_endpoint}${azurerm_storage_container.function_container[each.key].name}"
-  storage_authentication_type = "StorageAccountConnectionString"
-  storage_access_key          = azurerm_storage_account.function_storage[each.key].primary_access_key
+  storage_account_name       = azurerm_storage_account.function_storage[each.key].name
+  storage_account_access_key = azurerm_storage_account.function_storage[each.key].primary_access_key
 
-  # Runtime configuration
-  runtime_name    = each.value.os_type == "linux" ? "python" : "dotnet-isolated"
-  runtime_version = each.value.os_type == "linux" ? "3.13" : "8.0"
-
-  # Scale and concurrency settings (top-level arguments)
-  maximum_instance_count = 100
-  instance_memory_in_mb  = 2048
-
-  # App settings for deployment storage connection string
   app_settings = {
-    "DEPLOYMENT_STORAGE_CONNECTION_STRING"       = azurerm_storage_account.function_storage[each.key].primary_connection_string
-    "APPLICATIONINSIGHTS_CONNECTION_STRING"      = azurerm_application_insights.function_insights[each.key].connection_string
-    "ApplicationInsightsAgent_EXTENSION_VERSION" = "~3"
+    "APPLICATIONINSIGHTS_CONNECTION_STRING" = azurerm_application_insights.function_insights[each.key].connection_string
   }
 
-  # Required site_config block
   site_config {
     application_insights_connection_string = azurerm_application_insights.function_insights[each.key].connection_string
     application_insights_key               = azurerm_application_insights.function_insights[each.key].instrumentation_key
+    application_stack {
+      python_version = "3.11"
+    }
   }
 
-  # Keep System-Assigned Identity for attack path scenarios
+  # System-assigned managed identity — the pivot ManagedIdentityAbuse abuses.
   identity {
     type = "SystemAssigned"
   }
 
   depends_on = [
     azurerm_service_plan.function_plan,
-    azurerm_storage_container.function_container,
     azurerm_application_insights.function_insights
   ]
 }
