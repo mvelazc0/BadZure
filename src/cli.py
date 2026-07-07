@@ -12,7 +12,7 @@ from typing import Dict, Optional
 import yaml
 from src.config_manager import ConfigManager
 from src.entity_generator import EntityGenerator
-from src.terraform_manager import TerraformManager
+from src.terraform_manager import TerraformManager, TerraformNotFoundError
 from src.output_formatter import OutputFormatter
 from src.terraform_builder import build_tfvars
 from src.scenario_loader import ScenarioLoader
@@ -42,6 +42,12 @@ class BuildCommand:
             config_file: Path to configuration file
             verbose: Enable verbose output
         """
+        try:
+            TerraformManager.ensure_installed()
+        except TerraformNotFoundError as e:
+            logging.error(str(e))
+            return
+
         logging.info(f"Loading BadZure configuration from {config_file}")
         config = self.config_mgr.load_config(config_file)
 
@@ -644,12 +650,18 @@ class ShowCommand:
         Args:
             verbose: Enable verbose output
         """
+        try:
+            TerraformManager.ensure_installed()
+        except TerraformNotFoundError as e:
+            logging.error(str(e))
+            return
+
         # Initialize Terraform
         return_code, stdout, stderr = self.terraform_mgr.init()
         if return_code != 0:
             logging.error(f"Terraform init failed: {stderr}")
             return
-        
+
         logging.info("Calling terraform show to display the current state ...")
         
         # Execute terraform show
@@ -684,12 +696,18 @@ class DestroyCommand:
         Args:
             verbose: Enable verbose output
         """
+        try:
+            TerraformManager.ensure_installed()
+        except TerraformNotFoundError as e:
+            logging.error(str(e))
+            return
+
         # Initialize Terraform
         return_code, stdout, stderr = self.terraform_mgr.init()
         if return_code != 0:
             logging.error(f"Terraform init failed: {stderr}")
             return
-        
+
         logging.info("Calling terraform destroy, this may take several minutes ...")
         return_code, stdout, stderr = self.terraform_mgr.destroy(verbose)
         
