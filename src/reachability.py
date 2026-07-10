@@ -165,6 +165,13 @@ class _Analyzer:
         # Indexes reused across the walk.
         self.rbac = [p for p in self.primitives if isinstance(p, AzureRbacAssignment)]
         self.creds = {p.key: p for p in self.primitives if isinstance(p, AppCredential)}
+        # Apps with a REGISTERED certificate credential (emits
+        # azuread_application_certificate — the public key on the app registration).
+        # Looting a planted .pfx only authenticates as an app if its cert is registered
+        # here; without it the pfx is an orphaned file, not a working credential.
+        self.cert_registered_apps = {
+            p.app_ref for p in self.creds.values() if p.type == "certificate"
+        }
 
     # -- per-path entry point -------------------------------------------------
     def evaluate_path(self, overlay) -> PathVerdict:
@@ -319,10 +326,16 @@ class _Analyzer:
         if d.material == "app_secret" and d.credential_ref in self.creds:
             return self.creds[d.credential_ref].app_ref
         if d.material == "app_certificate":
-            if d.source_ref:
-                return d.source_ref
-            if d.credential_ref in self.creds:
-                return self.creds[d.credential_ref].app_ref
+            # A planted .pfx only confers control if its cert is REGISTERED on the app
+            # (a companion `type: certificate` credential -> azuread_application_certificate).
+            # Without that registration the loot authenticates as nothing, so the hop is
+            # NOT traversable — the gate must report the path unreachable rather than
+            # deploy a tenant whose final cert-auth hop silently fails.
+            app = d.source_ref
+            if not app and d.credential_ref in self.creds:
+                app = self.creds[d.credential_ref].app_ref
+            if app and app in self.cert_registered_apps:
+                return app
         return None
 
     @staticmethod

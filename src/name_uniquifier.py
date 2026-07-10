@@ -73,7 +73,12 @@ def _collect(resources: Dict, rename: Dict[str, str], suffix: str) -> None:
     if not isinstance(resources, dict):
         return
     for kind, (max_len, allow_hyphen, lower, start_letter) in _GLOBAL_KINDS.items():
-        for spec in resources.get(kind, []) or []:
+        specs = resources.get(kind)
+        # A count-based baseline gives an int here (e.g. `storage_accounts: 1`); those
+        # resources are named at generation time and have no ref to uniquify — skip.
+        if not isinstance(specs, list):
+            continue
+        for spec in specs:
             ref = spec.get("ref") if isinstance(spec, dict) else None
             if ref and ref not in rename:
                 rename[ref] = _make_name(ref, suffix, max_len, allow_hyphen, lower,

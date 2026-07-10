@@ -74,7 +74,7 @@ baseline employee/resource instead, add `match:` —
 | `au_membership` | `principal_ref`, `au_ref` | principal is in an administrative unit |
 
 `credentials`: `{ ref, app_ref, type: password|certificate }`.
-`data_injects`: `{ id, material: app_secret, credential_ref, location: key_vault_secret|storage_blob|cosmos_document, location_ref, name }`.
+`data_injects`: `{ id, material: app_secret|app_certificate, credential_ref (app_secret) | source_ref (app_certificate), location: key_vault_secret|key_vault_certificate|storage_blob|cosmos_document, location_ref, name }`.
 
 ## How a hop actually chains (the mental model the gate enforces)
 - **Own an app → become it.** `app_ownership` lets the attacker mint a credential on the app and
@@ -87,6 +87,12 @@ baseline employee/resource instead, add `match:` —
 - **Read a store → loot the planted secret.** A `data_inject` puts the *next* app's secret into a
   Key Vault / storage blob / Cosmos doc; an MI (or principal) with a read role on that store loots
   it and authenticates as the next app. This is the identity→resource→identity pivot.
+- **Cert legs come in PAIRS.** To have the attacker loot a *certificate* and auth as app X, author
+  BOTH: a `data_inject { material: app_certificate, source_ref: X, location, location_ref, name }`
+  planting the lootable `.pfx`, AND a `credentials: { app_ref: X, type: certificate }` registering
+  the public key on X's app registration. The credential is what makes cert auth work — without it
+  the planted `.pfx` authenticates as nothing and the gate reports the hop UNREACHABLE. (Files are
+  auto-minted and shared, so the loot matches the registered key; you only declare the intent.)
 - **Terminal hop = the objective.** The final controlled principal must hold the objective
   capability (e.g. `entra_role: Global Administrator`, or `Privileged Role Administrator`,
   or read access to the target resource for a theft objective).
