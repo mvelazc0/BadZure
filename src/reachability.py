@@ -456,14 +456,20 @@ class _Analyzer:
         for src, dst, prim in self._trace(terminal, parent, seed):
             # The name is a human-readable phrase; the formatter renders the "-> target"
             # arrow from target_ref (so the name must NOT embed it, or it double-arrows).
-            steps.append({
+            step = {
                 "name": _HOP_PHRASE.get(type(prim), "Traverse to"),
                 "source_ref": src,
                 "target_ref": dst,
                 "uses": [prim.key],
                 "action": _ACTIONS.get(type(prim), "traverse"),
                 "derived": True,
-            })
+            }
+            # A credential loot is read OUT of a data resource — name it so the step
+            # shows WHERE the credential was stolen from (e.g. the storage account the
+            # managed identity read), not just the app it yields.
+            if isinstance(prim, DataInject) and getattr(prim, "location_ref", None):
+                step["reads"] = [prim.location_ref]
+            steps.append(step)
         gain = objective.get("role") or objective.get("name") or capability
         steps.append({
             "name": f"Achieve objective: {gain}",

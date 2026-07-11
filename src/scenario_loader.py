@@ -104,18 +104,20 @@ _DEFAULT_RG_LOCATION = "West US 2"
 # reachability gate validates it exactly like a hand-authored explicit path.
 # technique -> (objective capability, summary key naming the target).
 _TECHNIQUE_OBJECTIVES = {
-    "KeyVaultSecretTheft":           ("read_secrets",      "key_vault"),
-    "StorageCertificateTheft":       ("read_storage",      "storage_account"),
-    "CosmosDBSecretTheft":           ("read_cosmos",       "cosmos_db"),
     "ApplicationOwnershipAbuse":     ("control_principal", "app_name"),
     "ApplicationAdministratorAbuse": ("control_principal", "app_name"),
     "CloudAppAdministratorAbuse":    ("control_principal", "app_name"),
-    # ManagedIdentityAbuse's capability depends on the target resource type — see
-    # _MI_TARGET_CAPABILITY (the objective targets the looted resource).
+    # The courier techniques below are handled specially (_COURIER_TECHNIQUES): their
+    # objective is controlling the LOOTED APP, not reading the intermediate resource.
 }
-_MI_TARGET_CAPABILITY = {
-    "key_vault": "read_secrets", "storage_account": "read_storage",
-    "cosmos_db": "read_cosmos",
+# "Courier" techniques: the attacker reads a resource only to LOOT an app credential
+# planted there, then authenticates as that app. Their objective is control of the
+# looted app (summary["app_name"]) — see _synthesize_objective. ManagedIdentityAbuse
+# is a courier only in its resource-target flavor (the direct/MI flavor is handled
+# separately above).
+_COURIER_TECHNIQUES = {
+    "ManagedIdentityAbuse", "KeyVaultSecretTheft",
+    "StorageCertificateTheft", "CosmosDBSecretTheft",
 }
 # Baseline entity map required (for mode=random) per resource-anchored technique.
 _TECHNIQUE_REQUIRED_RESOURCE = {
@@ -1198,21 +1200,31 @@ class ScenarioLoader:
     def _synthesize_objective(technique: str, summary: Dict) -> Dict:
         """Build a (capability, target) objective from the macro summary so the
         reachability gate adjudicates the technique path like an explicit one."""
-        if technique == "ManagedIdentityAbuse":
-            if summary.get("privilege_source") == "managed_identity":
-                # Direct flavor: the attacker ends up controlling the over-privileged
-                # managed identity (the source compute). Controlling the compute already
-                # implies controlling its MI, so the objective is reaching that source.
-                capability = "control_principal"
-                target = summary.get("source_name")
-            else:
-                capability = _MI_TARGET_CAPABILITY.get(summary.get("target_resource_type"))
-                target = summary.get("target_name")
+        if technique == "ManagedIdentityAbuse" and \
+                summary.get("privilege_source") == "managed_identity":
+            # Direct flavor: the attacker ends up controlling the over-privileged
+            # managed identity (the source compute). Controlling the compute already
+            # implies controlling its MI, so the objective is reaching that source.
+            capability, target = "control_principal", summary.get("source_name")
+            name = f"{technique} ({target})" if target else technique
+        elif technique in _COURIER_TECHNIQUES:
+            # Courier flavor (MI-via-resource + the *SecretTheft/*CertificateTheft
+            # techniques): reading the resource is only a STEPPING STONE — it loots an
+            # app credential the attacker then uses to authenticate AS that app, whose
+            # privileges (named on the payoff line) are the real prize. So the objective
+            # is CONTROLLING the looted app, not merely reading the resource. Aiming the
+            # gate at the app makes reachability trace the whole loot chain (VM/identity
+            # -> read resource -> loot credential -> become app) and enforce the credential
+            # is actually registered — matching how an explicit graph path expresses it,
+            # instead of collapsing to a single "read <resource>" hop.
+            capability, target = "control_principal", summary.get("app_name")
+            name = f"Compromise {target} via looted credential" if target else technique
         else:
             capability, target_key = _TECHNIQUE_OBJECTIVES[technique]
             target = summary.get(target_key)
+            name = f"{technique} ({target})" if target else technique
         return {
-            "name": f"{technique} ({target})" if target else technique,
+            "name": name,
             "impact": "high",
             "capability": capability,
             "target_ref": target,
