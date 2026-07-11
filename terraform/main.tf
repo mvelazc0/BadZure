@@ -223,6 +223,12 @@ resource "azurerm_windows_virtual_machine" "windows_vms" {
   for_each = { for k, v in var.virtual_machines : k => v if lower(v.os_type) == "windows" }
 
   name                = each.value.name
+  # Windows caps the OS computer_name at 15 chars; the provider otherwise derives it
+  # from `name` and hard-fails apply when the (suffixed) VM name is longer — which the
+  # generated names routinely are (e.g. "Priv-Ledger-01-tl" = 17). Derive a valid one
+  # explicitly: first 15 chars of the name, trailing hyphen trimmed so it can't end in
+  # "-". The Azure resource `name` still keeps the full, unique value.
+  computer_name       = trimsuffix(substr(each.value.name, 0, 15), "-")
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
   size                = each.value.vm_size
@@ -320,34 +326,44 @@ resource "azurerm_network_security_group" "vm_nsg" {
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
 
-  security_rule {
-    name                       = "Allow-RDP"
-    priority                   = 1000
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "3389"
-    source_address_prefix      = var.public_ip
-    destination_address_prefix = "*"
+  # Private VMs (the default): lock RDP + SSH to the operator's own public IP so the
+  # host is reachable for hands-on work but not from the wider internet. Skipped
+  # entirely when expose_to_internet=true — an exposed foothold is meant to be open
+  # to everyone, so the internet-wide rules below fully replace these.
+  dynamic "security_rule" {
+    for_each = each.value.expose_to_internet ? [] : [1]
+    content {
+      name                       = "Allow-RDP"
+      priority                   = 1000
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "3389"
+      source_address_prefix      = var.public_ip
+      destination_address_prefix = "*"
+    }
   }
 
-  security_rule {
-    name                       = "Allow-SSH"
-    priority                   = 1001
-    direction                  = "Inbound"
-    access                     = "Allow"
-    protocol                   = "Tcp"
-    source_port_range          = "*"
-    destination_port_range     = "22"
-    source_address_prefix      = var.public_ip
-    destination_address_prefix = "*"
+  dynamic "security_rule" {
+    for_each = each.value.expose_to_internet ? [] : [1]
+    content {
+      name                       = "Allow-SSH"
+      priority                   = 1001
+      direction                  = "Inbound"
+      access                     = "Allow"
+      protocol                   = "Tcp"
+      source_port_range          = "*"
+      destination_port_range     = "22"
+      source_address_prefix      = var.public_ip
+      destination_address_prefix = "*"
+    }
   }
 
   # Exposed-host foothold (InitialAccessVector with expose_to_internet=true): open
   # RDP + SSH to the whole internet so the host is reachable — and brute-forceable —
-  # from anywhere. Inline dynamic rules (not a standalone azurerm_network_security_rule)
-  # so they don't conflict with the operator-IP rules above. Off unless opted in.
+  # from anywhere. These are the ONLY inbound rules on an exposed host (the operator-IP
+  # rules above are skipped), so 3389 + 22 are open to 0.0.0.0/0.
   dynamic "security_rule" {
     for_each = each.value.expose_to_internet ? [1] : []
     content {
