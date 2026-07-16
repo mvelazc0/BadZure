@@ -17,6 +17,7 @@
 # Run:   python BadZure.py build            # uses this file (badzure.yml)
 #        python BadZure.py destroy
 # Docs:  https://www.badzure.com/configuration/
+#
 # =============================================================================
 
 tenant:
