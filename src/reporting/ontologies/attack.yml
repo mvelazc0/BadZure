@@ -57,6 +57,18 @@ edge_types:
     <<: *action
     from: [Attacker, Identity, ComputeResource, DataResource, Session]
     to: [Objective]
+  BLOCKED_AT:
+    <<: *action
+    from: [Attacker, Identity, ComputeResource, DataResource, Credential, Session]
+    to: [Objective]
+    properties: [action, step, mitre, uses, original_action, status, reason]
+    required_properties: [status]
+  TARGETS:
+    <<: *action
+    from: [Attacker, Identity, ComputeResource, DataResource, Credential, Session]
+    to: [Objective]
+    properties: [action, step, mitre, uses, original_action, status, reason]
+    required_properties: [status]
   PERFORMS_ACTION:
     <<: *action
     from: [Attacker, Identity, ComputeResource, DataResource, Credential, Session]

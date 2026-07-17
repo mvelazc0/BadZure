@@ -28,6 +28,14 @@ from src.reporting.posture import (
     build_posture_panels,
     select_posture_primitive_keys,
 )
+from src.reporting.attack import (
+    AttackPathNarrative,
+    AttackProjection,
+    build_attack_panel,
+    build_attack_panels,
+    build_attack_projections,
+    build_path_narrative,
+)
 
 __all__ = [
     "GraphEdge",
@@ -35,17 +43,23 @@ __all__ = [
     "GraphPanel",
     "GraphValidationError",
     "EnvironmentProjection",
+    "AttackPathNarrative",
+    "AttackProjection",
     "Ontology",
     "OntologyDefinitionError",
     "POSTURE_FORBIDDEN_VERBS",
     "ReportModel",
     "build_assignment_panel",
+    "build_attack_panel",
+    "build_attack_panels",
+    "build_attack_projections",
     "build_environment_graphs",
     "build_identity_panel",
     "build_resource_panel",
     "build_safe_inventory",
     "build_posture_panel",
     "build_posture_panels",
+    "build_path_narrative",
     "bundled_ontology_path",
     "load_bundled_ontology",
     "select_posture_primitive_keys",
