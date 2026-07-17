@@ -32,9 +32,12 @@ Three cross-block jobs that don't belong to a single handler live here:
      origin, not the inject's — hence a cross-block lookup.
 """
 from typing import Dict, List
+import logging
+import os
 
 from src.primitives import (
-    DeploymentModel, Primitive, EntraRoleAssignment, AppCredential, DataInject,
+    DeploymentModel, Primitive, EntraRoleAssignment, AzureRbacAssignment, ApiPermission,
+    AppCredential, DataInject, GroupMembership, GroupOwnership, AppOwnership, AuMembership,
     InitialAccessVector, RANDOM, ATTACK_PATH, value_fields,
 )
 from src.primitive_handlers import handler_for, CREDENTIAL, DATAPLANE_LOCATION_TYPES
@@ -50,6 +53,40 @@ class LabValidationError(ValueError):
 
 _ORIGIN_FAMILY_PREFIX = {RANDOM: "random", ATTACK_PATH: "attack_path"}
 _ORIGIN_KEY_PREFIX = {RANDOM: "random:", ATTACK_PATH: "ap:"}
+
+# Relationship assignments whose Azure/Terraform resource is FULLY defined by their
+# value-fields, and which Azure rejects as a duplicate if emitted twice (e.g. an
+# azure_rbac role assignment -> 409 RoleAssignmentExists; a repeated group membership /
+# ownership / Entra-role / API permission). Two of these with identical value-fields
+# create the SAME resource, so they are collapsed to one before emit — making any config
+# robust no matter how it was authored (LLM, agent, or by hand). They are idempotent, so
+# dropping the duplicate is a no-op semantically. Credentials / data_injects / initial-
+# access vectors are NOT deduped (a credential_ref binds to one by key, and identical-
+# looking injects/creds can be legitimately distinct).
+_DEDUPE_TYPES = (
+    EntraRoleAssignment, AzureRbacAssignment, ApiPermission,
+    GroupMembership, GroupOwnership, AppOwnership, AuMembership,
+)
+
+
+def dedupe_assignments(primitives: List[Primitive]) -> "tuple[List[Primitive], int]":
+    """Return (deduped_primitives, n_removed): collapse relationship assignments that
+    would create the SAME Azure resource (same type + identical value-fields, regardless
+    of origin), keeping the first occurrence. Non-relationship primitives pass through."""
+    seen = set()
+    out: List[Primitive] = []
+    removed = 0
+    for p in primitives:
+        if isinstance(p, _DEDUPE_TYPES):
+            identity = (type(p).__name__,
+                        tuple((f, getattr(p, f)) for f in value_fields(type(p))))
+            if identity in seen:
+                removed += 1
+                continue
+            seen.add(identity)
+        out.append(p)
+    return out, removed
+
 
 
 def origin_prefixed_key(bare_key: str, origin: str) -> str:
@@ -77,12 +114,67 @@ _MATERIAL_REQUIRES = {
     "literal": "literal_value",
 }
 
+# Valid AppCredential.type values (mirrors generic.tf's password/certificate branches).
+_VALID_CREDENTIAL_TYPES = frozenset({"password", "certificate"})
+
+# Valid DataInject.location_type values (mirrors generic.tf's inject emitters +
+# the data-plane cosmos_document planter).
+_VALID_INJECT_LOCATIONS = frozenset({
+    "key_vault_secret", "key_vault_certificate", "storage_blob", "cosmos_document",
+})
+
+# location_type -> the materials generic.tf can actually plant there. Enforcing this
+# in Python turns a mid-apply Terraform crash (null secret value / file(null)) into a
+# clear, offline authoring error:
+#   - key_vault_secret writes local.g_inject_value (a string) -> file material has none.
+#   - key_vault_certificate imports a PFX via filebase64(file_path) -> needs file material.
+#   - storage_blob / cosmos_document accept every material (string value OR file bytes).
+_LOCATION_MATERIALS = {
+    "key_vault_secret":      frozenset({"literal", "app_secret", "app_client_id"}),
+    "key_vault_certificate": frozenset({"app_certificate"}),
+    "storage_blob":          frozenset({"literal", "app_secret", "app_client_id", "app_certificate"}),
+    "cosmos_document":       frozenset({"literal", "app_secret", "app_client_id", "app_certificate"}),
+}
+
+# Cert/key/pfx file paths are emitted as basenames relative to the terraform working
+# dir (where crypto.py writes them and where `terraform apply` resolves file()).
+_TERRAFORM_DIR = "terraform"
+
+
+def _material_file_exists(path: str) -> bool:
+    """True if a certificate/key/pfx path a data_inject or credential references
+    resolves to a real file. Absolute paths are checked as-is; a bare/relative path
+    is resolved against the terraform working dir first (how crypto.py + generic.tf
+    reference it), then against the cwd as a fallback."""
+    if not path:
+        return False
+    if os.path.isabs(path):
+        return os.path.exists(path)
+    return os.path.exists(os.path.join(_TERRAFORM_DIR, path)) or os.path.exists(path)
+
 
 class TerraformBuilder:
-    def __init__(self, model: DeploymentModel):
+    def __init__(self, model: DeploymentModel, verify_files: bool = True):
         self.model = model
+        # Whether validate() checks that certificate/key/pfx paths resolve to real
+        # files on disk. True for the real preflight (`check`) and `build` — a missing
+        # cert file crashes `terraform apply`. Structural unit tests that reference
+        # placeholder cert fixtures (never deployed) pass False.
+        self.verify_files = verify_files
+        # Collapse semantically-duplicate relationship assignments BEFORE any pass reads
+        # the primitives, so a duplicate role assignment can never reach `terraform apply`
+        # (where Azure 409s with RoleAssignmentExists). Idempotent: safe to run repeatedly.
+        deduped, n_removed = dedupe_assignments(model.primitives)
+        if n_removed:
+            model.primitives = deduped
+            logging.info(
+                f"Collapsed {n_removed} duplicate assignment(s) before emit ")
         # bare AppCredential key -> origin, for credential_ref prefixing.
         self._credential_origin: Dict[str, str] = {}
+        # bare AppCredential key -> type (password | certificate), so an app_secret
+        # data_inject can be checked to reference a PASSWORD credential (generic.tf
+        # only indexes password credentials in azuread_application_password).
+        self._credential_type: Dict[str, str] = {}
         for p in model.primitives:
             if isinstance(p, AppCredential):
                 if p.key in self._credential_origin:
@@ -92,6 +184,7 @@ class TerraformBuilder:
                         f"is unambiguous."
                     )
                 self._credential_origin[p.key] = p.origin
+                self._credential_type[p.key] = p.type
 
     # -- public API -----------------------------------------------------------
     def build(self) -> Dict:
@@ -244,8 +337,32 @@ class TerraformBuilder:
                 self._validate_initial_access_vector(p)
                 continue
             self._validate_refs(p, credential_keys)
+            if isinstance(p, AppCredential):
+                self._validate_credential(p)
             if isinstance(p, DataInject):
                 self._validate_inject_material(p)
+
+    def _validate_credential(self, p: AppCredential) -> None:
+        """An AppCredential must name a valid type, and a certificate credential must
+        carry a certificate_path that resolves to a real file — generic.tf feeds it to
+        file() (line 527) with no null-guard, so a missing/absent path crashes apply."""
+        if p.type not in _VALID_CREDENTIAL_TYPES:
+            raise LabValidationError(
+                f"AppCredential '{p.key}': unknown type '{p.type}' "
+                f"(valid: {', '.join(sorted(_VALID_CREDENTIAL_TYPES))})."
+            )
+        if p.type == "certificate":
+            if not p.certificate_path:
+                raise LabValidationError(
+                    f"AppCredential '{p.key}': type 'certificate' requires "
+                    f"'certificate_path' (the declarative loader auto-mints one; a "
+                    f"hand-authored certificate credential must supply the file)."
+                )
+            if self.verify_files and not _material_file_exists(p.certificate_path):
+                raise LabValidationError(
+                    f"AppCredential '{p.key}': certificate_path "
+                    f"'{p.certificate_path}' does not resolve to a file."
+                )
 
     def _validate_initial_access_vector(self, p: InitialAccessVector) -> None:
         """An InitialAccessVector has no generic.tf handler, so ref-check it here.
@@ -307,6 +424,7 @@ class TerraformBuilder:
                 )
 
     def _validate_inject_material(self, p: DataInject) -> None:
+        # 1. Known material + its required companion field is present.
         required = _MATERIAL_REQUIRES.get(p.material)
         if required is None:
             raise LabValidationError(
@@ -316,6 +434,49 @@ class TerraformBuilder:
             raise LabValidationError(
                 f"DataInject '{p.key}': material '{p.material}' requires "
                 f"'{required}' to be set."
+            )
+
+        # 2. Known location_type. (Caught here with a clear message rather than as a
+        #    confusing "cannot resolve location_ref" from the ref check.)
+        if p.location_type not in _VALID_INJECT_LOCATIONS:
+            raise LabValidationError(
+                f"DataInject '{p.key}': unknown location_type '{p.location_type}' "
+                f"(valid: {', '.join(sorted(_VALID_INJECT_LOCATIONS))})."
+            )
+
+        # 3. location_type x material compatibility (mirrors generic.tf's emitters).
+        #    Rejecting a mismatch here turns a mid-apply Terraform crash (a null secret
+        #    value, or filebase64(null)) into a clear offline authoring error.
+        allowed = _LOCATION_MATERIALS.get(p.location_type, frozenset())
+        if p.material not in allowed:
+            raise LabValidationError(
+                f"DataInject '{p.key}': material '{p.material}' cannot be planted in a "
+                f"'{p.location_type}' (that location accepts: "
+                f"{', '.join(sorted(allowed))})."
+            )
+
+        # 4. app_secret must reference a PASSWORD credential — generic.tf reads the value
+        #    from azuread_application_password[credential_ref], which only indexes
+        #    password credentials. Referencing a certificate credential yields the
+        #    "given key does not identify an element" apply failure.
+        if p.material == "app_secret" and p.credential_ref:
+            cred_type = self._credential_type.get(p.credential_ref)
+            if cred_type is not None and cred_type != "password":
+                raise LabValidationError(
+                    f"DataInject '{p.key}': material 'app_secret' requires a "
+                    f"'password' credential, but credential_ref '{p.credential_ref}' "
+                    f"is type '{cred_type}'. To plant a certificate, use material "
+                    f"'app_certificate' (with a file_path); to plant a secret, give "
+                    f"the credential type 'password'."
+                )
+
+        # 5. app_certificate's file must resolve to a real file — generic.tf reads it
+        #    via file()/filebase64() with no null-guard.
+        if (self.verify_files and p.material == "app_certificate"
+                and not _material_file_exists(p.file_path)):
+            raise LabValidationError(
+                f"DataInject '{p.key}': material 'app_certificate' file_path "
+                f"'{p.file_path}' does not resolve to a file."
             )
 
     # -- step 3: write the Terraform variables (with credential_ref prefixing) -
@@ -349,6 +510,8 @@ class TerraformBuilder:
         return families
 
 
-def build_tfvars(model: DeploymentModel) -> Dict:
-    """Convenience entrypoint: validate + build the terraform.tfvars.json dict."""
-    return TerraformBuilder(model).build()
+def build_tfvars(model: DeploymentModel, verify_files: bool = True) -> Dict:
+    """Convenience entrypoint: validate + build the terraform.tfvars.json dict.
+    `verify_files=False` skips the on-disk cert/key/pfx existence check for structural
+    unit tests that reference placeholder fixture files (never deployed)."""
+    return TerraformBuilder(model, verify_files=verify_files).build()

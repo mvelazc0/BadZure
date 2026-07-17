@@ -127,6 +127,41 @@ _MI_TO_GA = {
 }
 
 
+# cert-loot: alice reads a storage blob holding a GA app's certificate. The loot
+# only confers control of the app if a `type: certificate` credential is REGISTERED
+# on it (the pair that emits azuread_application_certificate). Dummy file paths keep
+# the test hermetic — reachability never reads them (only build_tfvars would).
+_CERT_TO_GA = {
+    "schema": "graph",
+    "attack_paths": {
+        "cert_to_ga": {
+            "objective": {"name": "GA via cert", "capability": "entra_role", "role": GA},
+            "initial_access": {"method": "compromised_identity", "principal_ref": "alice"},
+            "identities": {
+                "users": [{"ref": "alice"}],
+                "applications": [{"ref": "app_highpriv"}],
+            },
+            "resources": {"storage_accounts": [{"ref": "st01"}]},
+            "assignments": [
+                {"id": "a1", "type": "azure_rbac", "principal_ref": "alice",
+                 "role": "Storage Blob Data Reader", "scope_ref": "st01"},
+                {"id": "a2", "type": "entra_role", "principal_ref": "app_highpriv",
+                 "role": GA},
+            ],
+            "credentials": [
+                {"ref": "app_cert", "app_ref": "app_highpriv", "type": "certificate",
+                 "certificate_path": "terraform/dummy.pfx"},
+            ],
+            "data_injects": [
+                {"id": "d1", "material": "app_certificate", "source_ref": "app_highpriv",
+                 "location": "storage_blob", "location_ref": "st01",
+                 "name": "app.pfx", "file_path": "terraform/dummy.pfx"},
+            ],
+        }
+    },
+}
+
+
 def _status(config, path_name):
     report, _ = _report(config)
     return next(v for v in report.verdicts if v.name == path_name)
@@ -228,6 +263,32 @@ def test_objective_without_capability_is_unverified():
     _load(cfg)                                  # does not raise
     assert _status(cfg, "vague").status == reachability.UNVERIFIED
     print("ok: objective without capability is unverified (non-fatal)")
+
+
+def test_certificate_loot_reached_when_credential_registered():
+    _load(_CERT_TO_GA)                          # does not raise -> objective reachable
+    v = _status(_CERT_TO_GA, "cert_to_ga")
+    assert v.status == reachability.REACHED, v.reason
+    assert v.terminal_node == "app_highpriv"
+    print("ok: cert loot reached when the credential is registered")
+
+
+def test_certificate_loot_blocked_without_registered_credential():
+    # Drop the paired certificate credential: the planted .pfx now registers on no app
+    # (no azuread_application_certificate), so looting it authenticates as nothing and
+    # the hop is not traversable. This is exactly the generated.yml bug — the gate must
+    # report the path unreachable instead of deploying a silently-broken cert-auth hop.
+    broken = copy.deepcopy(_CERT_TO_GA)
+    broken["attack_paths"]["cert_to_ga"]["credentials"] = []
+    raised = False
+    try:
+        _load(broken)
+    except reachability.ReachabilityError as e:
+        raised = True
+        assert "cert_to_ga" in str(e)
+    assert raised, "loader must reject a cert loot with no registered credential"
+    assert _status(broken, "cert_to_ga").status == reachability.BLOCKED
+    print("ok: cert loot blocked when no credential registers the cert")
 
 
 def test_authored_steps_preserved():

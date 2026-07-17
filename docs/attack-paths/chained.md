@@ -10,7 +10,7 @@ A chained path declares:
 
 - **`objective`** the goal the path reaches: a capability and the target it acts on.
 - **`initial_access`** where the attacker starts: a compromised identity, or a foothold on an exposed resource.
-- **`identities` and `resources`** the entities the path uses, declared inline. A path can also borrow an entity from the baseline with `{ ref: name, from: baseline }`.
+- **`identities` and `resources`** the entities the path uses, declared inline. A path can also borrow an entity from the baseline with `{ ref: name, from: baseline }` (a random unused one), or bind a specific named baseline entity with `{ ref: name, from: baseline, match: hannah.lee }` (matches the baseline ref, UPN, display name, or resource name).
 - **`assignments`** the relationships that form the chain. Each assignment is one of the building blocks: `entra_role`, `azure_rbac`, `api_permission`, `group_membership`, `group_ownership`, `app_ownership`, `au_membership`.
 - **`credentials`** the credentials the path creates on an application.
 - **`data_injects`** material placed into a resource for an attacker to read.

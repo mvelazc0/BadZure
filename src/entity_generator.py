@@ -233,7 +233,7 @@ class EntityGenerator:
         for rg in random_rgs:
             rgs[rg] = {
                 'name': rg,
-                'location': "West US"
+                'location': "West US 2"
             }
         
         return rgs
@@ -245,7 +245,7 @@ class EntityGenerator:
         
         for spec in rg_specs:
             name = spec.get('name', 'random')
-            location = spec.get('location', 'West US')
+            location = spec.get('location', 'West US 2')
             
             if name == 'random':
                 name = random.choice(rg_names)
@@ -283,7 +283,7 @@ class EntityGenerator:
             
             kvs[kv_name] = {
                 'name': kv_name,
-                'location': "West US",
+                'location': "West US 2",
                 'resource_group_name': random_rg,
                 'sku_name': "standard"
             }
@@ -349,7 +349,7 @@ class EntityGenerator:
             
             sas[unique_sa_name] = {
                 'name': unique_sa_name.lower(),
-                'location': "West US",
+                'location': "West US 2",
                 'resource_group_name': random_rg,
                 'account_tier': "Standard",
                 'account_replication_type': "LRS"
@@ -418,7 +418,7 @@ class EntityGenerator:
             
             vms[vm_name] = {
                 "name": vm_name,
-                "location": "West US",
+                "location": "West US 2",
                 "resource_group_name": random_rg,
                 "vm_size": "Standard_D2s_v3",
                 "admin_username": "badzureadmin",

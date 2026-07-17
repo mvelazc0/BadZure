@@ -8,8 +8,8 @@
 # creates the Cosmos account/database/container.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_cosmos_inject.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_cosmos_inject.yml --verbose
+#   python BadZure.py destroy --verbose
 #
 # tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
 

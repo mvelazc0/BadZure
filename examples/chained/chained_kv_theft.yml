@@ -2,8 +2,8 @@
 # chain written declaratively instead of via the `privilege_escalation:` macro.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_kv_theft.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_kv_theft.yml --verbose
+#   python BadZure.py destroy --verbose
 #
 # tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
 

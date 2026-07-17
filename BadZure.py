@@ -8,6 +8,7 @@ security misconfigurations to create vulnerable tenants with multiple attack pat
 Author: Mauricio Velazco (@mvelazco)
 """
 import os
+import sys
 import click
 import logging
 import time
@@ -19,7 +20,10 @@ try:
 except ImportError:
     pass  # python-dotenv not installed, skip loading .env file
 
-from src.cli import BuildCommand, ShowCommand, DestroyCommand, GenerateCommand
+from src.cli import (
+    BuildCommand, ShowCommand, DestroyCommand, GenerateCommand, CheckCommand,
+    GraphCommand, UniquifyCommand, CompileBaselineCommand, BaselineSpecCommand,
+)
 
 # Ensure AZURE_CONFIG_DIR is set to the Azure CLI config directory
 os.environ['AZURE_CONFIG_DIR'] = os.path.expanduser('~/.azure')
@@ -91,9 +95,9 @@ def build(config, verbose):
 @cli.command()
 @click.option('--prompt', help="Natural-language description of the org to generate (baseline)")
 @click.option('--attack-prompt', 'attack_prompt',
-              help="(later slice) Description of attack paths to generate")
+              help="Natural-language description of an attack path to author into the config")
 @click.option('--input', 'input_config', type=click.Path(exists=True),
-              help="(later slice) Existing config to extend with generated attack paths")
+              help="Existing config to extend with a generated attack path (with --attack-prompt)")
 @click.option('-o', '--output', default='generated.yml',
               help="Where to write the generated config (default: generated.yml)")
 @click.option('--model', help="LLM model (e.g. anthropic/claude-opus-4-1, openai/gpt-4o); "
@@ -104,6 +108,64 @@ def generate(prompt, attack_prompt, input_config, output, model, verbose):
     command = GenerateCommand()
     command.execute(prompt=prompt, attack_prompt=attack_prompt,
                     input_config=input_config, output=output, model=model, verbose=verbose)
+
+
+@cli.command(name='compile-baseline')
+@click.option('--design', 'design_file', type=click.Path(exists=True), required=True,
+              help="Path to the org-design YAML file to compile")
+@click.option('-o', '--output', default='generated.yml',
+              help="Where to write the compiled config (default: generated.yml)")
+@click.option('--verbose', is_flag=True, help="Enable verbose output")
+def compile_baseline(design_file, output, verbose):
+    """Compile an org-design YAML into a baseline config (offline, no LLM, no deploy)"""
+    code = CompileBaselineCommand().execute(design_file, output=output, verbose=verbose)
+    raise SystemExit(code)
+
+
+@cli.command(name='baseline-spec')
+def baseline_spec():
+    """Print the org-design authoring contract (for agents authoring a design to compile)"""
+    raise SystemExit(BaselineSpecCommand().execute())
+
+
+@cli.command()
+@click.option('--config', type=click.Path(exists=True), default='generated.yml',
+              help="Path to the configuration YAML file")
+@click.option('--output', type=click.Path(),
+              help="Output path (default: rewrite the input file in place)")
+@click.option('--suffix', help="Fixed suffix to apply (default: a random 5-char token)")
+@click.option('--verbose', is_flag=True, help="List every renamed resource")
+def uniquify(config, output, suffix, verbose):
+    """Suffix globally-unique resource names so a config builds first-try (no deploy)"""
+    code = UniquifyCommand().execute(config, output=output, suffix=suffix, verbose=verbose)
+    raise SystemExit(code)
+
+
+@cli.command()
+@click.option('--config', type=click.Path(exists=True), default='badzure.yml',
+              help="Path to the configuration YAML file")
+@click.option('--view', type=click.Choice(['identity', 'resources', 'attack', 'all']),
+              default='all', help="Which diagram(s) to render")
+@click.option('--output', type=click.Path(), help="Output HTML path (default <config>.graph.html)")
+@click.option('--no-open', 'no_open', is_flag=True, help="Do not open the HTML in a browser")
+@click.option('--verbose', is_flag=True, help="Enable verbose output")
+def graph(config, view, output, no_open, verbose):
+    """Render a config as offline identity/resource/attack graphs (no deploy)"""
+    code = GraphCommand().execute(config, view=view, output=output,
+                                  open_browser=not no_open, verbose=verbose)
+    raise SystemExit(code)
+
+
+@cli.command()
+@click.option('--config', type=click.Path(exists=True), default='badzure.yml',
+              help="Path to the configuration YAML file")
+@click.option('--json', 'json_output', is_flag=True,
+              help="Emit a machine-readable reachability verdict to stdout")
+@click.option('--verbose', is_flag=True, help="List every derived attack step")
+def check(config, json_output, verbose):
+    """Check attack-path reachability for a config (offline, no deploy)"""
+    code = CheckCommand().execute(config, json_output=json_output, verbose=verbose)
+    raise SystemExit(code)
 
 
 @cli.command()
@@ -124,6 +186,9 @@ def destroy(verbose):
 
 if __name__ == '__main__':
     setup_logging(logging.INFO)
-    print(banner)
-    time.sleep(2)
+    # `check`/`graph`/`compile-baseline`/`baseline-spec` are machine-oriented (the agentic
+    # crew + scripts call them, often parsing stdout): skip the banner + sleep.
+    if not (set(sys.argv[1:]) & {'check', 'graph', 'compile-baseline', 'baseline-spec'}):
+        print(banner)
+        time.sleep(2)
     cli()

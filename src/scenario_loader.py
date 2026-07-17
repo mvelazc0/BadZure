@@ -32,6 +32,7 @@ from typing import Dict, List, Optional
 import random
 
 from src import reachability
+from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
 from src.name_resolver import NameResolver
 from src.baseline_generator import BaselineGenerator
@@ -95,7 +96,7 @@ ASSIGNMENT_TYPES = frozenset({
 
 # Default resource group synthesized for inline resources that don't name one.
 _DEFAULT_RG = "badzure-default-rg"
-_DEFAULT_RG_LOCATION = "West US"
+_DEFAULT_RG_LOCATION = "West US 2"
 
 # -- Tier-1 `technique:` sugar -------------------------------------------------
 # A technique path fires a macro that wires the whole chain; the loader then
@@ -103,18 +104,20 @@ _DEFAULT_RG_LOCATION = "West US"
 # reachability gate validates it exactly like a hand-authored explicit path.
 # technique -> (objective capability, summary key naming the target).
 _TECHNIQUE_OBJECTIVES = {
-    "KeyVaultSecretTheft":           ("read_secrets",      "key_vault"),
-    "StorageCertificateTheft":       ("read_storage",      "storage_account"),
-    "CosmosDBSecretTheft":           ("read_cosmos",       "cosmos_db"),
     "ApplicationOwnershipAbuse":     ("control_principal", "app_name"),
     "ApplicationAdministratorAbuse": ("control_principal", "app_name"),
     "CloudAppAdministratorAbuse":    ("control_principal", "app_name"),
-    # ManagedIdentityAbuse's capability depends on the target resource type — see
-    # _MI_TARGET_CAPABILITY (the objective targets the looted resource).
+    # The courier techniques below are handled specially (_COURIER_TECHNIQUES): their
+    # objective is controlling the LOOTED APP, not reading the intermediate resource.
 }
-_MI_TARGET_CAPABILITY = {
-    "key_vault": "read_secrets", "storage_account": "read_storage",
-    "cosmos_db": "read_cosmos",
+# "Courier" techniques: the attacker reads a resource only to LOOT an app credential
+# planted there, then authenticates as that app. Their objective is control of the
+# looted app (summary["app_name"]) — see _synthesize_objective. ManagedIdentityAbuse
+# is a courier only in its resource-target flavor (the direct/MI flavor is handled
+# separately above).
+_COURIER_TECHNIQUES = {
+    "ManagedIdentityAbuse", "KeyVaultSecretTheft",
+    "StorageCertificateTheft", "CosmosDBSecretTheft",
 }
 # Baseline entity map required (for mode=random) per resource-anchored technique.
 _TECHNIQUE_REQUIRED_RESOURCE = {
@@ -172,11 +175,27 @@ class ScenarioLoader:
         # Drives `technique:` paths — the on-ramp tier that fires the macro library
         # (the SAME macros the legacy mode used) instead of an explicit assignment graph.
         self.attack_path_mgr = attack_path_mgr or AttackPathManager(self.generator)
+        # Per-app cert cache: app_ref -> (cert_pem, key, pfx) paths, so a certificate
+        # credential and any app_certificate data_inject for the SAME app share one
+        # minted cert triple. Populated lazily by _ensure_cert during compile.
+        self._cert_cache: Dict[str, tuple] = {}
+
+    def _ensure_cert(self, app_ref: str) -> tuple:
+        """Mint (once per app) a real self-signed cert/key/pfx for `app_ref` and return
+        the (cert_pem, key, pfx) file paths. This is the deterministic follow-through
+        that lets an author DECLARE a certificate leg (`type: certificate` /
+        `material: app_certificate`) without hand-supplying files: the LLM designs the
+        intent, this mints the artifact. Files land in terraform/ (gitignored), the
+        same place + format the macros use, so generic.tf's file()/filebase64() resolve
+        them at apply."""
+        if app_ref not in self._cert_cache:
+            self._cert_cache[app_ref] = generate_certificate_and_key(app_ref)
+        return self._cert_cache[app_ref]
 
     # -- public API -----------------------------------------------------------
     def load(self, config: Dict, tenant_id: str = "", domain: str = "",
              subscription_id: str = "", public_ip: str = "",
-             azure_config_dir: str = "") -> ScenarioModel:
+             azure_config_dir: str = "", enforce_reachability: bool = True) -> ScenarioModel:
         # 0. Structural validation up front (registry-driven). Aggregates malformed
         #    objectives / unknown assignment types / dangling step links into one
         #    error before we build anything. Lazy import avoids an import cycle
@@ -281,7 +300,8 @@ class ScenarioLoader:
         #    mixed-origin primitive set (an attack can leverage baseline edges too).
         report = reachability.analyze(model, overlays, self.resolver)
         reachability.attach_derived_steps(overlays, report)
-        reachability.enforce(report)  # <- comment out this line to bypass the gate
+        if enforce_reachability:
+            reachability.enforce(report)  # gate; `check` passes enforce_reachability=False to report instead
 
         return ScenarioModel(model=model, attack_paths=overlays)
 
@@ -304,9 +324,17 @@ class ScenarioLoader:
         def add_spec(kind: str, raw: Dict):
             ref = self._spec_name(raw)
             source = raw.get("from")
+            match = raw.get("match")
             if source == "baseline":
-                alias[ref] = self._pick_from_baseline(kind, baseline_entities, picked, ref)
+                alias[ref] = self._pick_from_baseline(
+                    kind, baseline_entities, picked, ref, match)
                 return
+            if match is not None:
+                raise ScenarioConfigError(
+                    f"Entity '{ref}' uses `match:` without `from: baseline`; "
+                    f"`match:` selects a NAMED baseline entity and is only valid "
+                    f"alongside `from: baseline`."
+                )
             if source:
                 raise ScenarioConfigError(
                     f"Entity '{ref}' has unknown source `from: {source}` "
@@ -398,13 +426,31 @@ class ScenarioLoader:
                             **explicit_entities.get(attr, {})}
         return merged
 
-    @staticmethod
-    def _pick_from_baseline(kind: str, baseline_entities: Dict[str, Dict],
-                            picked: Dict[str, set], ref: str) -> str:
-        """Bind a `from: baseline` ref to a random, not-yet-bound baseline entity of
-        `kind`."""
-        available = [k for k in baseline_entities.get(kind, {})
-                     if k not in picked.get(kind, set())]
+    @classmethod
+    def _pick_from_baseline(cls, kind: str, baseline_entities: Dict[str, Dict],
+                            picked: Dict[str, set], ref: str,
+                            match: Optional[str] = None) -> str:
+        """Bind a `from: baseline` ref to a baseline entity of `kind`.
+
+        With `match`, bind a SPECIFIC named baseline entity (so an attack can thread
+        the org's real `hannah.lee`); without it, pick a random not-yet-bound one.
+        Either way the chosen key is marked used so two refs never alias one entity.
+        """
+        kind_map = baseline_entities.get(kind, {})
+        already = picked.get(kind, set())
+
+        if match is not None:
+            chosen = cls._resolve_baseline_match(kind, kind_map, ref, match)
+            if chosen in already:
+                raise ScenarioConfigError(
+                    f"`{ref}` matches baseline {kind} '{chosen}', but that entity is "
+                    f"already bound to another attack-path ref; one baseline entity "
+                    f"can back only one ref."
+                )
+            picked.setdefault(kind, set()).add(chosen)
+            return chosen
+
+        available = [k for k in kind_map if k not in already]
         if not available:
             raise ScenarioConfigError(
                 f"`{ref}` requests a {kind} from the baseline, but the baseline has "
@@ -414,6 +460,43 @@ class ScenarioLoader:
         chosen = random.choice(available)
         picked.setdefault(kind, set()).add(chosen)
         return chosen
+
+    # Attributes that name a baseline entity, by priority, for `match:` lookup.
+    _MATCH_ATTRS = ("user_principal_name", "display_name", "name")
+
+    @classmethod
+    def _resolve_baseline_match(cls, kind: str, kind_map: Dict[str, Dict],
+                                ref: str, match: str) -> str:
+        """Resolve `match` to exactly one baseline key of `kind`. Accepts the entity's
+        key (its baseline `ref`) or a naming attribute (UPN / display name / resource
+        name), case-insensitively. Errors on no match (listing what's available) or an
+        ambiguous match (so a never-deployed alias can't slip through)."""
+        if not kind_map:
+            raise ScenarioConfigError(
+                f"`{ref}` asks to match baseline {kind} '{match}', but the baseline "
+                f"declares no {kind}."
+            )
+        if match in kind_map:  # exact key (the baseline ref) — unambiguous
+            return match
+
+        needle = match.strip().casefold()
+        hits = []
+        for key, attrs in kind_map.items():
+            candidates = [key] + [str(attrs[a]) for a in cls._MATCH_ATTRS if a in attrs]
+            if any(c.casefold() == needle for c in candidates):
+                hits.append(key)
+        if not hits:
+            available = ", ".join(sorted(kind_map)) or "(none)"
+            raise ScenarioConfigError(
+                f"`{ref}` asks to match baseline {kind} '{match}', but no such entity "
+                f"exists. Available {kind}: {available}."
+            )
+        if len(set(hits)) > 1:
+            raise ScenarioConfigError(
+                f"`{ref}` match '{match}' is ambiguous across baseline {kind} "
+                f"{sorted(set(hits))}; match on the unique baseline ref instead."
+            )
+        return hits[0]
 
     @staticmethod
     def _merge_entities(baseline_entities: Dict[str, Dict],
@@ -444,7 +527,7 @@ class ScenarioLoader:
     def _to_targeted_spec(cls, raw: Dict) -> Dict:
         """Translate a declarative `{ref: X, ...}` entity into the `{name: X, ...}`
         shape the EntityGenerator *_targeted methods expect."""
-        spec = {k: v for k, v in raw.items() if k not in ("ref", "from")}
+        spec = {k: v for k, v in raw.items() if k not in ("ref", "from", "match")}
         spec["name"] = cls._spec_name(raw)
         return spec
 
@@ -586,23 +669,34 @@ class ScenarioLoader:
             ref = cred.get("ref") or f"cred{idx}"
             key = self._key("baseline", ref)
             cred_ref_to_key[ref] = key
+            cred_type = cred.get("type", "password")
+            cert_path = cred.get("certificate_path")
+            if cred_type == "certificate" and not cert_path:
+                cert_path, _key_path, _pfx_path = self._ensure_cert(cred["app_ref"])
             primitives.append(AppCredential(
                 key, RANDOM,
-                app_ref=cred["app_ref"], type=cred.get("type", "password"),
-                certificate_path=cred.get("certificate_path"),
+                app_ref=cred["app_ref"], type=cred_type,
+                certificate_path=cert_path,
                 display_name=cred.get("display_name", "BadZureBaselineCredential"),
             ))
         for idx, d in enumerate(baseline_config.get("data_injects") or []):
             did = d.get("id") or f"d{idx}"
             cref = d.get("credential_ref")
+            material = d["material"]
+            location_type = d.get("location_type") or d.get("location")
+            source_ref = d.get("source_ref")
+            file_path = d.get("file_path")
+            if material == "app_certificate" and not file_path and source_ref:
+                cert_path, key_path, pfx_path = self._ensure_cert(source_ref)
+                file_path = cert_path if location_type == "cosmos_document" else pfx_path
             primitives.append(DataInject(
                 self._key("baseline", did), RANDOM,
-                material=d["material"],
-                location_type=d.get("location_type") or d.get("location"),
+                material=material,
+                location_type=location_type,
                 location_ref=d["location_ref"], name=d["name"],
-                source_ref=d.get("source_ref"),
+                source_ref=source_ref,
                 credential_ref=cred_ref_to_key.get(cref, cref) if cref else None,
-                literal_value=d.get("literal_value"), file_path=d.get("file_path"),
+                literal_value=d.get("literal_value"), file_path=file_path,
                 pfx_password=d.get("pfx_password", ""),
             ))
 
@@ -621,10 +715,16 @@ class ScenarioLoader:
                 )
             key = self._key(path_name, ref)
             cred_ref_to_key[ref] = key
+            cred_type = cred.get("type", "password")
+            cert_path = cred.get("certificate_path")
+            # Auto-mint: a certificate credential with no supplied file gets a real
+            # cert minted for its app (the .pem is the public cert generic.tf uploads).
+            if cred_type == "certificate" and not cert_path:
+                cert_path, _key_path, _pfx_path = self._ensure_cert(cred["app_ref"])
             primitives.append(AppCredential(
                 key, ATTACK_PATH,
-                app_ref=cred["app_ref"], type=cred.get("type", "password"),
-                certificate_path=cred.get("certificate_path"),
+                app_ref=cred["app_ref"], type=cred_type,
+                certificate_path=cert_path,
                 display_name=cred.get("display_name", "BadZureCredential"),
             ))
 
@@ -641,14 +741,25 @@ class ScenarioLoader:
         for idx, d in enumerate(path.get("data_injects", [])):
             did = d.get("id") or f"d{idx}"
             cred_ref = d.get("credential_ref")
+            material = d["material"]
+            location_type = d.get("location_type") or d.get("location")
+            source_ref = d.get("source_ref")
+            file_path = d.get("file_path")
+            # Auto-mint: an app_certificate inject with no supplied file gets a real
+            # cert minted for its source app. KV cert-import + storage need the PFX
+            # (cert+key); a cosmos document holds the text PEM. Shares the app's cached
+            # triple with any certificate credential on the same app.
+            if material == "app_certificate" and not file_path and source_ref:
+                cert_path, key_path, pfx_path = self._ensure_cert(source_ref)
+                file_path = cert_path if location_type == "cosmos_document" else pfx_path
             primitives.append(DataInject(
                 self._key(path_name, did), ATTACK_PATH,
-                material=d["material"],
-                location_type=d.get("location_type") or d.get("location"),
+                material=material,
+                location_type=location_type,
                 location_ref=d["location_ref"], name=d["name"],
-                source_ref=d.get("source_ref"),
+                source_ref=source_ref,
                 credential_ref=cred_ref_to_key.get(cred_ref, cred_ref) if cred_ref else None,
-                literal_value=d.get("literal_value"), file_path=d.get("file_path"),
+                literal_value=d.get("literal_value"), file_path=file_path,
                 pfx_password=d.get("pfx_password", ""),
             ))
 
@@ -1047,7 +1158,7 @@ class ScenarioLoader:
             for kind, specs in (path.get(section) or {}).items():
                 out[kind] = [
                     {("name" if k == "ref" else k): v
-                     for k, v in spec.items() if k != "from"}
+                     for k, v in spec.items() if k not in ("from", "match")}
                     for spec in specs
                 ]
         return out
@@ -1089,21 +1200,31 @@ class ScenarioLoader:
     def _synthesize_objective(technique: str, summary: Dict) -> Dict:
         """Build a (capability, target) objective from the macro summary so the
         reachability gate adjudicates the technique path like an explicit one."""
-        if technique == "ManagedIdentityAbuse":
-            if summary.get("privilege_source") == "managed_identity":
-                # Direct flavor: the attacker ends up controlling the over-privileged
-                # managed identity (the source compute). Controlling the compute already
-                # implies controlling its MI, so the objective is reaching that source.
-                capability = "control_principal"
-                target = summary.get("source_name")
-            else:
-                capability = _MI_TARGET_CAPABILITY.get(summary.get("target_resource_type"))
-                target = summary.get("target_name")
+        if technique == "ManagedIdentityAbuse" and \
+                summary.get("privilege_source") == "managed_identity":
+            # Direct flavor: the attacker ends up controlling the over-privileged
+            # managed identity (the source compute). Controlling the compute already
+            # implies controlling its MI, so the objective is reaching that source.
+            capability, target = "control_principal", summary.get("source_name")
+            name = f"{technique} ({target})" if target else technique
+        elif technique in _COURIER_TECHNIQUES:
+            # Courier flavor (MI-via-resource + the *SecretTheft/*CertificateTheft
+            # techniques): reading the resource is only a STEPPING STONE — it loots an
+            # app credential the attacker then uses to authenticate AS that app, whose
+            # privileges (named on the payoff line) are the real prize. So the objective
+            # is CONTROLLING the looted app, not merely reading the resource. Aiming the
+            # gate at the app makes reachability trace the whole loot chain (VM/identity
+            # -> read resource -> loot credential -> become app) and enforce the credential
+            # is actually registered — matching how an explicit graph path expresses it,
+            # instead of collapsing to a single "read <resource>" hop.
+            capability, target = "control_principal", summary.get("app_name")
+            name = f"Compromise {target} via looted credential" if target else technique
         else:
             capability, target_key = _TECHNIQUE_OBJECTIVES[technique]
             target = summary.get(target_key)
+            name = f"{technique} ({target})" if target else technique
         return {
-            "name": f"{technique} ({target})" if target else technique,
+            "name": name,
             "impact": "high",
             "capability": capability,
             "target_ref": target,

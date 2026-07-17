@@ -67,7 +67,7 @@ az login
 The simplest way to get started is to run `build` with the default configuration file:
 
 ```bash
-python badzure.py build
+python BadZure.py build
 ```
 
 This reads `badzure.yml`, creates the specified entities and Azure resources, and configures the attack paths defined in the file.
@@ -75,7 +75,7 @@ This reads `badzure.yml`, creates the specified entities and Azure resources, an
 To use a custom configuration file:
 
 ```bash
-python badzure.py build --config my-config.yml
+python BadZure.py build --config my-config.yml
 ```
 
 !!! tip
@@ -86,7 +86,7 @@ python badzure.py build --config my-config.yml
 After a successful build, inspect what was created:
 
 ```bash
-python badzure.py show
+python BadZure.py show
 ```
 
 This displays all created entities, their credentials, and the configured attack paths with initial access details.
@@ -96,13 +96,13 @@ This displays all created entities, their credentials, and the configured attack
 When you're done, clean up everything:
 
 ```bash
-python badzure.py destroy
+python BadZure.py destroy
 ```
 
 For detailed output during teardown:
 
 ```bash
-python badzure.py destroy --verbose
+python BadZure.py destroy --verbose
 ```
 
 ## Configuration Overview

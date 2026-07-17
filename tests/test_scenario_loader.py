@@ -393,6 +393,98 @@ def test_from_baseline_without_baseline_entities_errors():
         assert "baseline" in str(e).lower()
 
 
+def _named_baseline_match_config(match_value):
+    """A baseline with named users + one attack path that threads a NAMED baseline
+    employee via `{from: baseline, match: ...}`."""
+    return {
+        "baseline": {
+            "identities": {"users": [{"ref": "hannah.lee"}, {"ref": "raj.patel"}]},
+        },
+        "attack_paths": {
+            "targeted": {
+                "objective": {"name": "KV secrets", "impact": "high"},
+                "initial_access": {"principal_ref": "victim"},
+                "identities": {
+                    "users": [{"ref": "victim", "from": "baseline",
+                               "match": match_value}],
+                },
+                "resources": {"key_vaults": [{"ref": "kv01"}]},
+                "assignments": [
+                    {"id": "a1", "type": "azure_rbac", "principal_ref": "victim",
+                     "role": "Key Vault Contributor", "scope_ref": "kv01"},
+                ],
+            }
+        },
+    }
+
+
+def test_from_baseline_match_binds_named_employee_by_ref():
+    scenario = _load(_named_baseline_match_config("hannah.lee"))
+    out = build_tfvars(scenario.model)
+    rbac = out["attack_path_azure_rbac_assignments"]["targeted__a1"]
+    # the alias resolved to the SPECIFIC named baseline user, not a random pick
+    assert rbac["principal_ref"] == "hannah.lee"
+
+
+def test_from_baseline_match_resolves_display_name_case_insensitively():
+    # explicit baseline users get display_name "Hannah Lee" from the "hannah.lee" ref
+    scenario = _load(_named_baseline_match_config("hannah lee"))
+    out = build_tfvars(scenario.model)
+    rbac = out["attack_path_azure_rbac_assignments"]["targeted__a1"]
+    assert rbac["principal_ref"] == "hannah.lee"
+
+
+def test_from_baseline_match_unknown_errors_with_available_list():
+    try:
+        _load(_named_baseline_match_config("nope.nobody"))
+        assert False, "expected ScenarioConfigError for unmatched baseline name"
+    except ScenarioConfigError as e:
+        msg = str(e)
+        assert "nope.nobody" in msg and "hannah.lee" in msg  # lists what's available
+
+
+def test_match_without_from_baseline_errors():
+    config = {
+        "baseline": {"identities": {"users": [{"ref": "hannah.lee"}]}},
+        "attack_paths": {
+            "p": {
+                "identities": {"users": [{"ref": "victim", "match": "hannah.lee"}]},
+                "assignments": [],
+            }
+        },
+    }
+    try:
+        _load(config)
+        assert False, "expected ScenarioConfigError for match without from: baseline"
+    except ScenarioConfigError as e:
+        assert "match" in str(e).lower() and "baseline" in str(e).lower()
+
+
+def test_match_cannot_double_bind_one_baseline_entity():
+    config = {
+        "baseline": {"identities": {"users": [{"ref": "hannah.lee"}, {"ref": "raj.patel"}]}},
+        "attack_paths": {
+            "p": {
+                "objective": {"name": "x", "impact": "high"},
+                "initial_access": {"principal_ref": "v1"},
+                "identities": {"users": [
+                    {"ref": "v1", "from": "baseline", "match": "hannah.lee"},
+                    {"ref": "v2", "from": "baseline", "match": "hannah.lee"},
+                ]},
+                "assignments": [
+                    {"id": "a1", "type": "entra_role", "principal_ref": "v1",
+                     "role": GA_ROLE},
+                ],
+            }
+        },
+    }
+    try:
+        _load(config)
+        assert False, "expected ScenarioConfigError for double-bound baseline entity"
+    except ScenarioConfigError as e:
+        assert "already bound" in str(e).lower()
+
+
 def test_attack_group_excluded_from_baseline_noise():
     # A baseline with one group, used as an attack-path role principal: noise must
     # NOT add random members to it (it's the only group, so 0 memberships result).
@@ -438,6 +530,72 @@ def test_uninferable_principal_type_errors():
         assert False, "expected ScenarioConfigError for un-inferable principal_type"
     except ScenarioConfigError as e:
         assert "principal_type" in str(e)
+
+
+def test_certificate_leg_auto_mints_real_files_and_builds():
+    """A declarative path may DECLARE a certificate credential + app_certificate inject
+    WITHOUT supplying files; the loader deterministically mints real cert/key/pfx files
+    (Option A: in-memory at compile), fills the paths, and the full preflight
+    build_tfvars(verify_files=True) then passes. The credential and inject for the same
+    app share ONE minted cert triple."""
+    from src.primitives import AppCredential, DataInject
+    from src.terraform_builder import build_tfvars as _bt
+
+    config = {
+        "schema": "graph",
+        "attack_paths": {
+            "cert_theft": {
+                "objective": {"name": "Signing cert theft", "impact": "high"},
+                "initial_access": {"method": "compromised_identity",
+                                   "principal_ref": "alice"},
+                "identities": {
+                    "users": [{"ref": "alice"}],
+                    "applications": [{"ref": "app_highpriv"}],
+                },
+                "resources": {"storage_accounts": [{"ref": "sa01"}]},
+                "assignments": [
+                    {"id": "a1", "type": "azure_rbac", "principal_ref": "alice",
+                     "role": "Storage Blob Data Reader", "scope_ref": "sa01"},
+                    {"id": "a2", "type": "entra_role", "principal_ref": "app_highpriv",
+                     "role": GA_ROLE},
+                ],
+                "credentials": [
+                    {"ref": "signing_cert", "app_ref": "app_highpriv",
+                     "type": "certificate"},
+                ],
+                "data_injects": [
+                    {"id": "d1", "material": "app_certificate",
+                     "source_ref": "app_highpriv", "location": "storage_blob",
+                     "location_ref": "sa01", "name": "app_highpriv-signing.pfx"},
+                ],
+            }
+        },
+    }
+    scenario = _loader().load(config, domain="contoso.com", enforce_reachability=False)
+    model = scenario.model
+
+    cert_cred = next(p for p in model.primitives
+                     if isinstance(p, AppCredential) and p.type == "certificate")
+    cert_inject = next(p for p in model.primitives
+                       if isinstance(p, DataInject) and p.material == "app_certificate")
+    assert cert_cred.certificate_path, "certificate credential should be auto-minted a path"
+    assert cert_inject.file_path and cert_inject.file_path.endswith(".pfx")
+    # Same app -> one shared cert triple: <app>-<suffix>.pem / .key / .pfx.
+    assert cert_cred.certificate_path[:-4] == cert_inject.file_path[:-4]
+
+    key_sibling = cert_cred.certificate_path[:-4] + ".key"
+    minted = [cert_cred.certificate_path, cert_inject.file_path, key_sibling]
+    try:
+        for path in (cert_cred.certificate_path, cert_inject.file_path):
+            assert os.path.exists(os.path.join(_REPO, "terraform", path)), \
+                f"minted file {path} should exist on disk"
+        # Full preflight (verify_files=True) passes now that the files are real.
+        _bt(model, verify_files=True)
+    finally:
+        for path in minted:
+            fp = os.path.join(_REPO, "terraform", path)
+            if os.path.exists(fp):
+                os.remove(fp)
 
 
 def _main():

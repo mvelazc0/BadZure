@@ -19,8 +19,8 @@
 #   objective entra_role/Global Administrator: app_highpriv ∈ control AND holds GA -> REACHED.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_appservice_mi.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_appservice_mi.yml --verbose
+#   python BadZure.py destroy --verbose
 #
 # kv-replacee-aasds must be a GLOBALLY UNIQUE Key Vault name (3-24 chars, lowercase
 # alphanumerics + hyphens) — change it in all three places below.

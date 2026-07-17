@@ -5,32 +5,60 @@ Handles all Terraform operations and variable building.
 import os
 import json
 import logging
+import shutil
 from typing import Dict, Tuple
 from python_terraform import Terraform
 
 
+class TerraformNotFoundError(RuntimeError):
+    """Raised when the `terraform` binary isn't installed / on PATH."""
+
+    def __init__(self):
+        super().__init__(
+            "Terraform is not installed or not on PATH. Install it from "
+            "https://developer.hashicorp.com/terraform/install and make sure "
+            "the `terraform` command is available in your shell, then retry."
+        )
+
+
 class TerraformManager:
     """Manages Terraform operations."""
-    
+
     def __init__(self, terraform_dir: str = "terraform"):
         self.terraform_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), terraform_dir)
         self.tf = Terraform(working_dir=self.terraform_dir)
-    
+
+    @staticmethod
+    def ensure_installed() -> None:
+        """Raise a friendly error up front if `terraform` isn't on PATH."""
+        if shutil.which("terraform") is None:
+            raise TerraformNotFoundError()
+
+    @staticmethod
+    def _run(fn, *args, **kwargs) -> Tuple[int, str, str]:
+        """Run a python_terraform call, converting a missing binary into a
+        friendly TerraformNotFoundError instead of a raw FileNotFoundError
+        traceback from subprocess.Popen."""
+        try:
+            return fn(*args, **kwargs)
+        except FileNotFoundError:
+            raise TerraformNotFoundError()
+
     def init(self) -> Tuple[int, str, str]:
         """Initialize Terraform."""
-        return self.tf.init()
-    
+        return self._run(self.tf.init)
+
     def apply(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Apply Terraform configuration."""
-        return self.tf.apply(skip_plan=True, capture_output=not verbose)
-    
+        return self._run(self.tf.apply, skip_plan=True, capture_output=not verbose)
+
     def destroy(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Destroy Terraform resources."""
-        return self.tf.apply(skip_plan=True, destroy=True, auto_approve=True, capture_output=not verbose)
-    
+        return self._run(self.tf.apply, skip_plan=True, destroy=True, auto_approve=True, capture_output=not verbose)
+
     def show(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Show Terraform state."""
-        return self.tf.show(json=True, capture_output=not verbose)
+        return self._run(self.tf.show, json=True, capture_output=not verbose)
 
     def get_outputs(self) -> Dict:
         """Get Terraform outputs as a dictionary."""

@@ -29,11 +29,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from src.entity_generator import EntityGenerator  # noqa: E402
 from src.scenario_loader import ScenarioLoader, ScenarioConfigError  # noqa: E402
-from src.terraform_builder import build_tfvars  # noqa: E402
+from src.terraform_builder import build_tfvars as _build_tfvars  # noqa: E402
 from src import reachability  # noqa: E402
 
 GA_ROLE = "62e90394-69f5-4237-9190-012177145e10"  # Global Administrator
 _REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+
+# The macro test modules install a module-level stub for generate_certificate_and_key
+# that returns fake paths without writing files; imported globally, it reaches here too.
+# This suite tests compile+build STRUCTURE, so skip the on-disk cert-existence check the
+# real preflight enforces (the dedicated cert-automint tests own that coverage).
+def build_tfvars(model):
+    return _build_tfvars(model, verify_files=False)
 
 
 def _loader():
@@ -63,16 +71,19 @@ _TECHNIQUE_CASES = {
         "control_principal"),
     "CloudAppAdministratorAbuse": (
         {"method": "AzureADRole", "entra_role": GA_ROLE}, "control_principal"),
+    # The courier techniques loot an app credential out of a resource and authenticate
+    # AS that app, so their objective is CONTROLLING the looted app (control_principal),
+    # not merely reading the intermediate resource — see _synthesize_objective.
     "KeyVaultSecretTheft": (
-        {"method": "AzureADRole", "entra_role": "random"}, "read_secrets"),
+        {"method": "AzureADRole", "entra_role": "random"}, "control_principal"),
     "StorageCertificateTheft": (
         {"method": "APIPermission", "api_type": "graph", "app_role": "random"},
-        "read_storage"),
+        "control_principal"),
     "CosmosDBSecretTheft": (
-        {"method": "AzureADRole", "entra_role": "random"}, "read_cosmos"),
+        {"method": "AzureADRole", "entra_role": "random"}, "control_principal"),
     "ManagedIdentityAbuse": (
         {"source_type": "vm", "target_resource_type": "key_vault",
-         "method": "AzureADRole", "entra_role": "random"}, "read_secrets"),
+         "method": "AzureADRole", "entra_role": "random"}, "control_principal"),
 }
 
 
@@ -198,7 +209,9 @@ def test_managed_identity_app_service_source():
     assert "ops-portal" in scenario.model.app_services
     assert "askv01" in scenario.model.key_vaults
     ov = scenario.attack_paths[0]
-    assert ov.objective["target_ref"] == "askv01"
+    # Courier objective: control the app whose credential is looted from the key vault.
+    assert ov.objective["capability"] == "control_principal"
+    assert ov.objective["target_ref"] == ov.summary["app_name"]
     assert ov.reachability["status"] == reachability.REACHED
     # Website Contributor on the app + MI grants resolved via app_service source.
     out = build_tfvars(scenario.model)
@@ -235,7 +248,9 @@ def test_inline_entities_run_targeted():
     assert "superkvz0033" in scenario.model.key_vaults
     assert "test-lp" in scenario.model.logic_apps
     ov = scenario.attack_paths[0]
-    assert ov.objective["target_ref"] == "superkvz0033"
+    # Courier objective: control the looted app, not merely read the key vault.
+    assert ov.objective["capability"] == "control_principal"
+    assert ov.objective["target_ref"] == ov.summary["app_name"]
     assert ov.reachability["status"] == reachability.REACHED
     build_tfvars(scenario.model)
 
@@ -254,9 +269,11 @@ def test_group_member_assignment_creates_attack_group():
 
 
 def test_multihop_steps_show_intermediate_pivot():
-    # A read_* objective must trace to the READER principal so the intermediate hops
-    # show up — not collapse to compromise+achieve. ManagedIdentityAbuse is a 3-hop
-    # chain (compromise -> control source -> MI reads target).
+    # The courier chain must not collapse to compromise+achieve: the intermediate hops
+    # (control the source compute, then loot the app credential the MI reads out of the
+    # target) have to show. ManagedIdentityAbuse is a multi-hop chain ending in CONTROL
+    # of the looted app: compromise -> control source (resource_control) -> loot
+    # credential (credential_loot) -> become app (control_principal).
     mi = _load(_technique_config(
         "ManagedIdentityAbuse",
         {"source_type": "vm", "target_resource_type": "key_vault",
@@ -265,7 +282,8 @@ def test_multihop_steps_show_intermediate_pivot():
     actions = [s.get("action") for s in steps]
     assert actions[0] == "compromised_identity"
     assert "resource_control" in actions, f"MI pivot hop missing: {actions}"
-    assert actions[-1] == "read_secrets"
+    assert "credential_loot" in actions, f"loot hop missing: {actions}"
+    assert actions[-1] == "control_principal"
 
     # group_member must show the group-inheritance hop.
     gm = _load(_technique_config(

@@ -1,6 +1,6 @@
 # Tier-1 `technique:` sugar - same chain, new shape. Live test:
-#   python badzure.py build --config examples/atomic/atomic_storage_theft_group.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/atomic/atomic_storage_theft_group.yml --verbose
+#   python BadZure.py destroy --verbose
 
 tenant:
   tenant_id: null

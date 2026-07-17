@@ -3,8 +3,8 @@
 # baseline (`from: baseline`). Both origins deploy from one model.
 #
 # Live test:
-#   python badzure.py build --config examples/chained/chained_hybrid.yml --verbose
-#   python badzure.py destroy --verbose
+#   python BadZure.py build --config examples/chained/chained_hybrid.yml --verbose
+#   python BadZure.py destroy --verbose
 
 tenant:
   tenant_id: null

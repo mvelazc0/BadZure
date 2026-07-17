@@ -17,8 +17,9 @@ compiler owns expansion and the deterministic validator is the reliability gate,
 the breadth of providers (LiteLLM) doesn't have to be trusted for structure.
 
 Built composable / layer-aware (decision #8): `generate_baseline` is one layer over
-a shared config dict; the attack-path layer (`--attack-prompt`) slots in later as a
-second function that reads an existing baseline. Only the baseline layer ships now.
+a shared config dict; the attack-path layer (`--attack-prompt`) is a second function
+(`attack_generator.AttackPathGenerator`) that reads an existing baseline and authors a
+reachability-verified chain into it.
 """
 import json
 import logging
@@ -87,7 +88,7 @@ class OrgGenerator:
         """Deterministically expand an org design into the explicit-baseline IR
         (the Slice-1 config shape). Pure/offline — no LLM, no Azure."""
         if not isinstance(design, dict):
-            raise OrgGenerationError("org design must be a JSON object.")
+            raise OrgGenerationError("org design must be a mapping (object).")
 
         expander = _UserExpander(self.generator)
         users_by_dept: Dict[str, List[str]] = {}
@@ -253,6 +254,11 @@ class OrgGenerator:
         return config
 
     # -- validation -----------------------------------------------------------
+    def validate(self, config: Dict) -> None:
+        """Public alias for the deterministic gate — used by the offline
+        `compile-baseline` command (which has no LLM provider)."""
+        self._validate(config)
+
     def _validate(self, config: Dict) -> None:
         """Hard gate: structural validation + a full loader/build_tfvars dry-run so
         dangling refs and unresolvable role/permission names fail HERE, not at
@@ -420,8 +426,8 @@ _ORG_DESIGN_EXAMPLE = """{
   ],
   "resources": {
     "resource_groups": [
-      {"ref": "rg-prod", "location": "East US"},
-      {"ref": "rg-dev", "location": "East US"}
+      {"ref": "rg-prod", "location": "West US 2"},
+      {"ref": "rg-dev", "location": "West US 2"}
     ],
     "key_vaults": [{"ref": "kv-nwprod01", "resource_group": "rg-prod"}],
     "storage_accounts": [{"ref": "stnwprod01", "resource_group": "rg-prod"}]

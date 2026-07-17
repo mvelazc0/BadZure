@@ -113,19 +113,19 @@ az login
 
 ````shell
 # Display the help menu
-python badzure.py --help
+python BadZure.py --help
 
 # Populate a tenant and configure all attack paths using the default badzure.yml config file
-python badzure.py build
+python BadZure.py build
 
 # Populate a tenant and configure all attack paths with a different config file
-python badzure.py build --config config.yml
+python BadZure.py build --config config.yml
 
 # Show the created resources in Entra ID tenant
-python badzure.py show
+python BadZure.py show
 
 # Destroy all created identities with verbose logging
-python badzure.py destroy --verbose
+python BadZure.py destroy --verbose
 
 ````
 

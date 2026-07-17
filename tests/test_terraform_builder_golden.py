@@ -238,7 +238,7 @@ def _canon_family(fam_map, cls):
 # ---------------------------------------------------------------------------
 def test_generic_families_match_fixture():
     fixture = _load_fixture()
-    out = build_tfvars(_build_model(fixture))
+    out = build_tfvars(_build_model(fixture), verify_files=False)
 
     for family in GENERIC_FAMILIES:
         cls = FAMILY_TO_CLASS[family]
@@ -256,7 +256,7 @@ def test_entity_maps_passthrough_and_keying():
     """Entity maps survive with SYMBOLIC keys (not re-keyed by UPN/display_name),
     and is_attack_path_group is re-derived onto g_ap_role."""
     fixture = _load_fixture()
-    out = build_tfvars(_build_model(fixture))
+    out = build_tfvars(_build_model(fixture), verify_files=False)
 
     for attr in DeploymentModel.ENTITY_MAPS:
         assert out[attr] == fixture[attr], f"entity map '{attr}' mismatch"
@@ -269,7 +269,7 @@ def test_entity_maps_passthrough_and_keying():
 def test_is_attack_path_group_is_derived_not_authored():
     """g_ap_role (Entra-role target) -> flagged; g_owned (only RBAC) -> NOT."""
     fixture = _load_fixture()
-    out = build_tfvars(_build_model(fixture))
+    out = build_tfvars(_build_model(fixture), verify_files=False)
     assert out["groups"]["g_ap_role"].get("is_attack_path_group") is True
     assert "is_attack_path_group" not in out["groups"]["g_owned"]
 
@@ -278,7 +278,7 @@ def test_credential_ref_is_origin_prefixed():
     """Bare credential_ref 'automation_secret' (an attack_path credential) becomes
     'ap:automation_secret' to match g_inject_value's merged-map indexing."""
     fixture = _load_fixture()
-    out = build_tfvars(_build_model(fixture))
+    out = build_tfvars(_build_model(fixture), verify_files=False)
     injected = out["attack_path_data_injects"]["kv_planted_secret"]
     assert injected["credential_ref"] == "ap:automation_secret"
 

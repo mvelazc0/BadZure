@@ -1,0 +1,51 @@
+# =============================================================================
+# DEMO 1 — the ATOMIC version.
+# One privilege-escalation technique + a few parameters. BadZure fabricates the
+# whole chain: brute-force an internet-exposed RDP VM -> ride its managed identity
+# into a storage account -> loot a service-principal CERTIFICATE -> become that SP,
+# which holds Files.Read.All (read every user's OneDrive / SharePoint).
+#
+# This is the "compact, one-technique" form. Note what it CANNOT do: add off-spine
+# decoys/recon, or chain past the SP into a second app. For that -> demo1_chained.yml.
+#
+#   python BadZure.py check --config examples/demo/demo1_atomic.yml --json
+#   python BadZure.py graph --config examples/demo/demo1_atomic.yml --view attack
+#   python BadZure.py build --config examples/demo/demo1_atomic.yml     # live
+# =============================================================================
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+# Small realistic baseline the technique picks its foothold VM + target store from.
+# The assignments: block is the "permission sprawl" — omit it and BadZure creates
+# ZERO random grants (entities only). These counts scatter benign grants
+# (origin: random) across the org for the attack to hide in.
+baseline:
+  identities: { users: 10, groups: 5, applications: 10 }
+  resources:  { resource_groups: 5, key_vaults: 2, storage_accounts: 2, virtual_machines: 2, function_apps: 2 }
+  assignments:
+    group_memberships: 5
+    entra_roles: 5
+    api_permissions: 4
+    azure_rbac: 4
+    group_ownerships: 4
+    app_ownerships: 2
+    app_credentials: 2
+    data_injects: 5
+
+attack_paths:
+  onedrive_exfil_atomic:
+    initial_access:
+      vector: exposed_rdp
+      expose_to_internet: true      # opens 3389 to 0.0.0.0/0 — brute-forceable
+      credential: weak
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: storage_account
+      credential_type: certificate
+    objective:
+      api_permission:
+        graph: ["01d4889c-1287-42c6-ac1f-5d1e02578ef6"]   # Files.Read.All
