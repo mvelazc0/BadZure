@@ -1,0 +1,64 @@
+name: attack
+
+node_types:
+  Attacker:
+    properties: []
+  Identity:
+    properties: [ref, identity_type, controlled]
+    required_properties: [ref]
+  ComputeResource:
+    properties: [ref, resource_type, controlled]
+    required_properties: [ref]
+  DataResource:
+    properties: [ref, resource_type]
+    required_properties: [ref]
+  Credential:
+    properties: [credential_type, material, source_ref]
+  Session:
+    properties: [principal_ref]
+  Objective:
+    properties: [capability, status, impact, reason, target_ref]
+    required_properties: [status]
+
+edge_types:
+  COMPROMISES: &action
+    from: [Attacker, Identity, Session]
+    to: [Identity, Session]
+    properties: [action, step, mitre, uses, original_action]
+  EXPLOITS:
+    <<: *action
+    to: [ComputeResource]
+  TAKES_OVER:
+    <<: *action
+    to: [Identity]
+  INHERITS_ACCESS:
+    <<: *action
+    to: [Identity]
+  EXECUTES_ON:
+    <<: *action
+    to: [ComputeResource]
+  USES_MANAGED_IDENTITY:
+    <<: *action
+    from: [Attacker, Identity, ComputeResource, Session]
+    to: [Identity]
+  READS:
+    <<: *action
+    from: [Attacker, Identity, ComputeResource, Session]
+    to: [DataResource]
+  STEALS_CREDENTIAL:
+    <<: *action
+    from: [Attacker, Identity, ComputeResource, DataResource, Session]
+    to: [Credential]
+  AUTHENTICATES_AS:
+    <<: *action
+    from: [Attacker, Credential, Session]
+    to: [Identity, Session]
+  ACHIEVES:
+    <<: *action
+    from: [Attacker, Identity, ComputeResource, DataResource, Session]
+    to: [Objective]
+  PERFORMS_ACTION:
+    <<: *action
+    from: [Attacker, Identity, ComputeResource, DataResource, Credential, Session]
+    to: [Identity, ComputeResource, DataResource, Credential, Session, Objective]
+    required_properties: [original_action]

@@ -1,0 +1,32 @@
+name: resources
+
+node_types:
+  Subscription:
+    properties: [subscription_id]
+  ResourceGroup:
+    properties: [location, origin]
+  KeyVaultSummary: &resource_summary
+    properties: [count, resources]
+    required_properties: [count]
+  StorageAccountSummary: *resource_summary
+  VirtualMachineSummary: *resource_summary
+  LogicAppSummary: *resource_summary
+  AutomationAccountSummary: *resource_summary
+  FunctionAppSummary: *resource_summary
+  AppServiceSummary: *resource_summary
+  CosmosDBSummary: *resource_summary
+
+edge_types:
+  CONTAINS:
+    from: [Subscription, ResourceGroup]
+    to:
+      - ResourceGroup
+      - KeyVaultSummary
+      - StorageAccountSummary
+      - VirtualMachineSummary
+      - LogicAppSummary
+      - AutomationAccountSummary
+      - FunctionAppSummary
+      - AppServiceSummary
+      - CosmosDBSummary
+    properties: [count]

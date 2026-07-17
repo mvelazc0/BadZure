@@ -1,0 +1,31 @@
+name: identity
+
+node_types:
+  Organization:
+    properties: [users, groups, service_principals, administrative_units]
+  AdministrativeUnit:
+    properties: [origin, user_count, group_count]
+  Group:
+    properties: [origin, member_count, owner_count]
+  UserSummary:
+    properties: [count, members]
+    required_properties: [count]
+  ServicePrincipal:
+    properties: [origin, owner_count]
+  ServicePrincipalSummary:
+    properties: [count, members]
+    required_properties: [count]
+
+edge_types:
+  CONTAINS:
+    from: [Organization, AdministrativeUnit]
+    to: [AdministrativeUnit, Group, UserSummary, ServicePrincipal, ServicePrincipalSummary]
+    properties: [count]
+  MEMBER_OF:
+    from: [Group]
+    to: [Group]
+    properties: [origin]
+  OWNS:
+    from: [Group, ServicePrincipal]
+    to: [Group, ServicePrincipal]
+    properties: [origin]

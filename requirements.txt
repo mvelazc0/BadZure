@@ -1,5 +1,6 @@
 requests
 pyyaml
+jinja2
 click
 python-terraform
 cryptography

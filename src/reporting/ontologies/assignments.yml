@@ -1,0 +1,63 @@
+name: assignments
+
+node_types:
+  User: &principal
+    properties: [origin, principal_type]
+  Group: *principal
+  ServicePrincipal: *principal
+  ManagedIdentity:
+    properties: [origin, principal_type, source_type]
+  Application:
+    properties: [origin]
+  AdministrativeUnit:
+    properties: [origin]
+  Subscription:
+    properties: [subscription_id]
+  ResourceGroup:
+    properties: [location, origin]
+  AzureResource:
+    properties: [resource_type, resource_group, origin]
+    required_properties: [resource_type]
+  EntraRole:
+    properties: [role_id, display_name]
+  MicrosoftGraph:
+    properties: []
+  ExchangeOnline:
+    properties: []
+
+edge_types:
+  ASSIGNED_ENTRA_ROLE:
+    from: [User, Group, ServicePrincipal]
+    to: [EntraRole, Application]
+    properties: [origin, key, role, scope_app_ref]
+    required_properties: [origin, role]
+  ASSIGNED_AZURE_ROLE:
+    from: [User, Group, ServicePrincipal, ManagedIdentity]
+    to: [Subscription, ResourceGroup, AzureResource]
+    properties: [origin, key, role, scope_type, scope_ref, data_plane]
+    required_properties: [origin, role, scope_type]
+  GRANTED_API_PERMISSION:
+    from: [ServicePrincipal]
+    to: [MicrosoftGraph, ExchangeOnline]
+    properties: [origin, key, permission, permission_id, api_type]
+    required_properties: [origin, permission, api_type]
+  MEMBER_OF:
+    from: [User, Group, ServicePrincipal]
+    to: [Group]
+    properties: [origin, key]
+    required_properties: [origin]
+  OWNS_GROUP:
+    from: [User, ServicePrincipal]
+    to: [Group]
+    properties: [origin, key]
+    required_properties: [origin]
+  OWNS_APPLICATION:
+    from: [User, ServicePrincipal]
+    to: [Application]
+    properties: [origin, key]
+    required_properties: [origin]
+  MEMBER_OF_AU:
+    from: [User, Group]
+    to: [AdministrativeUnit]
+    properties: [origin, key]
+    required_properties: [origin]
