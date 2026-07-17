@@ -196,6 +196,16 @@ def test_safe_properties_rejects_non_json_values():
         safe_properties({"tags": {"one", "two"}}, {"tags"})
 
 
+def test_safe_properties_rejects_nested_and_case_varied_secrets():
+    with pytest.raises(UnsafeReportPropertyError, match="forbidden nested field.*admin_password"):
+        safe_properties(
+            {"details": {"admin_password": "secret"}},
+            {"details"},
+        )
+    with pytest.raises(UnsafeReportPropertyError, match="forbidden field.*Password"):
+        safe_properties({"Password": "secret"}, {"Password"})
+
+
 def test_shared_style_has_all_edge_states_and_fallback_color():
     assert set(EDGE_STYLES) == {"normal", "spine", "offspine"}
     assert color_for("User") != color_for("UnknownFutureType")

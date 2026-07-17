@@ -7,6 +7,9 @@ node_types:
     properties: [origin, user_count, group_count]
   Group:
     properties: [origin, member_count, owner_count]
+  GroupSummary:
+    properties: [count, members]
+    required_properties: [count]
   UserSummary:
     properties: [count, members]
     required_properties: [count]
@@ -19,7 +22,7 @@ node_types:
 edge_types:
   CONTAINS:
     from: [Organization, AdministrativeUnit]
-    to: [AdministrativeUnit, Group, UserSummary, ServicePrincipal, ServicePrincipalSummary]
+    to: [AdministrativeUnit, Group, GroupSummary, UserSummary, ServicePrincipal, ServicePrincipalSummary]
     properties: [count]
   MEMBER_OF:
     from: [Group]

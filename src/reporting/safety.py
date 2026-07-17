@@ -8,6 +8,7 @@ from typing import Any, Dict, Iterable, Mapping
 
 FORBIDDEN_PROPERTY_NAMES = frozenset({
     "password",
+    "admin_password",
     "client_secret",
     "secret_value",
     "literal_value",
@@ -57,7 +58,7 @@ def safe_properties(source: Mapping[str, Any], allowed: Iterable[str]) -> Dict[s
     """
 
     allowed_set = set(allowed)
-    forbidden = allowed_set & FORBIDDEN_PROPERTY_NAMES
+    forbidden = {key for key in allowed_set if key.lower() in FORBIDDEN_PROPERTY_NAMES}
     if forbidden:
         raise UnsafeReportPropertyError(
             "Report allowlist contains forbidden field(s): " + ", ".join(sorted(forbidden))
@@ -76,6 +77,12 @@ def _json_safe(value: Any, path: str) -> Any:
     if isinstance(value, (list, tuple)):
         return [_json_safe(item, f"{path}[]") for item in value]
     if isinstance(value, Mapping):
+        forbidden = {str(key) for key in value if str(key).lower() in FORBIDDEN_PROPERTY_NAMES}
+        if forbidden:
+            raise UnsafeReportPropertyError(
+                f"Report property '{path}' contains forbidden nested field(s): "
+                + ", ".join(sorted(forbidden))
+            )
         return {str(k): _json_safe(v, f"{path}.{k}") for k, v in value.items()}
     raise UnsafeReportPropertyError(
         f"Report property '{path}' has unsupported value type {type(value).__name__}"

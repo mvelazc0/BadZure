@@ -19,6 +19,7 @@ NODE_PALETTE = {
     "UserSummary": "#4c86d6",
     "Identity": "#4c86d6",
     "Group": "#2dd4bf",
+    "GroupSummary": "#2dd4bf",
     "ServicePrincipal": "#9b6bd6",
     "ServicePrincipalSummary": "#9b6bd6",
     "ManagedIdentity": "#a78bfa",
