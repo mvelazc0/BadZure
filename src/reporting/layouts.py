@@ -86,3 +86,59 @@ def apply_layered_layout(
         node.position = positions[node.id]
     panel.layout = "preset"
     return panel
+
+
+def apply_spine_layout(
+    panel: GraphPanel,
+    rank_spacing: float = 360.0,
+    branch_spacing: float = 220.0,
+) -> GraphPanel:
+    """Lay out an emphasized path left-to-right with side branches above/below.
+
+    The spine itself uses the deterministic layered algorithm. Non-spine nodes
+    anchor to the closest connected spine node; disconnected detail nodes trail
+    after the spine. No browser-side physics is required.
+    """
+
+    spine_edges = [edge for edge in panel.edges if edge.emphasis == "spine"]
+    spine_ids = {endpoint for edge in spine_edges for endpoint in (edge.source, edge.target)}
+    by_id = {node.id: node for node in panel.nodes}
+
+    if spine_ids:
+        spine_positions = layered_positions(
+            [by_id[node_id] for node_id in sorted(spine_ids)],
+            spine_edges, direction="LR", rank_spacing=rank_spacing,
+            node_spacing=branch_spacing,
+        )
+    else:
+        spine_positions = {}
+
+    positions = dict(spine_positions)
+    side_ids = sorted(set(by_id) - set(positions))
+    connections = defaultdict(list)
+    for edge in panel.edges:
+        connections[edge.source].append(edge.target)
+        connections[edge.target].append(edge.source)
+
+    branch_counts = defaultdict(int)
+    trailing_x = max((position[0] for position in positions.values()), default=-rank_spacing)
+    for side_id in side_ids:
+        anchors = sorted(
+            (neighbor for neighbor in connections[side_id] if neighbor in positions),
+            key=lambda node_id: (positions[node_id][0], node_id),
+        )
+        if anchors:
+            anchor = anchors[0]
+            branch_counts[anchor] += 1
+            index = branch_counts[anchor]
+            sign = -1 if index % 2 else 1
+            distance = ((index + 1) // 2) * branch_spacing
+            positions[side_id] = (positions[anchor][0], sign * distance)
+        else:
+            trailing_x += rank_spacing
+            positions[side_id] = (trailing_x, branch_spacing)
+
+    for node in panel.nodes:
+        node.position = positions[node.id]
+    panel.layout = "preset"
+    return panel

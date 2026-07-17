@@ -22,6 +22,12 @@ from src.reporting.ontology import (
     load_bundled_ontology,
     validate_panel,
 )
+from src.reporting.posture import (
+    POSTURE_FORBIDDEN_VERBS,
+    build_posture_panel,
+    build_posture_panels,
+    select_posture_primitive_keys,
+)
 
 __all__ = [
     "GraphEdge",
@@ -31,13 +37,17 @@ __all__ = [
     "EnvironmentProjection",
     "Ontology",
     "OntologyDefinitionError",
+    "POSTURE_FORBIDDEN_VERBS",
     "ReportModel",
     "build_assignment_panel",
     "build_environment_graphs",
     "build_identity_panel",
     "build_resource_panel",
     "build_safe_inventory",
+    "build_posture_panel",
+    "build_posture_panels",
     "bundled_ontology_path",
     "load_bundled_ontology",
+    "select_posture_primitive_keys",
     "validate_panel",
 ]

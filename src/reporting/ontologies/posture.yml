@@ -7,6 +7,8 @@ node_types:
     properties: [origin, entry, controlled]
   Group: *identity
   ServicePrincipal: *identity
+  AdministrativeUnit:
+    properties: [origin]
   ManagedIdentity:
     properties: [origin, entry, controlled, source_type]
   Subscription:
@@ -42,6 +44,11 @@ edge_types:
   MEMBER_OF:
     from: [User, Group, ServicePrincipal]
     to: [Group]
+    properties: [origin, key]
+    required_properties: [origin]
+  MEMBER_OF_AU:
+    from: [User, Group]
+    to: [AdministrativeUnit]
     properties: [origin, key]
     required_properties: [origin]
   OWNS:
@@ -114,3 +121,23 @@ edge_types:
     to: [Objective]
     properties: [capability]
     required_properties: [capability]
+  TARGETS_OBJECTIVE:
+    from:
+      - User
+      - Group
+      - ServicePrincipal
+      - ManagedIdentity
+      - KeyVault
+      - StorageAccount
+      - VirtualMachine
+      - LogicApp
+      - AutomationAccount
+      - FunctionApp
+      - AppService
+      - CosmosDB
+      - EntraRole
+      - MicrosoftGraph
+      - ExchangeOnline
+    to: [Objective]
+    properties: [capability, status]
+    required_properties: [capability, status]
