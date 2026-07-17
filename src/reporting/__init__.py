@@ -36,6 +36,11 @@ from src.reporting.attack import (
     build_attack_projections,
     build_path_narrative,
 )
+from src.reporting.report import (
+    ReportRenderError,
+    assemble_report_model,
+    render_report,
+)
 
 __all__ = [
     "GraphEdge",
@@ -49,6 +54,8 @@ __all__ = [
     "OntologyDefinitionError",
     "POSTURE_FORBIDDEN_VERBS",
     "ReportModel",
+    "ReportRenderError",
+    "assemble_report_model",
     "build_assignment_panel",
     "build_attack_panel",
     "build_attack_panels",
@@ -62,6 +69,7 @@ __all__ = [
     "build_path_narrative",
     "bundled_ontology_path",
     "load_bundled_ontology",
+    "render_report",
     "select_posture_primitive_keys",
     "validate_panel",
 ]

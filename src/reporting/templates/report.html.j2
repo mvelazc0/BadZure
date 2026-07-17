@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ report.title }}</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: {{ background_color }};
+      --panel: #161b22;
+      --panel-2: #1f2937;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #9ca3af;
+      --accent: #38bdf8;
+      --danger: {{ sensitive_border_color }};
+      --success: #22c55e;
+      --warning: #f59e0b;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+    button { font: inherit; }
+    .report-header {
+      padding: 1.5rem 2rem 1rem;
+      border-bottom: 1px solid var(--border);
+      background: #0b1017;
+    }
+    .report-header h1 { margin: 0 0 .4rem; font-size: 1.55rem; }
+    .report-header p { margin: 0; color: var(--muted); }
+    .tab-nav {
+      display: flex;
+      gap: .45rem;
+      padding: .75rem 1rem;
+      overflow-x: auto;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: rgba(13, 17, 23, .96);
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-button, .control-button, .panel-link {
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      padding: .48rem .75rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .tab-button:hover, .control-button:hover, .panel-link:hover { border-color: var(--accent); }
+    .tab-button.active { background: #12324a; border-color: var(--accent); }
+    main { padding: 1.25rem; }
+    .tab-page { display: none; }
+    .tab-page.active { display: block; }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: .75rem;
+      margin: 1rem 0 1.5rem;
+    }
+    .stat-card, .content-card, details {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+    }
+    .stat-card { padding: .9rem; }
+    .stat-card .value { display: block; font-size: 1.45rem; font-weight: 700; }
+    .stat-card .label { color: var(--muted); font-size: .84rem; }
+    .content-card { padding: 1rem; margin: .85rem 0; }
+    .content-card h2, .content-card h3 { margin-top: 0; }
+    .muted { color: var(--muted); }
+    .path-card { border-left: 4px solid var(--border); }
+    .path-card.status-reached { border-left-color: var(--success); }
+    .path-card.status-blocked, .path-card.status-invalid { border-left-color: var(--danger); }
+    .path-card.status-unverified { border-left-color: var(--warning); }
+    .status-pill {
+      display: inline-block;
+      padding: .2rem .5rem;
+      border-radius: 999px;
+      background: var(--panel-2);
+      text-transform: uppercase;
+      font-size: .72rem;
+      letter-spacing: .04em;
+    }
+    .path-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin: .75rem 0; }
+    .step-list { padding-left: 1.35rem; }
+    .step-list li { margin: .35rem 0; }
+    details { padding: .75rem 1rem; margin: .65rem 0; }
+    summary { cursor: pointer; font-weight: 600; }
+    .detail-table { width: 100%; border-collapse: collapse; margin-top: .7rem; }
+    .detail-table th, .detail-table td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      padding: .45rem .55rem;
+      overflow-wrap: anywhere;
+    }
+    .detail-table th { color: var(--muted); font-size: .8rem; }
+    .panel-header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
+    .panel-header h2 { margin: 0 0 .3rem; }
+    .panel-controls { display: flex; gap: .45rem; }
+    .graph-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 290px;
+      gap: .8rem;
+      margin-top: .8rem;
+    }
+    .graph-canvas {
+      height: min(72vh, 760px);
+      min-height: 500px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: #0a0f15;
+    }
+    .detail-card {
+      min-height: 180px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: .9rem;
+      overflow-wrap: anywhere;
+    }
+    .detail-card h3 { margin-top: 0; }
+    .property-list { margin: 0; }
+    .property-list dt { color: var(--muted); font-size: .78rem; margin-top: .55rem; }
+    .property-list dd { margin: .1rem 0 0; }
+    .legend { display: flex; gap: .7rem 1rem; flex-wrap: wrap; margin: .8rem 0; }
+    .legend-item { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .8rem; }
+    .legend-dot { width: .75rem; height: .75rem; border-radius: 50%; display: inline-block; }
+    .legend-line { width: 1.4rem; height: 2px; background: #94a3b8; display: inline-block; }
+    .hover-tip {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      max-width: 340px;
+      padding: .45rem .6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: #020617;
+      color: var(--text);
+      box-shadow: 0 8px 24px rgba(0,0,0,.45);
+      pointer-events: none;
+      font-size: .8rem;
+    }
+    @media (max-width: 900px) {
+      .graph-layout { grid-template-columns: 1fr; }
+      .graph-canvas { min-height: 430px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="report-header">
+    <h1>{{ report.title }}</h1>
+    <p>Source: {{ report.source_config }}</p>
+  </header>
+
+  <nav class="tab-nav" aria-label="Report sections">
+    <button class="tab-button active" type="button" data-tab="overview">Overview</button>
+    {% for panel in panel_views %}
+    <button class="tab-button" type="button" data-tab="{{ panel.key }}">{{ panel.title }}</button>
+    {% endfor %}
+  </nav>
+
+  <main>
+    <section id="page-overview" class="tab-page active" data-page="overview">
+      {% if report.lab_description %}
+      <article class="content-card">
+        <h2>Lab description</h2>
+        <p>{{ report.lab_description }}</p>
+      </article>
+      {% endif %}
+      {% if report.organization_description %}
+      <article class="content-card">
+        <h2>Organization</h2>
+        <p>{{ report.organization_description }}</p>
+      </article>
+      {% endif %}
+
+      <div class="overview-grid">
+        {% for label, value in report.overview.items() %}
+        <div class="stat-card"><span class="value">{{ value }}</span><span class="label">{{ label }}</span></div>
+        {% endfor %}
+      </div>
+
+      <section aria-labelledby="paths-heading">
+        <h2 id="paths-heading">Attack paths</h2>
+        {% if report.paths %}
+          {% for path in report.paths %}
+          {% set status = path.reachability.get('status', 'unverified') %}
+          <article class="content-card path-card status-{{ status }}">
+            <h3>{{ path.objective.get('name', path.name) }}</h3>
+            <span class="status-pill">{{ status }}</span>
+            <p>{{ path.summary }}</p>
+            {% if path.reachability.get('reason') %}<p class="muted">{{ path.reachability.reason }}</p>{% endif %}
+            <div class="path-actions">
+              <button type="button" class="panel-link" data-open-panel="{{ path.posture_panel_key }}">Open posture graph</button>
+              <button type="button" class="panel-link" data-open-panel="{{ path.attack_panel_key }}">Open attack graph</button>
+            </div>
+            {% if path.metadata %}
+            <p class="muted">
+              {% if path.metadata.get('complexity') %}Complexity: {{ path.metadata.complexity }}. {% endif %}
+              {% if path.metadata.get('tags') %}Tags: {{ path.metadata.tags|display_value }}. {% endif %}
+              {% if path.metadata.get('mitre') %}MITRE: {{ path.metadata.mitre|display_value }}.{% endif %}
+            </p>
+            {% endif %}
+            {% if path.steps %}
+            <details>
+              <summary>Ordered narrative ({{ path.steps|length }} steps)</summary>
+              <ol class="step-list">
+                {% for step in path.steps %}
+                <li>
+                  {{ step.get('name', step.get('action', 'Step')) }}
+                  {% if step.get('target_ref') %} → {{ step.target_ref }}{% endif %}
+                </li>
+                {% endfor %}
+              </ol>
+            </details>
+            {% endif %}
+          </article>
+          {% endfor %}
+        {% else %}
+          <article class="content-card"><p>No enabled attack paths are defined in this configuration.</p></article>
+        {% endif %}
+      </section>
+
+      <section aria-labelledby="inventory-heading">
+        <h2 id="inventory-heading">Safe inventory details</h2>
+        {% for category, rows in report.inventory.items() %}
+        <details>
+          <summary>{{ category.replace('_', ' ').title() }} ({{ rows|length }})</summary>
+          {% if rows %}
+          <table class="detail-table">
+            <thead><tr><th>Object</th><th>Properties</th></tr></thead>
+            <tbody>
+              {% for row in rows %}
+              <tr>
+                <td>{{ row.get('ref', '') }}</td>
+                <td>
+                  {% for key, value in row.items() if key != 'ref' %}
+                    <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
+                  {% endfor %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<p class="muted">None</p>{% endif %}
+        </details>
+        {% endfor %}
+      </section>
+
+      <details>
+        <summary>Assignment details ({{ report.assignments|length }})</summary>
+        {% if report.assignments %}
+        <table class="detail-table">
+          <thead><tr><th>Type</th><th>Source</th><th>Target</th><th>Properties</th></tr></thead>
+          <tbody>
+            {% for assignment in report.assignments %}
+            <tr>
+              <td>{{ assignment.get('type', '') }}</td>
+              <td>{{ assignment.get('source', '') }}</td>
+              <td>{{ assignment.get('target', '') }}</td>
+              <td>
+                {% for key, value in assignment.items() if key not in ('type', 'source', 'target') %}
+                  <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
+                {% endfor %}
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+        {% else %}<p class="muted">No assignments.</p>{% endif %}
+      </details>
+    </section>
+
+    {% for panel in panel_views %}
+    <section id="page-{{ panel.dom_key }}" class="tab-page" data-page="{{ panel.key }}">
+      <div class="panel-header">
+        <div><h2>{{ panel.title }}</h2><p class="muted">{{ panel.caption }}</p></div>
+        <div class="panel-controls">
+          <button type="button" class="control-button" data-action="fit" data-panel="{{ panel.key }}">Fit</button>
+          <button type="button" class="control-button" data-action="reset" data-panel="{{ panel.key }}">Reset</button>
+        </div>
+      </div>
+      <div class="legend" aria-label="{{ panel.title }} legend">
+        {% for item in panel.node_legend %}
+        <span class="legend-item"><span class="legend-dot" style="background: {{ item.color }}"></span>{{ item.type }}</span>
+        {% endfor %}
+        {% for edge_type in panel.edge_legend %}
+        <span class="legend-item"><span class="legend-line"></span>{{ edge_type.replace('_', ' ') }}</span>
+        {% endfor %}
+      </div>
+      <div class="graph-layout">
+        <div id="graph-{{ panel.dom_key }}" class="graph-canvas" role="img" aria-label="{{ panel.title }} graph"></div>
+        <aside id="detail-{{ panel.dom_key }}" class="detail-card" aria-live="polite">
+          <h3>Element details</h3><p class="muted">Select a node or relationship.</p>
+        </aside>
+      </div>
+    </section>
+    {% endfor %}
+  </main>
+
+  <div id="hover-tip" class="hover-tip" role="tooltip"></div>
+
+  <script>{{ cytoscape_js|safe }}</script>
+  <script>
+    "use strict";
+    const REPORT_PANELS = {{ panels_json|safe }};
+    const graphInstances = Object.create(null);
+    const hoverTip = document.getElementById("hover-tip");
+
+    function textValue(value) {
+      if (Array.isArray(value)) return value.join(", ");
+      if (value && typeof value === "object") {
+        return Object.entries(value).map(([key, item]) => `${key}: ${item}`).join(", ");
+      }
+      return String(value);
+    }
+
+    function renderDetails(panel, element) {
+      const card = document.getElementById(`detail-${panel.dom_key}`);
+      card.replaceChildren();
+      const heading = document.createElement("h3");
+      heading.textContent = element.data("label") || element.data("id");
+      card.appendChild(heading);
+      const type = document.createElement("p");
+      type.className = "muted";
+      type.textContent = element.data("type") || element.group();
+      card.appendChild(type);
+      const properties = element.data("properties") || {};
+      const list = document.createElement("dl");
+      list.className = "property-list";
+      Object.entries(properties).forEach(([key, value]) => {
+        const term = document.createElement("dt");
+        term.textContent = key.replaceAll("_", " ");
+        const detail = document.createElement("dd");
+        detail.textContent = textValue(value);
+        list.append(term, detail);
+      });
+      card.appendChild(list);
+    }
+
+    function showHover(event) {
+      const element = event.target;
+      const properties = element.data("properties") || {};
+      const summary = Object.entries(properties).slice(0, 3)
+        .map(([key, value]) => `${key.replaceAll("_", " ")}: ${textValue(value)}`);
+      hoverTip.textContent = [element.data("label") || element.data("id"), ...summary].join(" · ");
+      hoverTip.style.display = "block";
+    }
+
+    function moveHover(event) {
+      const original = event.originalEvent;
+      if (!original) return;
+      hoverTip.style.left = `${original.clientX + 14}px`;
+      hoverTip.style.top = `${original.clientY + 14}px`;
+    }
+
+    function initPanel(key) {
+      if (graphInstances[key]) return graphInstances[key];
+      const panel = REPORT_PANELS[key];
+      if (!panel) return null;
+      const cy = cytoscape({
+        container: document.getElementById(`graph-${panel.dom_key}`),
+        elements: panel.elements,
+        layout: { name: "preset", fit: true, padding: 45 },
+        minZoom: 0.15,
+        maxZoom: 3.5,
+        wheelSensitivity: 0.18,
+        style: [
+          {
+            selector: "node",
+            style: {
+              "background-color": "data(node_color)",
+              "border-color": "data(border_color)",
+              "border-width": "data(border_width)",
+              "label": "data(label)",
+              "color": "#e6edf3",
+              "font-size": 13,
+              "text-wrap": "wrap",
+              "text-max-width": 145,
+              "text-valign": "bottom",
+              "text-margin-y": 8,
+              "width": 62,
+              "height": 62
+            }
+          },
+          { selector: "node[aggregate = true]", style: { "shape": "round-rectangle", "width": 80 } },
+          {
+            selector: "node[type = 'Objective']",
+            style: { "shape": "diamond", "border-color": "#f59e0b", "border-width": 5 }
+          },
+          {
+            selector: "edge",
+            style: {
+              "curve-style": "bezier",
+              "line-color": "data(edge_color)",
+              "target-arrow-color": "data(edge_color)",
+              "target-arrow-shape": "triangle",
+              "width": "data(edge_width)",
+              "line-style": "data(line_style)",
+              "label": "data(label)",
+              "color": "#cbd5e1",
+              "font-size": 9,
+              "text-background-color": "#0a0f15",
+              "text-background-opacity": .82,
+              "text-background-padding": 3,
+              "text-rotation": "autorotate"
+            }
+          },
+          { selector: ":selected", style: { "overlay-color": "#38bdf8", "overlay-opacity": .18 } }
+        ]
+      });
+      cy.on("tap", "node, edge", event => renderDetails(panel, event.target));
+      cy.on("mouseover", "node, edge", showHover);
+      cy.on("mousemove", "node, edge", moveHover);
+      cy.on("mouseout", "node, edge", () => { hoverTip.style.display = "none"; });
+      graphInstances[key] = cy;
+      return cy;
+    }
+
+    function activateTab(key) {
+      document.querySelectorAll(".tab-page").forEach(page => page.classList.remove("active"));
+      document.querySelectorAll(".tab-button").forEach(button => {
+        button.classList.toggle("active", button.dataset.tab === key);
+      });
+      if (key === "overview") {
+        document.getElementById("page-overview").classList.add("active");
+        return;
+      }
+      const panel = REPORT_PANELS[key];
+      if (!panel) return;
+      document.getElementById(`page-${panel.dom_key}`).classList.add("active");
+      const cy = initPanel(key);
+      requestAnimationFrame(() => { cy.resize(); cy.fit(undefined, 45); });
+    }
+
+    document.querySelectorAll(".tab-button").forEach(button => {
+      button.addEventListener("click", () => activateTab(button.dataset.tab));
+    });
+    document.querySelectorAll("[data-open-panel]").forEach(button => {
+      button.addEventListener("click", () => activateTab(button.dataset.openPanel));
+    });
+    document.querySelectorAll("[data-action]").forEach(button => {
+      button.addEventListener("click", () => {
+        const cy = initPanel(button.dataset.panel);
+        if (!cy) return;
+        if (button.dataset.action === "fit") cy.fit(undefined, 45);
+        if (button.dataset.action === "reset") { cy.zoom(1); cy.center(); }
+      });
+    });
+    window.addEventListener("resize", () => {
+      Object.values(graphInstances).forEach(cy => cy.resize());
+    });
+  </script>
+</body>
+</html>

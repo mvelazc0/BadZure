@@ -63,5 +63,6 @@ class ReportModel:
     organization_description: str = ""
     overview: Dict[str, Any] = field(default_factory=dict)
     inventory: Dict[str, Any] = field(default_factory=dict)
+    assignments: List[Dict[str, Any]] = field(default_factory=list)
     paths: List[Dict[str, Any]] = field(default_factory=list)
     panels: List[GraphPanel] = field(default_factory=list)
