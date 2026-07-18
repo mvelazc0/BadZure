@@ -78,6 +78,9 @@
       gap: .75rem;
       margin: 1rem 0 1.5rem;
     }
+    .overview-section { margin: 1.25rem 0 1.75rem; }
+    .overview-section h2 { margin: 0 0 .25rem; font-size: 1.15rem; }
+    .overview-section .overview-grid { margin-top: .65rem; }
     .stat-card, .content-card, details {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -201,11 +204,64 @@
       </article>
       {% endif %}
 
-      <div class="overview-grid">
-        {% for label, value in report.overview.items() %}
-        <div class="stat-card"><span class="value">{{ value }}</span><span class="label">{{ label }}</span></div>
-        {% endfor %}
-      </div>
+      {% for overview_section in overview_sections %}
+      <section class="overview-section" aria-labelledby="overview-{{ loop.index }}-heading">
+        <h2 id="overview-{{ loop.index }}-heading">{{ overview_section.title }}</h2>
+        <div class="overview-grid">
+          {% for label, value in overview_section.metrics %}
+          <div class="stat-card"><span class="value">{{ value }}</span><span class="label">{{ label }}</span></div>
+          {% endfor %}
+        </div>
+        <div class="plane-inventory">
+          {% for category, rows in overview_section.categories %}
+          <details>
+            <summary>{{ category.replace('_', ' ').title() }} ({{ rows|length }})</summary>
+            {% if rows %}
+            <table class="detail-table">
+              <thead><tr><th>Object</th><th>Properties</th></tr></thead>
+              <tbody>
+                {% for row in rows %}
+                <tr>
+                  <td>{{ row.get('ref', '') }}</td>
+                  <td>
+                    {% for key, value in row.items() if key != 'ref' %}
+                      <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}<p class="muted">None</p>{% endif %}
+          </details>
+          {% endfor %}
+        </div>
+        {% if overview_section.title == 'Identity Plane' %}
+        <details>
+          <summary>Assignment details ({{ report.assignments|length }})</summary>
+          {% if report.assignments %}
+          <table class="detail-table">
+            <thead><tr><th>Type</th><th>Source</th><th>Target</th><th>Properties</th></tr></thead>
+            <tbody>
+              {% for assignment in report.assignments %}
+              <tr>
+                <td>{{ assignment.get('type', '') }}</td>
+                <td>{{ assignment.get('source', '') }}</td>
+                <td>{{ assignment.get('target', '') }}</td>
+                <td>
+                  {% for key, value in assignment.items() if key not in ('type', 'source', 'target') %}
+                    <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
+                  {% endfor %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<p class="muted">No assignments.</p>{% endif %}
+        </details>
+        {% endif %}
+      </section>
+      {% endfor %}
 
       <section aria-labelledby="paths-heading">
         <h2 id="paths-heading">Attack paths</h2>
@@ -247,55 +303,6 @@
           <article class="content-card"><p>No enabled attack paths are defined in this configuration.</p></article>
         {% endif %}
       </section>
-
-      <section aria-labelledby="inventory-heading">
-        <h2 id="inventory-heading">Safe inventory details</h2>
-        {% for category, rows in report.inventory.items() %}
-        <details>
-          <summary>{{ category.replace('_', ' ').title() }} ({{ rows|length }})</summary>
-          {% if rows %}
-          <table class="detail-table">
-            <thead><tr><th>Object</th><th>Properties</th></tr></thead>
-            <tbody>
-              {% for row in rows %}
-              <tr>
-                <td>{{ row.get('ref', '') }}</td>
-                <td>
-                  {% for key, value in row.items() if key != 'ref' %}
-                    <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
-                  {% endfor %}
-                </td>
-              </tr>
-              {% endfor %}
-            </tbody>
-          </table>
-          {% else %}<p class="muted">None</p>{% endif %}
-        </details>
-        {% endfor %}
-      </section>
-
-      <details>
-        <summary>Assignment details ({{ report.assignments|length }})</summary>
-        {% if report.assignments %}
-        <table class="detail-table">
-          <thead><tr><th>Type</th><th>Source</th><th>Target</th><th>Properties</th></tr></thead>
-          <tbody>
-            {% for assignment in report.assignments %}
-            <tr>
-              <td>{{ assignment.get('type', '') }}</td>
-              <td>{{ assignment.get('source', '') }}</td>
-              <td>{{ assignment.get('target', '') }}</td>
-              <td>
-                {% for key, value in assignment.items() if key not in ('type', 'source', 'target') %}
-                  <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
-                {% endfor %}
-              </td>
-            </tr>
-            {% endfor %}
-          </tbody>
-        </table>
-        {% else %}<p class="muted">No assignments.</p>{% endif %}
-      </details>
     </section>
 
     {% for panel in panel_views %}

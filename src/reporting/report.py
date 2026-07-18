@@ -26,6 +26,13 @@ from src.reporting.style import (
 _REPORTING_DIR = Path(__file__).resolve().parent
 _TEMPLATE_DIR = _REPORTING_DIR / "templates"
 _ASSET_DIR = _REPORTING_DIR / "assets"
+
+_IDENTITY_OVERVIEW_KEYS = {
+    "Users", "Groups", "Service principals", "Administrative units", "Assignments",
+}
+_IDENTITY_INVENTORY_KEYS = (
+    "users", "groups", "applications", "administrative_units",
+)
 _RESOURCE_INVENTORY_KEYS = (
     "key_vaults", "storage_accounts", "virtual_machines", "logic_apps",
     "automation_accounts", "function_apps", "app_services", "cosmos_dbs",
@@ -53,7 +60,6 @@ def assemble_report_model(
 
     panels = list(environment.panels)
     paths = []
-    status_counts: Dict[str, int] = {}
     for projection in attack_projections:
         narrative = projection.narrative
         posture = posture_by_key.get(narrative.posture_panel_key)
@@ -65,10 +71,14 @@ def assemble_report_model(
         panels.extend((posture, projection.panel))
         path = asdict(narrative)
         paths.append(path)
-        status = path.get("reachability", {}).get("status") or "unverified"
-        status_counts[status] = status_counts.get(status, 0) + 1
 
     inventory = environment.inventory
+    regions = {
+        row.get("location")
+        for key in ("resource_groups", *_RESOURCE_INVENTORY_KEYS)
+        for row in inventory.get(key, [])
+        if row.get("location")
+    }
     overview = {
         "Users": len(inventory.get("users", [])),
         "Groups": len(inventory.get("groups", [])),
@@ -76,13 +86,10 @@ def assemble_report_model(
         "Administrative units": len(inventory.get("administrative_units", [])),
         "Resource groups": len(inventory.get("resource_groups", [])),
         "Azure resources": sum(len(inventory.get(key, [])) for key in _RESOURCE_INVENTORY_KEYS),
+        "Regions": len(regions),
         "Assignments": len(environment.assignment_details),
         "Attack paths": len(paths),
     }
-    for status in ("reached", "blocked", "invalid", "unverified"):
-        if status_counts.get(status):
-            overview[status.title()] = status_counts[status]
-
     return ReportModel(
         title=title,
         source_config=source_config,
@@ -100,6 +107,7 @@ def render_report(report: ReportModel) -> str:
     """Return one complete offline HTML document for ``report``."""
 
     panel_views = _panel_views(report.panels)
+    overview_sections = _overview_sections(report.overview, report.inventory)
     panels_json = _safe_json({view["key"]: view["payload"] for view in panel_views})
     cytoscape_js = _read_required_asset("cytoscape.min.js")
 
@@ -115,6 +123,7 @@ def render_report(report: ReportModel) -> str:
         template = environment.get_template("report.html.j2")
         return template.render(
             report=report,
+            overview_sections=overview_sections,
             panel_views=panel_views,
             panels_json=panels_json,
             cytoscape_js=cytoscape_js,
@@ -126,6 +135,35 @@ def render_report(report: ReportModel) -> str:
         raise
     except Exception as exc:
         raise ReportRenderError(f"Could not render report: {exc}") from exc
+
+
+def _overview_sections(
+    overview: Dict[str, Any], inventory: Dict[str, Any],
+) -> List[Dict[str, Any]]:
+    """Pair each control plane's overview tiles with its safe inventory details."""
+
+    identity = []
+    cloud = []
+    for label, value in overview.items():
+        target = identity if label in _IDENTITY_OVERVIEW_KEYS else cloud
+        target.append((label, value))
+    identity_keys = set(_IDENTITY_INVENTORY_KEYS)
+    return [
+        {
+            "title": "Identity Plane",
+            "metrics": identity,
+            "categories": [
+                (key, inventory.get(key, [])) for key in _IDENTITY_INVENTORY_KEYS
+            ],
+        },
+        {
+            "title": "Cloud Plane",
+            "metrics": cloud,
+            "categories": [
+                (key, rows) for key, rows in inventory.items() if key not in identity_keys
+            ],
+        },
+    ]
 
 
 def _panel_views(panels: Sequence[GraphPanel]) -> List[Dict[str, Any]]:

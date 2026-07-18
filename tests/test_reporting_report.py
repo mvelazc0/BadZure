@@ -51,6 +51,8 @@ def test_assembly_orders_environment_then_paired_path_panels():
         assert report.panels[offset].key == path["posture_panel_key"]
         assert report.panels[offset + 1].key == path["attack_panel_key"]
     assert report.overview["Attack paths"] == len(report.paths)
+    assert report.overview["Regions"] >= 1
+    assert not ({"Reached", "Blocked", "Invalid", "Unverified"} & report.overview.keys())
     assert report.assignments
 
 
@@ -69,8 +71,21 @@ def test_report_is_one_self_contained_interactive_document():
     assert 'data-action="fit"' in html
     assert 'data-action="reset"' in html
     assert "A deliberately vulnerable Azure lab." in html
-    assert "Safe inventory details" in html
+    assert "Identity Plane" in html
+    assert "Cloud Plane" in html
+    identity_section = html.index("Identity Plane")
+    cloud_section = html.index("Cloud Plane")
+    assert identity_section < html.index("Service principals", identity_section) < cloud_section
+    assert cloud_section < html.index("Azure resources", cloud_section)
+    assert "Safe inventory details" not in html
     assert "Assignment details" in html
+    identity_at = html.index("Identity Plane")
+    cloud_at = html.index("Cloud Plane")
+    assignments_at = html.index("Assignment details")
+    paths_at = html.index('id="paths-heading"')
+    assert identity_at < assignments_at < cloud_at < paths_at
+    assert identity_at < html.index("Users (", identity_at) < cloud_at
+    assert cloud_at < html.index("Resource Groups (", cloud_at) < paths_at
     assert "--primary: #1565c0" in html
     assert "--accent: #ff6d00" in html
     assert "--panel: #212738" in html
