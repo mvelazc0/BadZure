@@ -7,7 +7,7 @@ from typing import Any, Dict, List, Sequence
 
 from src import capabilities
 from src.primitives import ApiPermission, AzureRbacAssignment
-from src.reporting.layouts import apply_layered_layout
+from src.reporting.layouts import apply_spine_layout
 from src.reporting.model import GraphEdge, GraphNode, GraphPanel
 from src.reporting.ontology import load_bundled_ontology, validate_panel
 from src.reporting.safety import edge_id, safe_properties, typed_id
@@ -217,7 +217,7 @@ def build_attack_panel(model, overlay) -> GraphPanel:
         ontology="attack", nodes=list(nodes.values()), edges=edges,
         caption="Ordered attacker actions from initial access to the path objective.",
     )
-    apply_layered_layout(panel, direction="LR", rank_spacing=330.0, node_spacing=190.0)
+    apply_spine_layout(panel, rank_spacing=330.0, branch_spacing=190.0)
     validate_panel(panel, load_bundled_ontology("attack"))
     return panel
 

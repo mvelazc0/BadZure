@@ -310,6 +310,9 @@
       <div class="panel-header">
         <div><h2>{{ panel.title }}</h2><p class="muted">{{ panel.caption }}</p></div>
         <div class="panel-controls">
+          {% if panel.ontology == 'assignments' %}
+          <button type="button" class="control-button" data-action="family-overview" data-panel="{{ panel.key }}">Family overview</button>
+          {% endif %}
           <button type="button" class="control-button" data-action="fit" data-panel="{{ panel.key }}">Fit</button>
           <button type="button" class="control-button" data-action="reset" data-panel="{{ panel.key }}">Reset</button>
         </div>
@@ -388,6 +391,21 @@
       hoverTip.style.top = `${original.clientY + 14}px`;
     }
 
+    function showAssignmentOverview(cy, fit = true) {
+      cy.batch(() => {
+        cy.elements().style("display", "element");
+        cy.nodes("[type = 'Role'], [type = 'Permission'], [type = 'Relationship'], [type = 'PrincipalSummary']")
+          .style("display", "none");
+      });
+      if (fit) requestAnimationFrame(() => cy.fit(cy.elements(":visible"), 65));
+    }
+
+    function expandAssignmentFamily(cy, family) {
+      showAssignmentOverview(cy, false);
+      cy.batch(() => family.successors().style("display", "element"));
+      requestAnimationFrame(() => cy.fit(cy.elements(":visible"), 65));
+    }
+
     function initPanel(key) {
       if (graphInstances[key]) return graphInstances[key];
       const panel = REPORT_PANELS[key];
@@ -413,14 +431,18 @@
               "text-max-width": 145,
               "text-valign": "bottom",
               "text-margin-y": 8,
+              "shape": "ellipse",
               "width": 62,
               "height": 62
             }
           },
-          { selector: "node[aggregate = true]", style: { "shape": "round-rectangle", "width": 80 } },
+          {
+            selector: "node[aggregate = true]",
+            style: { "shape": "ellipse", "width": 80, "height": 80 }
+          },
           {
             selector: "node[type = 'Objective']",
-            style: { "shape": "diamond", "border-color": "#ff6d00", "border-width": 5 }
+            style: { "border-color": "#ff6d00", "border-width": 5 }
           },
           {
             selector: "edge",
@@ -444,6 +466,12 @@
         ]
       });
       cy.on("tap", "node, edge", event => renderDetails(panel, event.target));
+      if (panel.ontology === "assignments") {
+        cy.on("tap", "node[type = 'AssignmentFamily']", event => {
+          expandAssignmentFamily(cy, event.target);
+        });
+        showAssignmentOverview(cy, false);
+      }
       cy.on("mouseover", "node, edge", showHover);
       cy.on("mousemove", "node, edge", moveHover);
       cy.on("mouseout", "node, edge", () => { hoverTip.style.display = "none"; });
@@ -479,6 +507,7 @@
         if (!cy) return;
         if (button.dataset.action === "fit") cy.fit(undefined, 45);
         if (button.dataset.action === "reset") { cy.zoom(1); cy.center(); }
+        if (button.dataset.action === "family-overview") showAssignmentOverview(cy);
       });
     });
     window.addEventListener("resize", () => {

@@ -92,12 +92,13 @@ def apply_spine_layout(
     panel: GraphPanel,
     rank_spacing: float = 360.0,
     branch_spacing: float = 220.0,
+    zigzag_height: float = 180.0,
 ) -> GraphPanel:
-    """Lay out an emphasized path left-to-right with side branches above/below.
+    """Lay out an emphasized path left-to-right in a deterministic zigzag.
 
-    The spine itself uses the deterministic layered algorithm. Non-spine nodes
-    anchor to the closest connected spine node; disconnected detail nodes trail
-    after the spine. No browser-side physics is required.
+    Alternating spine heights use the available canvas height without changing
+    narrative direction. Non-spine nodes extend outward from their closest spine
+    node, away from the main path. No browser-side physics is required.
     """
 
     spine_edges = [edge for edge in panel.edges if edge.emphasis == "spine"]
@@ -112,6 +113,17 @@ def apply_spine_layout(
         )
     else:
         spine_positions = {}
+
+    ordered_spine = sorted(
+        spine_positions,
+        key=lambda node_id: (spine_positions[node_id][0], node_id),
+    )
+    for index, node_id in enumerate(ordered_spine):
+        x, _y = spine_positions[node_id]
+        spine_positions[node_id] = (
+            x,
+            -zigzag_height / 2.0 if index % 2 == 0 else zigzag_height / 2.0,
+        )
 
     positions = dict(spine_positions)
     side_ids = sorted(set(by_id) - set(positions))
@@ -131,12 +143,19 @@ def apply_spine_layout(
             anchor = anchors[0]
             branch_counts[anchor] += 1
             index = branch_counts[anchor]
-            sign = -1 if index % 2 else 1
-            distance = ((index + 1) // 2) * branch_spacing
-            positions[side_id] = (positions[anchor][0], sign * distance)
+            anchor_x, anchor_y = positions[anchor]
+            outward = -1 if anchor_y <= 0 else 1
+            positions[side_id] = (
+                anchor_x,
+                anchor_y + outward * index * branch_spacing,
+            )
         else:
             trailing_x += rank_spacing
-            positions[side_id] = (trailing_x, branch_spacing)
+            placed_count = sum(node_id in positions for node_id in side_ids)
+            positions[side_id] = (
+                trailing_x,
+                -zigzag_height / 2.0 if placed_count % 2 == 0 else zigzag_height / 2.0,
+            )
 
     for node in panel.nodes:
         node.position = positions[node.id]

@@ -70,6 +70,9 @@ def test_report_is_one_self_contained_interactive_document():
     assert 'cy.on("mouseover", "node, edge"' in html
     assert 'data-action="fit"' in html
     assert 'data-action="reset"' in html
+    assert 'data-action="family-overview"' in html
+    assert "showAssignmentOverview" in html
+    assert "expandAssignmentFamily" in html
     assert "A deliberately vulnerable Azure lab." in html
     assert "Identity Plane" in html
     assert "Cloud Plane" in html
@@ -102,6 +105,9 @@ def test_render_is_deterministic_and_marks_graph_semantics():
     assert '"type":"Objective"' in first
     assert 'selector: "node[aggregate = true]"' in first
     assert "selector: \"node[type = 'Objective']\"" in first
+    assert '"shape": "ellipse"' in first
+    assert '"shape": "round-rectangle"' not in first
+    assert '"shape": "diamond"' not in first
 
 
 def test_inline_json_and_template_values_cannot_break_out_of_markup():

@@ -795,14 +795,14 @@ def _apply_assignment_layout(panel: GraphPanel) -> None:
             sum(widths) + max(0, len(widths) - 1) * kind_gap,
         )
 
-    total_width = sum(family_widths.values()) + max(0, len(families) - 1) * family_gap
-    cursor = -total_width / 2.0
+    family_spacing = 280.0
+    family_offset = (len(families) - 1) * family_spacing / 2.0
     positions = {}
-    for family in families:
+    for family_index, family in enumerate(families):
         family_width = family_widths[family.id]
-        family_center = cursor + family_width / 2.0
+        family_center = family_index * family_spacing - family_offset
         positions[family.id] = (family_center, 280.0)
-        kind_cursor = cursor
+        kind_cursor = family_center - family_width / 2.0
         for kind_id in kinds_by_family[family.id]:
             kind_width = kind_widths[kind_id]
             kind_center = kind_cursor + kind_width / 2.0
@@ -815,13 +815,9 @@ def _apply_assignment_layout(panel: GraphPanel) -> None:
                     900.0,
                 )
             kind_cursor += kind_width + kind_gap
-        cursor += family_width + family_gap
 
     if families:
-        positions[catalog.id] = (
-            (positions[families[0].id][0] + positions[families[-1].id][0]) / 2.0,
-            0.0,
-        )
+        positions[catalog.id] = (0.0, 0.0)
     else:
         positions[catalog.id] = (0.0, 0.0)
 
