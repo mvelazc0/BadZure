@@ -8,12 +8,16 @@
     :root {
       color-scheme: dark;
       --bg: {{ background_color }};
-      --panel: #161b22;
-      --panel-2: #1f2937;
-      --border: #30363d;
-      --text: #e6edf3;
-      --muted: #9ca3af;
-      --accent: #38bdf8;
+      --panel: #212738;
+      --panel-2: #282f43;
+      --border: #3a435c;
+      --text: #f5f7fb;
+      --muted: #b2bacb;
+      --primary: #1565c0;
+      --primary-light: #1e88e5;
+      --primary-dark: #0d47a1;
+      --accent: #ff6d00;
+      --accent-soft: rgba(255, 109, 0, .12);
       --danger: {{ sensitive_border_color }};
       --success: #22c55e;
       --warning: #f59e0b;
@@ -29,8 +33,9 @@
     button { font: inherit; }
     .report-header {
       padding: 1.5rem 2rem 1rem;
-      border-bottom: 1px solid var(--border);
-      background: #0b1017;
+      border-bottom: 3px solid var(--accent);
+      background: linear-gradient(120deg, var(--primary-dark), var(--primary));
+      box-shadow: 0 3px 12px rgba(0, 0, 0, .3);
     }
     .report-header h1 { margin: 0 0 .4rem; font-size: 1.55rem; }
     .report-header p { margin: 0; color: var(--muted); }
@@ -42,7 +47,7 @@
       position: sticky;
       top: 0;
       z-index: 20;
-      background: rgba(13, 17, 23, .96);
+      background: rgba(26, 31, 46, .97);
       border-bottom: 1px solid var(--border);
     }
     .tab-button, .control-button, .panel-link {
@@ -54,9 +59,17 @@
       cursor: pointer;
       white-space: nowrap;
     }
-    .tab-button:hover, .control-button:hover, .panel-link:hover { border-color: var(--accent); }
-    .tab-button.active { background: #12324a; border-color: var(--accent); }
-    main { padding: 1.25rem; }
+    .tab-button:hover, .control-button:hover, .panel-link:hover {
+      border-color: var(--accent);
+      color: #fff;
+    }
+    .tab-button.active {
+      background: var(--primary);
+      border-color: var(--primary-light);
+      box-shadow: inset 0 -2px 0 var(--accent);
+    }
+    .control-button, .panel-link { background: var(--primary-dark); }
+    main { max-width: 1600px; margin: 0 auto; padding: 1.25rem; }
     .tab-page { display: none; }
     .tab-page.active { display: block; }
     .overview-grid {
@@ -70,8 +83,13 @@
       border: 1px solid var(--border);
       border-radius: 9px;
     }
-    .stat-card { padding: .9rem; }
-    .stat-card .value { display: block; font-size: 1.45rem; font-weight: 700; }
+    .stat-card { padding: .9rem; border-top: 3px solid var(--primary-light); }
+    .stat-card .value {
+      display: block;
+      color: var(--primary-light);
+      font-size: 1.45rem;
+      font-weight: 700;
+    }
     .stat-card .label { color: var(--muted); font-size: .84rem; }
     .content-card { padding: 1rem; margin: .85rem 0; }
     .content-card h2, .content-card h3 { margin-top: 0; }
@@ -117,7 +135,7 @@
       min-height: 500px;
       border: 1px solid var(--border);
       border-radius: 9px;
-      background: #0a0f15;
+      background: #171c29;
     }
     .detail-card {
       min-height: 180px;
@@ -143,7 +161,7 @@
       padding: .45rem .6rem;
       border-radius: 6px;
       border: 1px solid var(--border);
-      background: #020617;
+      background: #151a27;
       color: var(--text);
       box-shadow: 0 8px 24px rgba(0,0,0,.45);
       pointer-events: none;
@@ -382,7 +400,7 @@
               "border-color": "data(border_color)",
               "border-width": "data(border_width)",
               "label": "data(label)",
-              "color": "#e6edf3",
+              "color": "#f5f7fb",
               "font-size": 13,
               "text-wrap": "wrap",
               "text-max-width": 145,
@@ -395,7 +413,7 @@
           { selector: "node[aggregate = true]", style: { "shape": "round-rectangle", "width": 80 } },
           {
             selector: "node[type = 'Objective']",
-            style: { "shape": "diamond", "border-color": "#f59e0b", "border-width": 5 }
+            style: { "shape": "diamond", "border-color": "#ff6d00", "border-width": 5 }
           },
           {
             selector: "edge",
@@ -407,15 +425,15 @@
               "width": "data(edge_width)",
               "line-style": "data(line_style)",
               "label": "data(label)",
-              "color": "#cbd5e1",
+              "color": "#d7dceb",
               "font-size": 9,
-              "text-background-color": "#0a0f15",
+              "text-background-color": "#171c29",
               "text-background-opacity": .82,
               "text-background-padding": 3,
               "text-rotation": "autorotate"
             }
           },
-          { selector: ":selected", style: { "overlay-color": "#38bdf8", "overlay-opacity": .18 } }
+          { selector: ":selected", style: { "overlay-color": "#ff6d00", "overlay-opacity": .2 } }
         ]
       });
       cy.on("tap", "node, edge", event => renderDetails(panel, event.target));

@@ -2,9 +2,20 @@ name: resources
 
 node_types:
   Subscription:
-    properties: [subscription_id]
+    properties:
+      - subscription_id
+      - resource_group_count
+      - resource_count
+      - resource_type_count
+      - region_count
+      - regions
+    required_properties: [resource_group_count, resource_count, resource_type_count, region_count]
   ResourceGroup:
-    properties: [location, origin]
+    properties: [location, resource_count, resource_type_count, resource_types, empty]
+    required_properties: [resource_count, resource_type_count, empty]
+  UnplacedResources:
+    properties: [resource_count, resource_type_count, resource_types, warning]
+    required_properties: [resource_count, resource_type_count, warning]
   KeyVaultSummary: &resource_summary
     properties: [count, resources]
     required_properties: [count]
@@ -18,9 +29,10 @@ node_types:
 
 edge_types:
   CONTAINS:
-    from: [Subscription, ResourceGroup]
+    from: [Subscription, ResourceGroup, UnplacedResources]
     to:
       - ResourceGroup
+      - UnplacedResources
       - KeyVaultSummary
       - StorageAccountSummary
       - VirtualMachineSummary

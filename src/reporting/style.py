@@ -2,7 +2,7 @@
 
 DEFAULT_NODE_COLOR = "#64748b"
 SENSITIVE_BORDER_COLOR = "#ef4444"
-BACKGROUND_COLOR = "#0d1117"
+BACKGROUND_COLOR = "#1a1f2e"
 
 EDGE_STYLES = {
     "normal": {"color": "#94a3b8", "width": 2, "line_style": "solid"},
@@ -13,7 +13,17 @@ EDGE_STYLES = {
 # Colors are keyed by ontology type, never by panel, so the same entity reads
 # consistently when it appears in inventory, posture, and attack views.
 NODE_PALETTE = {
-    "Organization": "#38bdf8",
+    "AssignmentCatalog": "#1565c0",
+    "AssignmentFamily": "#ff6d00",
+    "Role": "#9b6bd6",
+    "Permission": "#1e88e5",
+    "Relationship": "#2dd4bf",
+    "PrincipalSummary": "#64748b",
+    "Organization": "#1e88e5",
+    "SecurityPrincipalCatalog": "#2563eb",
+    "AdministrativeUnitCatalog": "#0891b2",
+    "IdentityCategory": "#1565c0",
+    "IdentitySummary": "#64748b",
     "AdministrativeUnit": "#22d3ee",
     "User": "#4c86d6",
     "UserSummary": "#4c86d6",
@@ -24,8 +34,9 @@ NODE_PALETTE = {
     "ServicePrincipalSummary": "#9b6bd6",
     "ManagedIdentity": "#a78bfa",
     "Application": "#8b5cf6",
-    "Subscription": "#0ea5e9",
+    "Subscription": "#1565c0",
     "ResourceGroup": "#06b6d4",
+    "UnplacedResources": "#ff6d00",
     "AzureResource": "#e0a83b",
     "KeyVault": "#f59e0b",
     "KeyVaultSummary": "#f59e0b",

@@ -71,6 +71,9 @@ def test_report_is_one_self_contained_interactive_document():
     assert "A deliberately vulnerable Azure lab." in html
     assert "Safe inventory details" in html
     assert "Assignment details" in html
+    assert "--primary: #1565c0" in html
+    assert "--accent: #ff6d00" in html
+    assert "--panel: #212738" in html
     for panel in report.panels:
         assert f'data-page="{panel.key}"' in html
 

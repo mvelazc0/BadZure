@@ -18,7 +18,6 @@ from src.primitives import (
     GroupOwnership,
 )
 from src.reporting.environment import (
-    APP_NODE_CAP,
     GROUP_NODE_CAP,
     build_assignment_panel,
     build_environment_graphs,
@@ -52,8 +51,10 @@ def test_chained_fixture_builds_three_valid_positioned_panels():
         EntraRoleAssignment, AzureRbacAssignment, ApiPermission, GroupMembership,
         GroupOwnership, AppOwnership, AuMembership,
     )) for p in model.primitives)
-    assert len(result.assignments.edges) == assignment_primitives
     assert len(result.assignment_details) == assignment_primitives
+    assert {node.type for node in result.assignments.nodes} >= {
+        "AssignmentCatalog", "AssignmentFamily", "PrincipalSummary",
+    }
 
 
 def test_identity_projection_preserves_structure_and_aggregation():
@@ -79,36 +80,134 @@ def test_identity_projection_preserves_structure_and_aggregation():
 
     assert "User:alice" not in by_id
     assert by_id["Organization:lab"].properties["users"] == 2
-    assert by_id["Group:child"].properties["member_count"] == 1
-    assert by_id["Group:owned"].properties["owner_count"] == 1
+    assert by_id["Organization:lab"].properties["managed_identities"] == 0
+    assert by_id["IdentitySummary:users"].properties == {
+        "identity_type": "user", "count": 2,
+        "group_memberships": 1, "group_ownerships": 1,
+        "application_ownerships": 1, "administrative_unit_memberships": 1,
+    }
+    assert by_id["IdentitySummary:service-principals"].properties == {
+        "identity_type": "service_principal", "count": 3,
+        "credentialed_principals": 0, "group_memberships": 0,
+        "group_ownerships": 1, "application_ownerships": 1,
+        "credential_count": 0,
+    }
+    assert by_id["IdentitySummary:managed-identities"].properties == {
+        "identity_type": "managed_identity", "count": 0, "source_types": {},
+    }
+    assert by_id["Group:child"].properties["user_members"] == 1
+    assert by_id["Group:parent"].properties["group_members"] == 1
+    assert by_id["Group:owned"].properties["user_owners"] == 1
+    assert by_id["Group:owned"].properties["service_principal_owners"] == 1
     assert by_id["AdministrativeUnit:tier0"].properties == {
         "user_count": 1, "group_count": 1,
     }
-    assert "ServicePrincipal:sp-owner" in by_id
-    assert "ServicePrincipal:sp-target" in by_id
-    assert by_id["ServicePrincipalSummary:other"].properties == {
-        "count": 1, "members": ["sp-hidden"],
+    assert {by_id[f"IdentityCategory:{key}"].properties["count"] for key in (
+        "users", "service-principals", "groups",
+    )} == {2, 3}
+    assert by_id["AdministrativeUnitCatalog:all"].properties == {"count": 1}
+    assert not any(node.type == "ServicePrincipal" for node in panel.nodes)
+    assert _edge_types(panel) == {
+        "HAS_PRINCIPAL_CATALOG", "HAS_ADMINISTRATIVE_UNITS",
+        "HAS_IDENTITY_CATEGORY", "SUMMARIZES", "CONTAINS_IDENTITY", "NESTED_IN",
     }
-    assert {"CONTAINS", "MEMBER_OF", "OWNS"} <= _edge_types(panel)
 
 
-def test_identity_projection_collapses_groups_and_pathologically_connected_apps():
+def test_identity_projection_collapses_large_group_inventory():
     groups = {f"g{i}": {} for i in range(GROUP_NODE_CAP + 1)}
-    apps = {f"app{i}": {} for i in range(APP_NODE_CAP + 1)}
-    primitives = [
-        AppOwnership(f"own{i}", ATTACK_PATH, f"app{i}", "service_principal",
-                     f"app{(i + 1) % len(apps)}")
-        for i in range(len(apps))
-    ]
     panel = build_identity_panel(DeploymentModel(
-        groups=groups, applications=apps, primitives=primitives,
+        groups=groups, applications={f"app{i}": {} for i in range(75)},
     ))
     by_id = {node.id: node for node in panel.nodes}
 
-    assert by_id["GroupSummary:all"].properties["count"] == GROUP_NODE_CAP + 1
-    assert by_id["ServicePrincipalSummary:other"].properties["count"] == APP_NODE_CAP + 1
+    assert by_id["IdentitySummary:groups"].properties["count"] == GROUP_NODE_CAP + 1
+    assert by_id["IdentitySummary:service-principals"].properties["count"] == 75
     assert not any(node.type == "Group" for node in panel.nodes)
     assert not any(node.type == "ServicePrincipal" for node in panel.nodes)
+
+
+def test_identity_layout_wraps_group_children_without_entering_principal_columns():
+    panel = build_identity_panel(DeploymentModel(
+        users={"alice": {}},
+        applications={"app": {}},
+        groups={f"group-{index}": {} for index in range(12)},
+        administrative_units={"engineering": {}},
+    ))
+    by_id = {node.id: node for node in panel.nodes}
+    groups = [node for node in panel.nodes if node.type == "Group"]
+
+    assert len({node.position[1] for node in groups}) == 4
+    assert len({node.position[0] for node in groups}) == 3
+    assert min(node.position[0] for node in groups) > (
+        by_id["IdentitySummary:managed-identities"].position[0]
+    )
+    assert max(node.position[0] for node in groups) < (
+        by_id["AdministrativeUnitCatalog:all"].position[0]
+    )
+
+
+def test_identity_catalog_orders_principals_and_separates_directory_structure():
+    panel = build_identity_panel(DeploymentModel(
+        users={"alice": {}}, groups={"engineering": {}},
+        applications={"automation": {}}, administrative_units={"finance": {}},
+    ))
+    root = next(node for node in panel.nodes if node.type == "Organization")
+    categories = [node for node in panel.nodes if node.type == "IdentityCategory"]
+
+    assert len(categories) == 3
+    assert len({node.position[0] for node in categories}) == 3
+    assert len({node.position[1] for node in categories}) == 1
+    assert all(root.position[1] < node.position[1] for node in categories)
+    by_id = {node.id: node for node in panel.nodes}
+    assert (
+        by_id["IdentityCategory:users"].position[0]
+        < by_id["IdentityCategory:service-principals"].position[0]
+        < by_id["IdentityCategory:groups"].position[0]
+    )
+    assert "IdentityCategory:administrative-units" not in by_id
+    assert by_id["AdministrativeUnitCatalog:all"].properties == {"count": 1}
+    assert (
+        by_id["SecurityPrincipalCatalog:all"].position[0]
+        < by_id["AdministrativeUnitCatalog:all"].position[0]
+    )
+    assert all(
+        node.position[0] > by_id["IdentityCategory:groups"].position[0]
+        for node in panel.nodes if node.type == "AdministrativeUnit"
+    )
+
+
+def test_identity_projection_counts_managed_identities_as_service_principal_subtypes():
+    panel = build_identity_panel(DeploymentModel(
+        applications={"automation-app": {}},
+        virtual_machines={"vm-one": {}, "vm-two": {}},
+        logic_apps={"workflow": {}},
+        automation_accounts={"runbooks": {}},
+        function_apps={"function": {}},
+        app_services={"web": {}},
+    ))
+    by_id = {node.id: node for node in panel.nodes}
+
+    assert by_id["Organization:lab"].properties["service_principals"] == 7
+    assert by_id["Organization:lab"].properties["managed_identities"] == 6
+    assert by_id["IdentityCategory:service-principals"].properties["count"] == 7
+    assert by_id["IdentitySummary:service-principals"].properties["count"] == 1
+    assert by_id["IdentitySummary:managed-identities"].properties == {
+        "identity_type": "managed_identity",
+        "count": 6,
+        "source_types": {
+            "Virtual Machines": 2,
+            "Logic Apps": 1,
+            "Automation Accounts": 1,
+            "Function Apps": 1,
+            "App Services": 1,
+        },
+    }
+    managed_edge = next(
+        edge for edge in panel.edges
+        if edge.target == "IdentitySummary:managed-identities"
+    )
+    assert managed_edge.source == "IdentityCategory:service-principals"
+    assert managed_edge.properties == {"count": 6}
 
 
 def test_resource_projection_covers_every_supported_resource_family():
@@ -141,6 +240,87 @@ def test_resource_projection_covers_every_supported_resource_family():
     summaries = [node for node in panel.nodes if node.type.endswith("Summary")]
     assert len(summaries) == 8
     assert all(node.properties["count"] == 1 for node in summaries)
+    assert {node.label for node in summaries} == {
+        "Key Vault · 1", "Storage Account · 1", "Virtual Machine · 1",
+        "Logic App · 1", "Automation Account · 1", "Function App · 1",
+        "App Service · 1", "Cosmos DB Account · 1",
+    }
+    by_id = {node.id: node for node in panel.nodes}
+    assert by_id["Subscription:sub-123"].properties == {
+        "subscription_id": "sub-123", "resource_group_count": 2,
+        "resource_count": 8, "resource_type_count": 8,
+        "region_count": 2, "regions": ["eastus", "westus"],
+    }
+    assert by_id["ResourceGroup:rg-one"].properties["resource_count"] == 8
+    assert by_id["ResourceGroup:rg-one"].properties["resource_type_count"] == 8
+    assert by_id["ResourceGroup:rg-empty"].properties == {
+        "location": "westus", "resource_count": 0, "resource_type_count": 0,
+        "resource_types": [], "empty": True,
+    }
+
+
+def test_resource_projection_pluralizes_counts_and_calls_out_unplaced_resources():
+    model = DeploymentModel(
+        key_vaults={
+            "kv-one": {"location": "eastus"},
+            "kv-two": {"location": "eastus"},
+        },
+        storage_accounts={"storage": {"location": "eastus"}},
+    )
+
+    panel = build_resource_panel(model)
+    by_type = {node.type: node for node in panel.nodes}
+
+    assert by_type["UnplacedResources"].label == "Unplaced Resources · 3"
+    assert by_type["UnplacedResources"].properties == {
+        "resource_count": 3, "resource_type_count": 2,
+        "resource_types": ["Key Vaults", "Storage Accounts"],
+        "warning": "No resource group placement is available",
+    }
+    assert by_type["KeyVaultSummary"].label == "Key Vaults · 2"
+    assert by_type["StorageAccountSummary"].label == "Storage Account · 1"
+    assert not any(node.type == "ResourceGroup" for node in panel.nodes)
+    assert {edge.source for edge in panel.edges if edge.target.startswith(
+        ("KeyVaultSummary:", "StorageAccountSummary:")
+    )} == {"UnplacedResources:all"}
+
+
+def test_resource_layout_keeps_each_resource_group_children_in_separate_clusters():
+    common = {"location": "eastus"}
+    panel = build_resource_panel(DeploymentModel(
+        resource_groups={
+            "rg-a": dict(common), "rg-b": dict(common), "rg-c": dict(common),
+        },
+        key_vaults={
+            "kv-a": {**common, "resource_group_name": "rg-a"},
+            "kv-b": {**common, "resource_group_name": "rg-b"},
+        },
+        storage_accounts={
+            "sa-b": {**common, "resource_group_name": "rg-b"},
+            "sa-c": {**common, "resource_group_name": "rg-c"},
+        },
+        app_services={
+            "web-a": {**common, "resource_group_name": "rg-a"},
+            "web-c": {**common, "resource_group_name": "rg-c"},
+        },
+    ))
+    by_id = {node.id: node for node in panel.nodes}
+    child_x = {}
+    for edge in panel.edges:
+        if edge.source.startswith("ResourceGroup:") and not edge.target.startswith(
+            "ResourceGroup:"
+        ):
+            child_x.setdefault(edge.source, []).append(by_id[edge.target].position[0])
+
+    ordered = sorted(child_x, key=lambda node_id: by_id[node_id].position[0])
+    assert all(
+        max(child_x[left]) < min(child_x[right])
+        for left, right in zip(ordered, ordered[1:])
+    )
+    assert all(
+        min(xs) <= by_id[parent].position[0] <= max(xs)
+        for parent, xs in child_x.items()
+    )
 
 
 def test_safe_inventory_keeps_useful_fields_and_removes_secret_material():
@@ -167,6 +347,7 @@ def test_assignment_projection_maps_all_seven_primitive_families():
     resolver = NameResolver(load_overrides=False)
     role_id = resolver.entra_roles["Global Administrator"]
     permission_id = resolver.api_permissions["graph"]["Directory.Read.All"]
+    exchange_permission_id = resolver.api_permissions["exchange"]["full_access_as_app"]
     model = DeploymentModel(
         subscription_id="sub-123",
         users={"alice": {}},
@@ -182,6 +363,9 @@ def test_assignment_projection_maps_all_seven_primitive_families():
                 "resource", scope_ref="kv", scope_resource_type="key_vault",
             ),
             ApiPermission("api", ATTACK_PATH, "app", permission_id, "graph"),
+            ApiPermission(
+                "exchange-api", RANDOM, "app", exchange_permission_id, "exchange",
+            ),
             GroupMembership("member", RANDOM, "alice", "user", "engineers"),
             GroupOwnership("group-owner", ATTACK_PATH, "app", "service_principal", "engineers"),
             AppOwnership("app-owner", ATTACK_PATH, "app", "service_principal", "owned-app"),
@@ -195,18 +379,24 @@ def test_assignment_projection_maps_all_seven_primitive_families():
     )
 
     panel, details = build_assignment_panel(model, resolver)
-    assert _edge_types(panel) == {
-        "ASSIGNED_ENTRA_ROLE", "ASSIGNED_AZURE_ROLE", "GRANTED_API_PERMISSION",
-        "MEMBER_OF", "OWNS_GROUP", "OWNS_APPLICATION", "MEMBER_OF_AU",
+    assert _edge_types(panel) == {"CONTAINS_FAMILY", "CONTAINS_KIND", "ASSIGNED_TO"}
+    assert len(details) == 8
+    family_labels = {node.label for node in panel.nodes if node.type == "AssignmentFamily"}
+    assert family_labels == {
+        "Entra ID Roles", "Azure RBAC", "Microsoft Graph", "Exchange Online", "Group Membership",
+        "Group Ownership", "Application Ownership", "Administrative Units",
     }
-    assert len(panel.edges) == len(details) == 7
-    assert "Global Administrator" in {node.label for node in panel.nodes}
-    api_edge = next(edge for edge in panel.edges if edge.type == "GRANTED_API_PERMISSION")
-    assert api_edge.properties["permission"] == "Directory.Read.All"
-    rbac_edge = next(edge for edge in panel.edges if edge.type == "ASSIGNED_AZURE_ROLE")
-    assert rbac_edge.target == "AzureResource:kv"
-    assert rbac_edge.emphasis == "spine"
-    assert next(edge for edge in panel.edges if edge.id.endswith(":entra")).emphasis == "normal"
+    kind_labels = {node.label for node in panel.nodes
+                   if node.type in {"Role", "Permission", "Relationship"}}
+    assert {
+        "Global Administrator", "Reader", "Directory.Read.All", "full_access_as_app",
+    } <= kind_labels
+    summaries = [node for node in panel.nodes if node.type == "PrincipalSummary"]
+    assert {node.properties["principal_type"] for node in summaries} == {
+        "user", "group", "service_principal",
+    }
+    assert any(edge.emphasis == "spine" for edge in panel.edges
+               if edge.type == "ASSIGNED_TO")
     assert "secret" not in repr(details).lower()
 
 
@@ -232,12 +422,121 @@ def test_assignment_projection_supports_managed_identity_and_all_scope_levels():
         ],
     )
     panel, _details = build_assignment_panel(model)
-    by_id = {node.id: node for node in panel.nodes}
+    roles = {node.label: node for node in panel.nodes if node.type == "Role"}
+    summaries = [node for node in panel.nodes if node.type == "PrincipalSummary"]
 
-    assert by_id["ManagedIdentity:vm"].properties["source_type"] == "vm"
-    assert {edge.target for edge in panel.edges} == {
-        "Subscription:sub", "ResourceGroup:rg", "AzureResource:vm",
+    assert set(roles) == {"Reader", "Contributor"}
+    assert roles["Reader"].properties["count"] == 2
+    assert len(summaries) == 2
+    reader_summary = next(node for node in summaries if node.id.startswith(
+        "PrincipalSummary:azure-rbac:Reader"
+    ))
+    assert reader_summary.properties == {
+        "principal_type": "managed_identity", "count": 2,
+        "unique_principals": 1, "principals": ["vm"],
+        "baseline_count": 2, "attack_path_count": 0,
+        "assignment_keys": ["rg-role", "sub-role"],
     }
+
+
+def test_assignment_taxonomy_aggregates_repeated_roles_by_principal_type():
+    model = DeploymentModel(
+        users={"alice": {}, "bob": {}},
+        groups={"readers": {}},
+        applications={"automation": {}},
+        primitives=[
+            AzureRbacAssignment(
+                "reader-alice", RANDOM, "alice", "user", "Reader", "subscription",
+            ),
+            AzureRbacAssignment(
+                "reader-bob", RANDOM, "bob", "user", "Reader", "subscription",
+            ),
+            AzureRbacAssignment(
+                "reader-group", RANDOM, "readers", "group", "Reader", "subscription",
+            ),
+            AzureRbacAssignment(
+                "reader-app", ATTACK_PATH, "automation", "service_principal",
+                "Reader", "subscription",
+            ),
+        ],
+    )
+
+    panel, details = build_assignment_panel(model)
+    roles = [node for node in panel.nodes if node.type == "Role"]
+    summaries = [node for node in panel.nodes if node.type == "PrincipalSummary"]
+
+    assert len(details) == 4
+    assert len(roles) == 1
+    assert roles[0].label == "Reader"
+    assert roles[0].properties["count"] == 4
+    assert len(summaries) == 3
+    users = next(node for node in summaries
+                 if node.properties["principal_type"] == "user")
+    assert users.label == "Users · 2"
+    assert users.properties["principals"] == ["alice", "bob"]
+    assert users.properties["baseline_count"] == 2
+    app = next(node for node in summaries
+               if node.properties["principal_type"] == "service_principal")
+    assert app.properties["attack_path_count"] == 1
+    app_edge = next(edge for edge in panel.edges if edge.target == app.id)
+    assert app_edge.emphasis == "spine"
+
+
+def test_assignment_taxonomy_layout_grows_down_from_root():
+    model = DeploymentModel(
+        users={"alice": {}},
+        applications={"app": {}},
+        primitives=[
+            AzureRbacAssignment(
+                "reader", RANDOM, "alice", "user", "Reader", "subscription",
+            ),
+            AppOwnership(
+                "owner", RANDOM, "app", "service_principal", "app",
+            ),
+        ],
+    )
+
+    panel, _details = build_assignment_panel(model)
+    root = next(node for node in panel.nodes if node.type == "AssignmentCatalog")
+    families = [node for node in panel.nodes if node.type == "AssignmentFamily"]
+    kinds = [node for node in panel.nodes
+             if node.type in {"Role", "Permission", "Relationship"}]
+    summaries = [node for node in panel.nodes if node.type == "PrincipalSummary"]
+
+    assert all(root.position[1] < node.position[1] for node in families)
+    assert max(node.position[1] for node in families) < min(
+        node.position[1] for node in kinds
+    )
+    assert max(node.position[1] for node in kinds) < min(
+        node.position[1] for node in summaries
+    )
+    assert len({node.position[0] for node in families}) > 1
+
+
+def test_assignment_family_layout_uses_requested_left_to_right_order():
+    model = DeploymentModel(
+        users={"alice": {}}, groups={"team": {}}, applications={"app": {}},
+        primitives=[
+            EntraRoleAssignment("entra", RANDOM, "alice", "user", "Role A"),
+            AzureRbacAssignment(
+                "rbac", RANDOM, "alice", "user", "Reader", "subscription",
+            ),
+            GroupMembership("member", RANDOM, "alice", "user", "team"),
+            GroupOwnership("group-owner", RANDOM, "alice", "user", "team"),
+            AppOwnership("app-owner", RANDOM, "alice", "user", "app"),
+            ApiPermission("graph", RANDOM, "app", "Permission A", "graph"),
+        ],
+    )
+    panel, _details = build_assignment_panel(model)
+    families = sorted(
+        (node for node in panel.nodes if node.type == "AssignmentFamily"),
+        key=lambda node: node.position[0],
+    )
+
+    assert [node.label for node in families] == [
+        "Entra ID Roles", "Azure RBAC", "Group Membership", "Group Ownership",
+        "Application Ownership", "Microsoft Graph",
+    ]
 
 
 def test_layout_is_deterministic_for_the_same_model():

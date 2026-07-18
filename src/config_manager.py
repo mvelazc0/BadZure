@@ -17,6 +17,10 @@ ENV_LLM_MODEL = 'BADZURE_LLM_MODEL'
 ENV_LLM_API_KEY = 'BADZURE_LLM_API_KEY'
 ENV_LLM_BASE_URL = 'BADZURE_LLM_BASE_URL'
 
+REPORT_METADATA_KEYS = frozenset({
+    'title', 'lab_description', 'organization_description',
+})
+
 
 class ConfigManager:
     """Manages configuration loading and validation for BadZure."""
@@ -98,6 +102,32 @@ class ConfigManager:
             logging.info(f"Using subscription_id from {ENV_SUBSCRIPTION_ID} environment variable")
 
         return tenant_id, domain, subscription_id
+
+    def validate_report_config(self, config: Dict) -> Dict[str, str]:
+        """Return validated optional report presentation metadata.
+
+        Report metadata never affects compilation or deployment. Keeping its
+        validation here gives every reporting entry point the same small schema.
+        """
+        metadata = config.get('report')
+        if metadata is None:
+            return {}
+        if not isinstance(metadata, dict):
+            raise ValueError("`report` must be a mapping.")
+
+        unknown = sorted(set(metadata) - REPORT_METADATA_KEYS)
+        if unknown:
+            raise ValueError(
+                "`report` has unknown field(s): " + ", ".join(unknown)
+                + ". Supported fields: " + ", ".join(sorted(REPORT_METADATA_KEYS)) + "."
+            )
+        invalid = sorted(key for key, value in metadata.items()
+                         if not isinstance(value, str))
+        if invalid:
+            raise ValueError(
+                "`report` field(s) must be strings: " + ", ".join(invalid) + "."
+            )
+        return dict(metadata)
 
     def resolve_llm_config(self, config: Optional[Dict] = None,
                            model_override: Optional[str] = None) -> Dict:

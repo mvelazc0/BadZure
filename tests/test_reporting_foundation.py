@@ -32,22 +32,23 @@ def _identity_panel():
         label="Organization",
         properties={"users": 10, "groups": 2},
     )
-    group = GraphNode(
-        id=typed_id("Group", "engineering"),
-        type="Group",
-        label="Engineering",
-        properties={"member_count": 7, "origin": "random"},
+    category = GraphNode(
+        id=typed_id("IdentityCategory", "groups"),
+        type="IdentityCategory",
+        label="Groups",
+        properties={"category": "groups", "count": 2},
     )
     return GraphPanel(
         key="identity",
         title="Identity",
         ontology="identity",
-        nodes=[organization, group],
+        nodes=[organization, category],
         edges=[GraphEdge(
-            id=edge_id("identity", "CONTAINS", "engineering"),
-            type="CONTAINS",
+            id=edge_id("identity", "HAS_IDENTITY_CATEGORY", "groups"),
+            type="HAS_IDENTITY_CATEGORY",
             source=organization.id,
-            target=group.id,
+            target=category.id,
+            properties={"count": 2},
         )],
     )
 
@@ -74,7 +75,7 @@ def test_validation_aggregates_duplicate_dangling_and_bad_properties():
     ))
     panel.edges.append(GraphEdge(
         id="bad-edge",
-        type="CONTAINS",
+        type="HAS_IDENTITY_CATEGORY",
         source="Organization:missing",
         target=panel.nodes[1].id,
         properties={"not_declared": True},
@@ -95,9 +96,9 @@ def test_validation_aggregates_duplicate_dangling_and_bad_properties():
 
 def test_validation_rejects_illegal_endpoint_types():
     panel = _identity_panel()
-    panel.edges[0].source = panel.nodes[1].id  # Group cannot CONTAIN in identity ontology.
+    panel.edges[0].source = panel.nodes[1].id
 
-    with pytest.raises(GraphValidationError, match="cannot start at 'Group'"):
+    with pytest.raises(GraphValidationError, match="cannot start at 'IdentityCategory'"):
         validate_panel(panel, load_bundled_ontology("identity"))
 
 

@@ -22,7 +22,8 @@ except ImportError:
 
 from src.cli import (
     BuildCommand, ShowCommand, DestroyCommand, GenerateCommand, CheckCommand,
-    GraphCommand, UniquifyCommand, CompileBaselineCommand, BaselineSpecCommand,
+    GraphCommand, ReportCommand, UniquifyCommand, CompileBaselineCommand,
+    BaselineSpecCommand,
 )
 
 # Ensure AZURE_CONFIG_DIR is set to the Azure CLI config directory
@@ -159,6 +160,22 @@ def graph(config, view, output, no_open, verbose):
 @cli.command()
 @click.option('--config', type=click.Path(exists=True), default='badzure.yml',
               help="Path to the configuration YAML file")
+@click.option('--output', type=click.Path(),
+              help="Output HTML path (default: <config-stem>.report.html)")
+@click.option('--no-open', 'no_open', is_flag=True,
+              help="Do not open the HTML in a browser")
+@click.option('--verbose', is_flag=True, help="Enable verbose output")
+def report(config, output, no_open, verbose):
+    """Generate a comprehensive interactive lab report (offline, no deploy)"""
+    code = ReportCommand().execute(
+        config, output=output, open_browser=not no_open, verbose=verbose,
+    )
+    raise SystemExit(code)
+
+
+@cli.command()
+@click.option('--config', type=click.Path(exists=True), default='badzure.yml',
+              help="Path to the configuration YAML file")
 @click.option('--json', 'json_output', is_flag=True,
               help="Emit a machine-readable reachability verdict to stdout")
 @click.option('--verbose', is_flag=True, help="List every derived attack step")
@@ -186,9 +203,10 @@ def destroy(verbose):
 
 if __name__ == '__main__':
     setup_logging(logging.INFO)
-    # `check`/`graph`/`compile-baseline`/`baseline-spec` are machine-oriented (the agentic
-    # crew + scripts call them, often parsing stdout): skip the banner + sleep.
-    if not (set(sys.argv[1:]) & {'check', 'graph', 'compile-baseline', 'baseline-spec'}):
+    # Offline and machine-oriented commands skip the banner + sleep.
+    if not (set(sys.argv[1:]) & {
+        'check', 'graph', 'report', 'compile-baseline', 'baseline-spec',
+    }):
         print(banner)
         time.sleep(2)
     cli()

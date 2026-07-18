@@ -2,33 +2,68 @@ name: identity
 
 node_types:
   Organization:
-    properties: [users, groups, service_principals, administrative_units]
-  AdministrativeUnit:
-    properties: [origin, user_count, group_count]
+    properties: [users, groups, service_principals, managed_identities, administrative_units]
+  SecurityPrincipalCatalog:
+    properties: [count]
+    required_properties: [count]
+  AdministrativeUnitCatalog:
+    properties: [count]
+    required_properties: [count]
+  IdentityCategory:
+    properties: [category, count]
+    required_properties: [category, count]
+  IdentitySummary:
+    properties:
+      - identity_type
+      - count
+      - members
+      - group_memberships
+      - group_ownerships
+      - application_ownerships
+      - administrative_unit_memberships
+      - credential_count
+      - credentialed_principals
+      - source_types
+    required_properties: [count]
   Group:
-    properties: [origin, member_count, owner_count]
-  GroupSummary:
-    properties: [count, members]
-    required_properties: [count]
-  UserSummary:
-    properties: [count, members]
-    required_properties: [count]
-  ServicePrincipal:
-    properties: [origin, owner_count]
-  ServicePrincipalSummary:
-    properties: [count, members]
-    required_properties: [count]
+    properties:
+      - member_count
+      - owner_count
+      - user_members
+      - group_members
+      - service_principal_members
+      - user_owners
+      - service_principal_owners
+    required_properties: [member_count, owner_count]
+  AdministrativeUnit:
+    properties: [user_count, group_count]
+    required_properties: [user_count, group_count]
 
 edge_types:
-  CONTAINS:
-    from: [Organization, AdministrativeUnit]
-    to: [AdministrativeUnit, Group, GroupSummary, UserSummary, ServicePrincipal, ServicePrincipalSummary]
+  HAS_PRINCIPAL_CATALOG:
+    from: [Organization]
+    to: [SecurityPrincipalCatalog]
+    properties: []
+  HAS_ADMINISTRATIVE_UNITS:
+    from: [Organization]
+    to: [AdministrativeUnitCatalog]
+    properties: []
+  HAS_IDENTITY_CATEGORY:
+    from: [Organization, SecurityPrincipalCatalog]
+    to: [IdentityCategory]
     properties: [count]
-  MEMBER_OF:
+    required_properties: [count]
+  SUMMARIZES:
+    from: [IdentityCategory]
+    to: [IdentitySummary]
+    properties: [count]
+    required_properties: [count]
+  CONTAINS_IDENTITY:
+    from: [IdentityCategory, AdministrativeUnitCatalog]
+    to: [Group, AdministrativeUnit]
+    properties: []
+  NESTED_IN:
     from: [Group]
     to: [Group]
     properties: [origin]
-  OWNS:
-    from: [Group, ServicePrincipal]
-    to: [Group, ServicePrincipal]
-    properties: [origin]
+    required_properties: [origin]

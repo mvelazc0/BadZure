@@ -27,6 +27,14 @@ tenant:
   domain: null
   subscription_id: null
 
+# Optional presentation metadata used only by `python BadZure.py report`.
+report:
+  title: "BadZure Azure and Entra Lab"
+  lab_description: >-
+    A deliberately vulnerable lab for practicing Azure and Entra attack paths.
+  organization_description: >-
+    A fictional organization with realistic identities, resources, and benign assignments.
+
 # =============================================================================
 # baseline: — the background organization
 # =============================================================================

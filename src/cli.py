@@ -6,6 +6,7 @@ import os
 import logging
 import time
 import json
+import tempfile
 import webbrowser
 from pathlib import Path
 from typing import Dict, Optional
@@ -19,6 +20,13 @@ from src.scenario_loader import ScenarioLoader
 from src import reachability
 from src import graph_builder
 from src import name_uniquifier
+from src.reporting import (
+    assemble_report_model,
+    build_attack_projections,
+    build_environment_graphs,
+    build_posture_panels,
+    render_report,
+)
 import src.dataplane as dataplane
 import src.utils as utils
 from src.constants import WEBAPP_FOOTHOLD_VECTORS
@@ -595,6 +603,130 @@ class GraphCommand:
             except Exception as e:  # noqa: BLE001 — opening a browser must never fail the command
                 logging.warning(f"Could not open browser automatically: {e}")
         return 0
+
+
+class ReportCommand:
+    """Generate the supported comprehensive offline lab report.
+
+    Exit codes: 0 = rendered, 2 = config/compile/projection/render/write error.
+    """
+
+    def __init__(self):
+        self.config_mgr = ConfigManager()
+        self.generator = EntityGenerator()
+
+    def execute(self, config_file: str, output: Optional[str] = None,
+                open_browser: bool = True, verbose: bool = False) -> int:
+        try:
+            config = self.config_mgr.load_config(config_file)
+            if not isinstance(config, dict) or BuildCommand._is_legacy_config(config):
+                raise ValueError(
+                    "Not a declarative config (legacy 'mode:' shape or invalid)."
+                )
+            metadata = self.config_mgr.validate_report_config(config)
+            scenario = ScenarioLoader(self.generator).load(
+                config, domain="example.com", enforce_reachability=False,
+            )
+
+            environment = build_environment_graphs(scenario.model)
+            posture_panels = build_posture_panels(
+                scenario.model, scenario.attack_paths or [],
+            )
+            attack_projections = build_attack_projections(
+                scenario.model, scenario.attack_paths or [],
+            )
+            title = metadata.get(
+                'title', f"BadZure lab: {os.path.basename(config_file)}",
+            )
+            lab_description = metadata.get(
+                'lab_description',
+                self._lab_description(environment, len(scenario.attack_paths or [])),
+            )
+            organization_description = metadata.get(
+                'organization_description', self._organization_description(environment),
+            )
+            report = assemble_report_model(
+                title=title,
+                source_config=config_file,
+                environment=environment,
+                posture_panels=posture_panels,
+                attack_projections=attack_projections,
+                lab_description=lab_description,
+                organization_description=organization_description,
+            )
+            page = render_report(report)
+        except (FileNotFoundError, yaml.YAMLError, ValueError) as e:
+            logging.error(f"Could not generate report: {e}")
+            return 2
+        except Exception as e:  # projection/render failures share the CLI error contract
+            logging.error(f"Could not generate report: {e}")
+            return 2
+
+        if not output:
+            output = f"{Path(config_file).stem}.report.html"
+        try:
+            self._write_atomic(output, page)
+        except OSError as e:
+            logging.error(f"Could not write report to {output}: {e}")
+            return 2
+
+        logging.info(f"Wrote comprehensive report to {output}")
+        if verbose:
+            logging.info(
+                f"Rendered {len(report.panels)} graph panel(s) and "
+                f"{len(report.paths)} attack path narrative(s)."
+            )
+
+        if open_browser:
+            try:
+                opened = webbrowser.open(Path(output).resolve().as_uri())
+                if not opened:
+                    logging.warning("Could not open browser automatically.")
+            except Exception as e:  # browser launch is never report failure
+                logging.warning(f"Could not open browser automatically: {e}")
+        return 0
+
+    @staticmethod
+    def _write_atomic(output: str, page: str) -> None:
+        destination = Path(output)
+        descriptor, temporary = tempfile.mkstemp(
+            prefix=f".{destination.name}.", suffix=".tmp",
+            dir=str(destination.parent or Path('.')),
+        )
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                handle.write(page)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, destination)
+        except BaseException:
+            try:
+                os.unlink(temporary)
+            except FileNotFoundError:
+                pass
+            raise
+
+    @staticmethod
+    def _lab_description(environment, path_count: int) -> str:
+        inventory = environment.inventory
+        resources = sum(len(rows) for key, rows in inventory.items()
+                        if key not in {'users', 'groups', 'applications',
+                                      'administrative_units'})
+        return (
+            f"This lab contains {resources} Azure resource(s), "
+            f"{len(environment.assignment_details)} assignment(s), and "
+            f"{path_count} enabled attack path(s)."
+        )
+
+    @staticmethod
+    def _organization_description(environment) -> str:
+        inventory = environment.inventory
+        return (
+            f"The organization contains {len(inventory.get('users', []))} user(s), "
+            f"{len(inventory.get('groups', []))} group(s), "
+            f"{len(inventory.get('applications', []))} service principal(s), and "
+            f"{len(inventory.get('administrative_units', []))} administrative unit(s)."
+        )
 
 
 class UniquifyCommand:
