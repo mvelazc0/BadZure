@@ -333,6 +333,7 @@ def _add_objective(model, overlay, resolver, nodes, edges, selected):
     source = _objective_source_node(model, overlay, resolver, selected)
     if source:
         _add_node(nodes, source)
+        _add_inferred_objective_bridge(model, overlay, resolver, nodes, edges, selected)
         relationship = "SATISFIES_OBJECTIVE" if status == "reached" else "TARGETS_OBJECTIVE"
         relationship_properties = {"capability": objective.get("capability") or "unverified"}
         if relationship == "TARGETS_OBJECTIVE":
@@ -343,6 +344,85 @@ def _add_objective(model, overlay, resolver, nodes, edges, selected):
             properties=relationship_properties,
             emphasis="spine",
         ))
+
+
+def _add_inferred_objective_bridge(model, overlay, resolver, nodes, edges, selected):
+    """Connect an implicitly controlled objective holder with explicit provenance."""
+
+    objective = overlay.objective or {}
+    if objective.get("capability") != "entra_role":
+        return
+    role = objective.get("role") or objective.get("name")
+    try:
+        role_ids = set(resolver.resolve_entra_role(role))
+    except Exception:
+        return
+    final_ref = next((step.get("source_ref") for step in reversed(overlay.steps or [])
+                      if step.get("source_ref")), None)
+    assignment = next(
+        (primitive for primitive in selected
+         if isinstance(primitive, EntraRoleAssignment)
+         and primitive.role in role_ids
+         and (not final_ref or primitive.principal_ref == final_ref)),
+        None,
+    )
+    if assignment is None:
+        return
+    holder_ref = assignment.principal_ref
+    transition = next(
+        (step for step in reversed(overlay.steps or [])
+         if step.get("target_ref") == holder_ref
+         and step.get("source_ref")
+         and step.get("source_ref") != holder_ref),
+        None,
+    )
+    if transition is None:
+        return
+    controller = _known_node_for_ref(model, transition["source_ref"])
+    holder = _entity_node(model, holder_ref)
+    if controller is None or holder is None or _nodes_connected(
+        edges.values(), controller.id, holder.id,
+    ):
+        return
+    _add_node(nodes, controller)
+    _add_node(nodes, holder)
+    _add_edge(edges, GraphEdge(
+        id=edge_id("posture", "CAN_MANAGE", f"derived-{overlay.name}"),
+        type="CAN_MANAGE", source=controller.id, target=holder.id,
+        properties={
+            "derived": True,
+            "reason": transition.get("name") or transition.get("action") or "reachability",
+            "capability": "entra_role",
+        },
+        emphasis="inferred",
+    ))
+
+
+def _known_node_for_ref(model, ref):
+    entity = _entity_node(model, ref)
+    if entity:
+        return entity
+    try:
+        return _resource_node(model, ref)
+    except ValueError:
+        return None
+
+
+def _nodes_connected(edges, source_id, target_id):
+    adjacency = {}
+    for edge in edges:
+        adjacency.setdefault(edge.source, set()).add(edge.target)
+        adjacency.setdefault(edge.target, set()).add(edge.source)
+    seen = {source_id}
+    pending = [source_id]
+    while pending:
+        node_id = pending.pop()
+        if node_id == target_id:
+            return True
+        for neighbor in adjacency.get(node_id, set()) - seen:
+            seen.add(neighbor)
+            pending.append(neighbor)
+    return False
 
 
 def _objective_source_node(model, overlay, resolver, selected):

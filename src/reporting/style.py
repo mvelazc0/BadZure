@@ -8,6 +8,7 @@ EDGE_STYLES = {
     "normal": {"color": "#94a3b8", "width": 2, "line_style": "solid"},
     "spine": {"color": "#ef4444", "width": 5, "line_style": "solid"},
     "offspine": {"color": "#64748b", "width": 2, "line_style": "dashed"},
+    "inferred": {"color": "#38bdf8", "width": 3, "line_style": "dashed"},
 }
 
 # Colors are keyed by ontology type, never by panel, so the same entity reads

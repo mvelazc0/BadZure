@@ -13,7 +13,7 @@ from src.reporting.model import GraphPanel
 
 _ONTOLOGY_DIR = Path(__file__).resolve().parent / "ontologies"
 BUNDLED_ONTOLOGIES = frozenset({"identity", "resources", "assignments", "posture", "attack"})
-_EMPHASIS_VALUES = frozenset({"normal", "spine", "offspine"})
+_EMPHASIS_VALUES = frozenset({"normal", "spine", "offspine", "inferred"})
 
 
 class OntologyDefinitionError(ValueError):

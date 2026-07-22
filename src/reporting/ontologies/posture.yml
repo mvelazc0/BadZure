@@ -101,6 +101,20 @@ edge_types:
     to: [ServicePrincipal]
     properties: [origin]
     required_properties: [origin]
+  CAN_MANAGE:
+    from:
+      - User
+      - Group
+      - ServicePrincipal
+      - ManagedIdentity
+      - VirtualMachine
+      - LogicApp
+      - AutomationAccount
+      - FunctionApp
+      - AppService
+    to: [User, Group, ServicePrincipal]
+    properties: [derived, reason, capability]
+    required_properties: [derived, reason, capability]
   SATISFIES_OBJECTIVE:
     from:
       - User

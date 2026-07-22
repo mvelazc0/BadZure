@@ -32,7 +32,7 @@ class GraphEdge:
     source: str
     target: str
     properties: Dict[str, Any] = field(default_factory=dict)
-    emphasis: str = "normal"  # normal | spine | offspine
+    emphasis: str = "normal"  # normal | spine | offspine | inferred
 
 
 @dataclass

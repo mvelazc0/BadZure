@@ -208,7 +208,7 @@ def test_safe_properties_rejects_nested_and_case_varied_secrets():
 
 
 def test_shared_style_has_all_edge_states_and_fallback_color():
-    assert set(EDGE_STYLES) == {"normal", "spine", "offspine"}
+    assert set(EDGE_STYLES) == {"normal", "spine", "offspine", "inferred"}
     assert color_for("User") != color_for("UnknownFutureType")
 
 

@@ -4,10 +4,12 @@ from types import SimpleNamespace
 
 from src.config_manager import ConfigManager
 from src.entity_generator import EntityGenerator
+from src.name_resolver import NameResolver
 from src.primitives import (
     ATTACK_PATH,
     RANDOM,
     DeploymentModel,
+    EntraRoleAssignment,
     GroupMembership,
     InitialAccessVector,
 )
@@ -35,6 +37,49 @@ def _edges_by_key(panel):
     return {
         edge.properties.get("key"): edge
         for edge in panel.edges if edge.properties.get("key")
+    }
+
+
+def test_posture_adds_derived_management_bridge_to_disconnected_objective_holder():
+    resolver = NameResolver(load_overrides=False)
+    role_id = resolver.entra_roles["Global Administrator"]
+    model = DeploymentModel(
+        applications={"controller": {}, "objective-holder": {}},
+        primitives=[EntraRoleAssignment(
+            "path__role", ATTACK_PATH, "objective-holder", "service_principal", role_id,
+        )],
+    )
+    overlay = SimpleNamespace(
+        name="path",
+        initial_access={"principal_ref": "controller"},
+        objective={
+            "name": "Reach Global Administrator", "capability": "entra_role",
+            "role": "Global Administrator",
+        },
+        reachability={"status": "reached"},
+        steps=[
+            {
+                "name": "Implicitly manage objective application",
+                "source_ref": "controller", "target_ref": "objective-holder",
+                "action": "application_control", "derived": True,
+            },
+            {
+                "name": "Achieve objective", "source_ref": "objective-holder",
+                "action": "entra_role", "derived": True,
+            },
+        ],
+    )
+
+    panel = build_posture_panel(model, overlay, resolver)
+    bridge = next(edge for edge in panel.edges if edge.type == "CAN_MANAGE")
+
+    assert bridge.source == "ServicePrincipal:controller"
+    assert bridge.target == "ServicePrincipal:objective-holder"
+    assert bridge.emphasis == "inferred"
+    assert bridge.properties == {
+        "derived": True,
+        "reason": "Implicitly manage objective application",
+        "capability": "entra_role",
     }
 
 

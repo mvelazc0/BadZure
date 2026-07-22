@@ -101,7 +101,7 @@ def apply_spine_layout(
     node, away from the main path. No browser-side physics is required.
     """
 
-    spine_edges = [edge for edge in panel.edges if edge.emphasis == "spine"]
+    spine_edges = _connect_spine_components(panel)
     spine_ids = {endpoint for edge in spine_edges for endpoint in (edge.source, edge.target)}
     by_id = {node.id: node for node in panel.nodes}
 
@@ -161,3 +161,83 @@ def apply_spine_layout(
         node.position = positions[node.id]
     panel.layout = "preset"
     return panel
+
+
+def _connect_spine_components(panel: GraphPanel):
+    """Promote the shortest selected relationships joining spine components."""
+
+    spine_edges = [edge for edge in panel.edges if edge.emphasis == "spine"]
+    if len(spine_edges) < 2:
+        return spine_edges
+    by_id = {edge.id: edge for edge in panel.edges}
+    adjacency = defaultdict(list)
+    for edge in sorted(panel.edges, key=lambda item: item.id):
+        adjacency[edge.source].append((edge.target, edge.id))
+        adjacency[edge.target].append((edge.source, edge.id))
+
+    def components():
+        graph = defaultdict(set)
+        members = set()
+        for edge in spine_edges:
+            graph[edge.source].add(edge.target)
+            graph[edge.target].add(edge.source)
+            members.update((edge.source, edge.target))
+        result = []
+        unseen = set(members)
+        while unseen:
+            start = min(unseen)
+            component = {start}
+            queue = deque([start])
+            unseen.remove(start)
+            while queue:
+                node_id = queue.popleft()
+                for neighbor in sorted(graph[node_id]):
+                    if neighbor in unseen:
+                        unseen.remove(neighbor)
+                        component.add(neighbor)
+                        queue.append(neighbor)
+            result.append(component)
+        return result
+
+    while True:
+        parts = components()
+        if len(parts) <= 1:
+            break
+        best_path = None
+        for index, source_part in enumerate(parts):
+            for target_part in parts[index + 1:]:
+                queue = deque(sorted(source_part))
+                previous = {node_id: None for node_id in source_part}
+                previous_edge = {}
+                destination = None
+                while queue and destination is None:
+                    node_id = queue.popleft()
+                    for neighbor, edge_id in adjacency[node_id]:
+                        if neighbor in previous:
+                            continue
+                        previous[neighbor] = node_id
+                        previous_edge[neighbor] = edge_id
+                        if neighbor in target_part:
+                            destination = neighbor
+                            break
+                        queue.append(neighbor)
+                if destination is None:
+                    continue
+                path = []
+                cursor = destination
+                while previous[cursor] is not None:
+                    path.append(previous_edge[cursor])
+                    cursor = previous[cursor]
+                path.reverse()
+                candidate = (len(path), tuple(path), path)
+                if best_path is None or candidate[:2] < best_path[:2]:
+                    best_path = candidate
+        if best_path is None:
+            break
+        for edge_id in best_path[2]:
+            edge = by_id[edge_id]
+            if edge.emphasis != "inferred":
+                edge.emphasis = "spine"
+            if edge not in spine_edges:
+                spine_edges.append(edge)
+    return spine_edges

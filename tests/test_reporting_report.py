@@ -81,10 +81,10 @@ def test_report_is_one_self_contained_interactive_document():
     assert identity_section < html.index("Service principals", identity_section) < cloud_section
     assert cloud_section < html.index("Azure resources", cloud_section)
     assert "Safe inventory details" not in html
-    assert "Assignment details" in html
+    assert "Assignmen" in html
     identity_at = html.index("Identity Plane")
     cloud_at = html.index("Cloud Plane")
-    assignments_at = html.index("Assignment details")
+    assignments_at = html.index("Assignments(", identity_at)
     paths_at = html.index('id="paths-heading"')
     assert identity_at < assignments_at < cloud_at < paths_at
     assert identity_at < html.index("Users (", identity_at) < cloud_at
