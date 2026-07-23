@@ -4,6 +4,13 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>{{ report.title }}</title>
+  <script>
+    // A report can double as an interactive documentation figure. The full
+    // standalone experience remains the default; ``?embed=<panel-key>`` strips
+    // the report chrome and opens only the requested graph panel.
+    const requestedEmbeddedPanel = new URLSearchParams(window.location.search).get("embed");
+    if (requestedEmbeddedPanel) document.documentElement.classList.add("embed-mode");
+  </script>
   <style>
     :root {
       color-scheme: dark;
@@ -174,6 +181,14 @@
       .graph-layout { grid-template-columns: 1fr; }
       .graph-canvas { min-height: 430px; }
     }
+    html.embed-mode .report-header,
+    html.embed-mode .tab-nav,
+    html.embed-mode #page-overview { display: none !important; }
+    html.embed-mode main { max-width: none; padding: .65rem; }
+    html.embed-mode .panel-header { justify-content: flex-end; }
+    html.embed-mode .panel-header > div:first-child { display: none; }
+    html.embed-mode .graph-layout { margin-top: .45rem; }
+    html.embed-mode .graph-canvas { height: 540px; min-height: 420px; }
   </style>
 </head>
 <body>
@@ -510,6 +525,13 @@
         if (button.dataset.action === "family-overview") showAssignmentOverview(cy);
       });
     });
+    if (requestedEmbeddedPanel) {
+      if (REPORT_PANELS[requestedEmbeddedPanel]) {
+        activateTab(requestedEmbeddedPanel);
+      } else {
+        document.documentElement.classList.remove("embed-mode");
+      }
+    }
     window.addEventListener("resize", () => {
       Object.values(graphInstances).forEach(cy => cy.resize());
     });

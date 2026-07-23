@@ -73,6 +73,9 @@ def test_report_is_one_self_contained_interactive_document():
     assert 'data-action="family-overview"' in html
     assert "showAssignmentOverview" in html
     assert "expandAssignmentFamily" in html
+    assert 'get("embed")' in html
+    assert "activateTab(requestedEmbeddedPanel)" in html
+    assert "html.embed-mode .report-header" in html
     assert "A deliberately vulnerable Azure lab." in html
     assert "Identity Plane" in html
     assert "Cloud Plane" in html

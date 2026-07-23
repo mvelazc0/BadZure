@@ -18,7 +18,6 @@ from src.output_formatter import OutputFormatter
 from src.terraform_builder import build_tfvars
 from src.scenario_loader import ScenarioLoader
 from src import reachability
-from src import graph_builder
 from src import name_uniquifier
 from src.reporting import (
     assemble_report_model,
@@ -533,76 +532,6 @@ class CheckCommand:
         else:
             logging.error(message)
         return 2
-
-
-class GraphCommand:
-    """Handles `graph`: render a declarative config as offline Mermaid diagrams
-    (identity / resources / attack) in a standalone HTML page, then open it. The
-    human-in-the-loop REVIEW SURFACE for the agentic demo (Phase 2) — see
-    dev-docs/demo/agentic-badzure-plan.md. No Terraform, no Azure.
-
-    Exit codes: 0 = rendered, 2 = config/compile error.
-    """
-
-    _SECTIONS = {
-        "identity": ("Identity / Org structure", "identity_mermaid"),
-        "resources": ("Resources", "resource_mermaid"),
-        "attack": ("Attack paths", "attack_mermaid"),
-    }
-
-    def __init__(self):
-        self.config_mgr = ConfigManager()
-        self.generator = EntityGenerator()
-
-    def execute(self, config_file: str, view: str = "all", output: Optional[str] = None,
-                open_browser: bool = True, verbose: bool = False) -> int:
-        try:
-            config = self.config_mgr.load_config(config_file)
-        except (FileNotFoundError, yaml.YAMLError) as e:
-            logging.error(f"Could not load config: {e}")
-            return 2
-
-        if not isinstance(config, dict) or BuildCommand._is_legacy_config(config):
-            logging.error("Not a declarative config (legacy 'mode:' shape or invalid).")
-            return 2
-
-        loader = ScenarioLoader(self.generator)
-        try:
-            scenario = loader.load(config, domain="example.com",
-                                   enforce_reachability=False)
-        except ValueError as e:
-            logging.error(f"Config error: {e}")
-            return 2
-
-        model = scenario.model
-        overlays = scenario.attack_paths or []
-
-        wanted = list(self._SECTIONS) if view == "all" else [view]
-        sections = []
-        for key in wanted:
-            heading, fn = self._SECTIONS[key]
-            if key == "attack":
-                mermaid = graph_builder.attack_mermaid(overlays)
-            else:
-                mermaid = getattr(graph_builder, fn)(model)
-            sections.append((heading, mermaid))
-
-        title = f"BadZure lab: {os.path.basename(config_file)}"
-        page = graph_builder.render_html(title, sections)
-
-        if not output:
-            base = os.path.splitext(os.path.basename(config_file))[0]
-            output = f"{base}.graph.html"
-        with open(output, "w", encoding="utf-8") as f:
-            f.write(page)
-        logging.info(f"Wrote graph to {output} ({', '.join(wanted)})")
-
-        if open_browser:
-            try:
-                webbrowser.open(Path(output).resolve().as_uri())
-            except Exception as e:  # noqa: BLE001 — opening a browser must never fail the command
-                logging.warning(f"Could not open browser automatically: {e}")
-        return 0
 
 
 class ReportCommand:

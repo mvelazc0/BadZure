@@ -31,10 +31,9 @@ hundreds of users; you give a `headcount` and the compiler generates them.
    ```
 3. If it exits non-zero, read the error, FIX `design.yml`, and re-run — the same self-repair
    loop the Adversary uses with `check`. Repeat until it exits 0.
-4. Render the graphs for review:
+4. Render the report for review:
    ```
-   python BadZure.py graph --config generated.yml --view identity --output generated.identity.html
-   python BadZure.py graph --config generated.yml --view resources --output generated.resources.html
+   python BadZure.py report --config generated.yml --output generated.report.html
    ```
 
 ## Org-design schema (all top-level keys optional except `departments`)

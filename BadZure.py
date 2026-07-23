@@ -22,7 +22,7 @@ except ImportError:
 
 from src.cli import (
     BuildCommand, ShowCommand, DestroyCommand, GenerateCommand, CheckCommand,
-    GraphCommand, ReportCommand, UniquifyCommand, CompileBaselineCommand,
+    ReportCommand, UniquifyCommand, CompileBaselineCommand,
     BaselineSpecCommand,
 )
 
@@ -145,21 +145,6 @@ def uniquify(config, output, suffix, verbose):
 @cli.command()
 @click.option('--config', type=click.Path(exists=True), default='badzure.yml',
               help="Path to the configuration YAML file")
-@click.option('--view', type=click.Choice(['identity', 'resources', 'attack', 'all']),
-              default='all', help="Which diagram(s) to render")
-@click.option('--output', type=click.Path(), help="Output HTML path (default <config>.graph.html)")
-@click.option('--no-open', 'no_open', is_flag=True, help="Do not open the HTML in a browser")
-@click.option('--verbose', is_flag=True, help="Enable verbose output")
-def graph(config, view, output, no_open, verbose):
-    """Render a config as offline identity/resource/attack graphs (no deploy)"""
-    code = GraphCommand().execute(config, view=view, output=output,
-                                  open_browser=not no_open, verbose=verbose)
-    raise SystemExit(code)
-
-
-@cli.command()
-@click.option('--config', type=click.Path(exists=True), default='badzure.yml',
-              help="Path to the configuration YAML file")
 @click.option('--output', type=click.Path(),
               help="Output HTML path (default: <config-stem>.report.html)")
 @click.option('--no-open', 'no_open', is_flag=True,
@@ -205,7 +190,7 @@ if __name__ == '__main__':
     setup_logging(logging.INFO)
     # Offline and machine-oriented commands skip the banner + sleep.
     if not (set(sys.argv[1:]) & {
-        'check', 'graph', 'report', 'compile-baseline', 'baseline-spec',
+        'check', 'report', 'compile-baseline', 'baseline-spec',
     }):
         print(banner)
         time.sleep(2)
