@@ -19,7 +19,7 @@ from src.primitives import (
     GroupOwnership,
     InitialAccessVector,
 )
-from src.reporting.layouts import apply_spine_layout
+from src.reporting.layouts import apply_narrative_layout
 from src.reporting.model import GraphEdge, GraphNode, GraphPanel
 from src.reporting.ontology import load_bundled_ontology, validate_panel
 from src.reporting.safety import edge_id, typed_id
@@ -125,7 +125,7 @@ def build_posture_panel(
         nodes=list(nodes.values()), edges=list(edges.values()),
         caption="Legitimate configuration relationships that make this path possible.",
     )
-    apply_spine_layout(panel)
+    apply_narrative_layout(panel, _posture_checkpoints(model, overlay))
     validate_panel(panel, load_bundled_ontology("posture"))
     forbidden = POSTURE_FORBIDDEN_VERBS & {edge.type for edge in panel.edges}
     if forbidden:
@@ -133,6 +133,32 @@ def build_posture_panel(
             f"Posture panel '{panel.key}' contains attacker verbs: {sorted(forbidden)}"
         )
     return panel
+
+
+def _posture_checkpoints(model, overlay):
+    """Translate normalized step references into ordered posture node IDs."""
+
+    checkpoints = []
+    prefix = f"{overlay.name}__"
+    if any(
+        isinstance(primitive, InitialAccessVector)
+        and primitive.key.startswith(prefix)
+        and primitive.expose_to_internet
+        for primitive in model.primitives
+    ):
+        checkpoints.append(typed_id("Internet", "internet"))
+    for step in overlay.steps or []:
+        for field in ("source_ref", "target_ref"):
+            ref = step.get(field)
+            if not ref:
+                continue
+            node = _known_node_for_ref(model, ref)
+            if node and (not checkpoints or checkpoints[-1] != node.id):
+                checkpoints.append(node.id)
+    objective_id = typed_id("Objective", overlay.name)
+    if not checkpoints or checkpoints[-1] != objective_id:
+        checkpoints.append(objective_id)
+    return checkpoints
 
 
 def select_posture_primitive_keys(

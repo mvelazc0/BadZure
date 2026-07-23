@@ -83,6 +83,43 @@ def test_posture_adds_derived_management_bridge_to_disconnected_objective_holder
     }
 
 
+def test_long_chain_posture_follows_narrative_despite_credential_cycles():
+    scenario = _chained("long_chain.yml")
+    overlay = next(path for path in scenario.attack_paths if path.name == "long_chain")
+    panel = build_posture_panel(scenario.model, overlay)
+    by_id = {node.id: node for node in panel.nodes}
+    ordered_checkpoints = [
+        "ServicePrincipal:sp-ci",
+        "ServicePrincipal:app-build-agent",
+        "Group:g-engineering",
+        "Group:g-platform",
+        "FunctionApp:func-bz30-api01",
+        "ServicePrincipal:app-secscanner",
+        "VirtualMachine:vm-build01",
+        "ServicePrincipal:app-hr-connector",
+        "AutomationAccount:auto-runbook01",
+        "ServicePrincipal:app-cert-mgr",
+        "LogicApp:logic-etl01",
+        "ServicePrincipal:app-webhook-relay",
+        "AppService:app-bz30-portal02",
+        "ServicePrincipal:app-cosmos-sync",
+        "VirtualMachine:vm-jump02",
+        "ServicePrincipal:app-directory-sync",
+        "ServicePrincipal:app-ga",
+        "Objective:long_chain",
+    ]
+
+    assert [by_id[node_id].position[0] for node_id in ordered_checkpoints] == sorted(
+        by_id[node_id].position[0] for node_id in ordered_checkpoints
+    )
+    assert all(
+        edge.emphasis == "offspine"
+        for edge in panel.edges if edge.type == "HAS_CREDENTIAL"
+    )
+    assert len(panel.narrative_order) > len(overlay.steps)
+    assert len({node.position for node in panel.nodes}) == len(panel.nodes)
+
+
 def test_key_vault_path_expands_complete_configuration_chain():
     scenario = _chained("chained_kv_theft.yml")
     overlay = scenario.attack_paths[0]

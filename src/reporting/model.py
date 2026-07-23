@@ -47,6 +47,7 @@ class GraphPanel:
     layout: str = "preset"
     caption: str = ""
     legend: Dict[str, str] = field(default_factory=dict)
+    narrative_order: List[str] = field(default_factory=list)
 
 
 @dataclass

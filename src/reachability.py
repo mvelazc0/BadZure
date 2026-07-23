@@ -498,9 +498,10 @@ class _Analyzer:
 
 # Primitive type -> the action verb used in a derived step (machine-readable token).
 _ACTIONS = {
-    AppOwnership: "app_takeover",
-    GroupOwnership: "group_takeover",
+    AppOwnership: "app_credential_addition",
+    GroupOwnership: "group_membership_modification",
     GroupMembership: "group_membership_inheritance",
+    EntraRoleAssignment: "app_admin_credential_addition",
     AzureRbacAssignment: "resource_control",
     DataInject: "credential_loot",
 }

@@ -6,7 +6,10 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Sequence
 
 from src import capabilities
-from src.primitives import ApiPermission, AzureRbacAssignment
+from src.name_resolver import NameResolver
+from src.primitives import (
+    ApiPermission, AppOwnership, AzureRbacAssignment, EntraRoleAssignment,
+)
 from src.reporting.layouts import apply_spine_layout
 from src.reporting.model import GraphEdge, GraphNode, GraphPanel
 from src.reporting.ontology import load_bundled_ontology, validate_panel
@@ -119,10 +122,21 @@ def build_attack_panel(model, overlay) -> GraphPanel:
 
         _add_node(nodes, source)
         target_ref = step.get("target_ref")
-        if action in ("app_takeover", "group_takeover", "traverse"):
+        if action in (
+            "app_credential_addition", "app_admin_credential_addition",
+            "app_takeover", "traverse",
+        ):
+            current = _expand_application_credential_addition(
+                model, overlay.name, index, step, source, nodes, edges,
+            )
+            if target_ref:
+                aliases[target_ref] = current
+        elif action in ("group_membership_modification", "group_takeover"):
             target = _identity_node(model, target_ref)
             _add_node(nodes, target)
-            edges.append(_edge(overlay.name, index, "TAKES_OVER", source, target, step))
+            edges.append(_edge(
+                overlay.name, index, "ADDS_SELF_TO_GROUP", source, target, step,
+            ))
             aliases[target_ref] = target
             current = target
         elif action == "group_membership_inheritance":
@@ -220,6 +234,55 @@ def build_attack_panel(model, overlay) -> GraphPanel:
     apply_spine_layout(panel, rank_spacing=330.0, branch_spacing=190.0)
     validate_panel(panel, load_bundled_ontology("attack"))
     return panel
+
+
+def _expand_application_credential_addition(
+    model, path_name, index, step, source, nodes, edges,
+):
+    """Show the concrete add-credential and authenticate application takeover."""
+
+    target_ref = step.get("target_ref")
+    target = _identity_node(model, target_ref)
+    authorization = _application_authorization(model, step)
+    credential = GraphNode(
+        id=typed_id("Credential", f"{path_name}:{index}:added"),
+        type="Credential", label="Added application credential",
+        properties=_without_none({
+            "credential_type": "password_or_certificate",
+            "created_by_attacker": True,
+            "target_ref": target_ref,
+            **authorization,
+        }),
+    )
+    _add_node(nodes, credential)
+    _add_node(nodes, target)
+    edges.append(_edge(
+        path_name, index, "ADDS_APP_CREDENTIAL", source, credential, step,
+        extra={"target_ref": target_ref, **authorization}, suffix="add-credential",
+    ))
+    edges.append(_edge(
+        path_name, index, "AUTHENTICATES_AS", credential, target, step,
+        extra={"target_ref": target_ref, **authorization}, suffix="authenticate",
+    ))
+    return target
+
+
+def _application_authorization(model, step):
+    primitive_by_key = {primitive.key: primitive for primitive in model.primitives}
+    primitives = [primitive_by_key[key] for key in (step.get("uses") or [])
+                  if key in primitive_by_key]
+    ownership = next((p for p in primitives if isinstance(p, AppOwnership)), None)
+    if ownership:
+        return {"authorization_source": "application_ownership"}
+    assignment = next(
+        (p for p in primitives if isinstance(p, EntraRoleAssignment)), None,
+    )
+    if assignment:
+        return {
+            "authorization_source": "entra_role",
+            "authorization_role": NameResolver().entra_role_name(assignment.role),
+        }
+    return {"authorization_source": "application_management"}
 
 
 def build_path_narrative(overlay) -> AttackPathNarrative:

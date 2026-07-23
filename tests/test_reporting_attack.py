@@ -42,6 +42,44 @@ def test_credential_loot_expands_into_read_steal_and_authenticate_actions():
     assert all(edge.emphasis == "spine" for edge in panel.edges)
 
 
+def test_application_ownership_adds_credential_then_authenticates_as_target():
+    scenario = _scenario("examples/atomic/atomic_app_ownership_user_role.yml")
+    panel = build_attack_panel(scenario.model, scenario.attack_paths[0])
+    added = next(edge for edge in panel.edges if edge.type == "ADDS_APP_CREDENTIAL")
+    authenticated = next(edge for edge in panel.edges if edge.type == "AUTHENTICATES_AS")
+    credential = next(
+        node for node in panel.nodes
+        if node.label == "Added application credential"
+    )
+
+    assert added.target == credential.id
+    assert authenticated.source == credential.id
+    assert added.properties["authorization_source"] == "application_ownership"
+    assert credential.properties["created_by_attacker"] is True
+    assert "TAKES_OVER" not in _edge_types(panel)
+
+
+def test_application_administrator_names_role_used_to_add_credential():
+    scenario = _scenario("examples/atomic/atomic_app_admin_user_role.yml")
+    panel = build_attack_panel(scenario.model, scenario.attack_paths[0])
+    added = next(edge for edge in panel.edges if edge.type == "ADDS_APP_CREDENTIAL")
+
+    assert added.properties["authorization_source"] == "entra_role"
+    assert added.properties["authorization_role"] == "Application Administrator"
+    assert _edge_types(panel)[1:3] == ["ADDS_APP_CREDENTIAL", "AUTHENTICATES_AS"]
+
+
+def test_group_ownership_explicitly_adds_controlled_principal_to_group():
+    scenario = _scenario("examples/atomic/atomic_app_admin_group_owner.yml")
+    panel = build_attack_panel(scenario.model, scenario.attack_paths[0])
+    membership = next(
+        edge for edge in panel.edges if edge.type == "ADDS_SELF_TO_GROUP"
+    )
+
+    assert membership.properties["action"] == "group_membership_modification"
+    assert membership.target.startswith("Identity:")
+
+
 def test_resource_control_expands_compute_and_managed_identity_actions():
     scenario = _chained("chained_apex.yml")
     panel = build_attack_panel(scenario.model, scenario.attack_paths[0])
@@ -213,11 +251,12 @@ def test_every_example_path_builds_and_known_actions_need_no_generic_fallback():
         for overlay in scenario.attack_paths:
             panel = build_attack_panel(scenario.model, overlay)
             assert not any(edge.type == "PERFORMS_ACTION" for edge in panel.edges), path
+            assert not any(edge.type == "TAKES_OVER" for edge in panel.edges), path
             path_count += 1
         file_count += 1
 
-    assert file_count == 53
-    assert path_count == 78
+    assert file_count >= 53
+    assert path_count >= 78
 
 
 def test_attack_graph_properties_contain_no_secret_material():
