@@ -246,7 +246,7 @@ def _expand_application_credential_addition(
     authorization = _application_authorization(model, step)
     credential = GraphNode(
         id=typed_id("Credential", f"{path_name}:{index}:added"),
-        type="Credential", label="Added application credential",
+        type="Credential", label=f"Credential for {target_ref}",
         properties=_without_none({
             "credential_type": "password_or_certificate",
             "created_by_attacker": True,

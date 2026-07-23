@@ -49,13 +49,14 @@ def test_application_ownership_adds_credential_then_authenticates_as_target():
     authenticated = next(edge for edge in panel.edges if edge.type == "AUTHENTICATES_AS")
     credential = next(
         node for node in panel.nodes
-        if node.label == "Added application credential"
+        if node.type == "Credential" and node.properties.get("created_by_attacker") is True
     )
 
     assert added.target == credential.id
     assert authenticated.source == credential.id
     assert added.properties["authorization_source"] == "application_ownership"
     assert credential.properties["created_by_attacker"] is True
+    assert credential.label == f"Credential for {credential.properties['target_ref']}"
     assert "TAKES_OVER" not in _edge_types(panel)
 
 

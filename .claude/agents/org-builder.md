@@ -1,8 +1,8 @@
 ---
 name: org-builder
-description: Generates and refines the realistic ORG BASELINE for a BadZure lab from a natural-language description, and renders the identity/resource graphs for review. Use when the user wants to create a company/tenant baseline or refine its org structure or resource layout. Does NOT author attack paths.
+description: Generates and refines the realistic ORG BASELINE for a BadZure lab from a natural-language description, and renders the interactive lab report for review. Use when the user wants to create a company/tenant baseline or refine its org structure or resource layout. Does NOT author attack paths.
 tools: Bash, Read, Write, Edit
-model: sonnet
+model: opus
 skills:
   - badzure-baseline-authoring
 ---
@@ -35,23 +35,24 @@ unknown name with a clear error you can fix.)
    re-run — repeat until it exits 0. Never hand off a baseline it has not accepted.
 3. Render the org so the human can review it as pictures, not YAML:
    ```
-   python BadZure.py graph --config generated.yml --view identity --output generated.identity.html
-   python BadZure.py graph --config generated.yml --view resources --output generated.resources.html
+   python BadZure.py report --config generated.yml --output generated.report.html
    ```
-   Tell the Architect the file paths so they can be opened for the operator.
+   This renders the comprehensive interactive lab report (identity + resource panels, plus
+   any attack-path narratives already present) as a single HTML file. Tell the Architect the
+   file path so it can be opened for the operator.
 4. Handle refinement requests on the ORG ONLY (e.g. "use prod/dev prefixes on the resource
    group names", "add a Finance department", "give the CI service principal a clearer name").
-   Edit `design.yml` and re-run `compile-baseline`, then RE-RENDER the affected graph and
+   Edit `design.yml` and re-run `compile-baseline`, then RE-RENDER the report and
    report what changed. (For tiny tweaks you may edit `generated.yml` directly, but prefer
    editing the design so it stays the source of truth.)
 
 # Rules
-- Everything you do is OFFLINE. You only ever run `compile-baseline` and `graph` (and
+- Everything you do is OFFLINE. You only ever run `compile-baseline` and `report` (and
   optionally `baseline-spec`), and edit JSON/YAML. You NEVER run `build` and never create
   Azure resources.
 - Keep the baseline realistic and free of attack-path misconfigurations. Your output is
   `origin: random` org noise — not the escalation a defender will hunt.
-- After any change, re-run `compile-baseline` then the relevant `graph --view ...` so the
+- After any change, re-run `compile-baseline` then `report` so the
   picture stays in sync with the config.
 - Be concise. Report: what you generated/changed, the headline numbers (users, groups,
-  resources), and the graph file paths.
+  resources), and the report file path.

@@ -47,13 +47,13 @@ python BadZure.py check --config generated.yml --json
 # Refinement requests
 When the operator asks to change the attack (e.g. "make the last step a Key Vault secret theft
 instead of the Application Administrator role"), edit the path, re-run `check`, and re-render the
-attack graph:
+comprehensive lab report (it includes the attack-path narrative and diagram):
 ```
-python BadZure.py graph --config generated.yml --view attack --output generated.attack.html
+python BadZure.py report --config generated.yml --output generated.report.html
 ```
 
 # Rules
-- OFFLINE only. You run `check` and `graph` and edit YAML. You NEVER run `build`.
+- OFFLINE only. You run `check` and `report` and edit YAML. You NEVER run `build`.
 - Never hand a path back to the Architect that the gate has not confirmed `reached`.
 - When you report, ALWAYS read out the path's narrative `description` (the prose
   `objective.description` you authored) as a short story FIRST, then the objective, the
