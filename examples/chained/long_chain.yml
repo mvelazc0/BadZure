@@ -1,0 +1,351 @@
+# =============================================================================
+# "LONG_CHAIN": a 30-step, every-primitive attack path built for blue-team
+# training. One leaked CI/CD service-principal secret is escalated, hop by hop,
+# through every generic building block BadZure's chained-graph model supports,
+# looping identity-plane -> resource-plane -> identity-plane SIX times before
+# landing on Global Administrator.
+#
+# It exercises ALL FIVE managed-identity source types (VM x2, Function App,
+# Automation Account, Logic App, App Service) and ALL FOUR data-store loot
+# locations (storage_blob, key_vault_secret, key_vault_certificate,
+# cosmos_document) — including a certificate-pair theft (the planted .pfx is
+# only usable because a matching `type: certificate` credential is registered
+# on the same app; see Act IV). It also uses all 7 assignment building blocks
+# (entra_role, azure_rbac, api_permission, group_membership, group_ownership,
+# app_ownership, au_membership) and both supported APIs (graph + exchange).
+#
+# -----------------------------------------------------------------------------
+# THE 30 STEPS (the reachability walk derives exactly these from the graph —
+# verify with `python BadZure.py check --config examples/chained/long_chain.yml`):
+#   1.  Compromise sp-ci                                    (leaked CI/CD secret)
+#   2.  app_ownership      sp-ci -> app-build-agent          [App Ownership Abuse]
+#   3.  group_membership   app-build-agent -> g-engineering
+#   4.  group_membership   g-engineering -> g-devops         (nested)
+#   5.  group_membership   g-devops -> g-platform            (nested, 3 levels deep)
+#   6.  azure_rbac(ctrl)   g-platform -> func-bz30-api01      [MI Abuse: Function App]
+#   7.  data_inject loot   func MI reads stbz30data01 -> app-secscanner   [Storage Secret Theft]
+#   8.  app_ownership      app-secscanner -> app-backup       [App Ownership Abuse]
+#   9.  group_ownership    app-backup -> g-cloud-admins       [Group Ownership Abuse]
+#   10. azure_rbac(ctrl)   g-cloud-admins -> vm-build01        [MI Abuse: Virtual Machine]
+#   11. data_inject loot   VM MI reads kv-bz30-vault01 -> app-hr-connector  [Key Vault Secret Theft]
+#   12. app_ownership      app-hr-connector -> app-graph-sync
+#   13. group_membership   app-graph-sync -> g-automation-ops
+#   14. azure_rbac(ctrl)   g-automation-ops -> auto-runbook01  [MI Abuse: Automation Account]
+#   15. data_inject loot   Automation MI reads stbz30data02 -> app-cert-mgr  [Storage Secret Theft]
+#   16. app_ownership      app-cert-mgr -> app-logic-svc
+#   17. group_ownership    app-logic-svc -> g-integration      [Group Ownership Abuse]
+#   18. azure_rbac(ctrl)   g-integration -> logic-etl01        [MI Abuse: Logic App]
+#   19. data_inject loot   Logic-App MI reads kv-bz30-vault02 -> app-webhook-relay
+#                          (CERTIFICATE theft: planted .pfx + registered cert cred)
+#   20. app_ownership      app-webhook-relay -> app-report-svc
+#   21. group_membership   app-report-svc -> g-data-eng
+#   22. group_membership   g-data-eng -> g-data-platform       (nested)
+#   23. azure_rbac(ctrl)   g-data-platform -> app-bz30-portal02  [MI Abuse: App Service]
+#   24. data_inject loot   App Service MI reads cosmos-bz30-app01 (data-plane RBAC)
+#                          -> app-cosmos-sync                  [Cosmos DB Secret Theft]
+#   25. app_ownership      app-cosmos-sync -> app-siem-connector
+#   26. group_ownership    app-siem-connector -> g-security-ops [Group Ownership Abuse]
+#   27. azure_rbac(ctrl)   g-security-ops -> vm-jump02           [MI Abuse: Virtual Machine #2]
+#   28. data_inject loot   VM MI reads kv-bz30-vault03 -> app-directory-sync  [Key Vault Secret Theft]
+#   29. app_ownership      app-directory-sync -> app-ga
+#   30. entra_role         app-ga holds Global Administrator   <- OBJECTIVE
+#
+# OFF-SPINE ENRICHMENT (real deployed edges that broaden the TTPs and give
+# defenders extra noise to reason about, but aren't on the critical GA path so
+# the gate doesn't count them as hops):
+#   - api_permission (graph)     app-build-agent -> Directory.Read.All     (recon, T1087)
+#   - api_permission (exchange)  app-graph-sync  -> full_access_as_app     (mailbox exfil, T1114)
+#   - api_permission (graph)     app-report-svc  -> Sites.Read.All         (SharePoint recon)
+#   - azure_rbac (read, benign)  func-bz30-api01(MI) -> Monitoring Reader over rg-compute
+#   - entra_role (non-terminal)  helpdesk-lead holds "Groups Administrator" (looks
+#     privileged, is NOT the objective — a realistic red herring)
+#   - group_ownership            svc-it-admin (human) -> g-engineering    (a person
+#     behind the entry-point group, like a real help-desk-managed team)
+#   - au_membership               svc-it-admin  -> au-corp-tier0
+#   - au_membership               g-security-ops -> au-corp-tier0
+#   - au_membership               helpdesk-lead  -> au-service-desk
+#
+# -----------------------------------------------------------------------------
+# WHY IT STAYS TRAVERSABLE (and why every loot lives in its OWN store):
+#   Each managed identity gets a read role scoped to a SINGLE resource, and each
+#   planted secret/certificate lives in its own vault/storage account/Cosmos
+#   account. Six loots -> six distinct stores (stbz30data01, kv-bz30-vault01,
+#   stbz30data02, kv-bz30-vault02, cosmos-bz30-app01, kv-bz30-vault03), each
+#   readable by exactly one controlled MI, forces all 30 hops in order — no
+#   controlled principal can read two loot stores at once and short-circuit
+#   the chain. The one off-spine RBAC read (Monitoring Reader) is deliberately
+#   NOT a key_vault/storage_account/cosmos_db read role, so it cannot leak a
+#   loot early.
+#
+# PRIMITIVE COVERAGE — all 7 assignment types, all 5 MI source types, all 4
+# data-store locations, both API types, a certificate-pair theft, nested
+# (3-level) groups, and every ownership/membership combination:
+#   entra_role, azure_rbac (control + read, incl. Cosmos data-plane),
+#   api_permission (graph + exchange), group_membership, group_ownership,
+#   app_ownership, au_membership, credentials (password + certificate),
+#   data_injects (storage_blob, key_vault_secret, key_vault_certificate,
+#   cosmos_document).
+#
+# -----------------------------------------------------------------------------
+# !!! BEFORE A LIVE BUILD — make these globally-unique names your own:
+#     key vaults : kv-bz30-vault01, kv-bz30-vault02, kv-bz30-vault03  (3-24 chars, alnum + hyphen)
+#     storage    : stbz30data01, stbz30data02                        (3-24 chars, lowercase alnum ONLY)
+#     cosmos db  : cosmos-bz30-app01                                 (lowercase, global)
+#     function   : func-bz30-api01                                   (global on azurewebsites.net)
+#     app service: app-bz30-portal02                                 (global on azurewebsites.net)
+#     Edit each in its resources: block AND every assignment/inject that names it.
+#
+# COST/TIME WARNING: this deploys 6 compute resources (2x VM, function app,
+# automation account, logic app, app service) + 3 Key Vaults + 2 storage
+# accounts + 1 Cosmos DB. Expect a long apply and real Azure spend — this is a
+# training-lab showcase, not a cheap one. Trim acts (and their resources) if
+# you only need a subset of the story for a given exercise.
+#
+# Live test:
+#   python BadZure.py check --config examples/chained/long_chain.yml --json
+#   python BadZure.py build --config examples/chained/long_chain.yml --verbose
+#   python BadZure.py destroy --verbose
+# =============================================================================
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+report:
+  title: "BadZure Long Chain Lab"
+  lab_description: >-
+    A 30-hop training lab that walks a single leaked CI/CD credential all the
+    way to Global Administrator, touching every escalation primitive BadZure
+    models along the way.
+  organization_description: >-
+    A fictional organization with a build/release pipeline, a data platform,
+    and a security-operations function spread across four resource groups.
+
+attack_paths:
+  long_chain:
+    objective:
+      name: "Global Administrator via a 30-hop, every-primitive chain"
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: >-
+        A leaked CI/CD service-principal secret is escalated, across thirty
+        discrete hops spanning application ownership, nested group membership
+        and ownership, five distinct managed identities, a certificate theft,
+        and six secret loots, all the way to Global Administrator and full
+        tenant compromise.
+    metadata:
+      complexity: extreme
+      tags: [multi-technique, app-ownership, group-ownership, managed-identity,
+             key-vault, storage, cosmos-db, certificate-theft, mail-exfil,
+             showcase, training-lab]
+      # T1078 Valid Accounts · T1098 Account Manipulation (app cred / role add) ·
+      # T1528 Steal Application Access Token · T1555 Credentials from Password
+      # Stores · T1530 Data from Cloud Storage Object · T1114 Email Collection ·
+      # T1087 Account Discovery · T1552 Unsecured Credentials
+      mitre: [T1078, T1098, T1528, T1555, T1530, T1114, T1087, T1552]
+    initial_access:
+      method: compromised_identity
+      principal_ref: sp-ci
+
+    # -- entities -------------------------------------------------------------
+    identities:
+      users:
+        - { ref: svc-it-admin }    # human admin who fronts g-engineering
+        - { ref: helpdesk-lead }   # off-spine red herring (looks privileged, isn't)
+      applications:
+        - { ref: sp-ci }               # foothold (secret auto-minted)
+        - { ref: app-build-agent }
+        - { ref: app-secscanner }      # looted from stbz30data01 (storage)
+        - { ref: app-backup }
+        - { ref: app-hr-connector }    # looted from kv-bz30-vault01 (kv secret)
+        - { ref: app-graph-sync }
+        - { ref: app-cert-mgr }        # looted from stbz30data02 (storage)
+        - { ref: app-logic-svc }
+        - { ref: app-webhook-relay }   # looted CERTIFICATE from kv-bz30-vault02
+        - { ref: app-report-svc }
+        - { ref: app-cosmos-sync }     # looted from cosmos-bz30-app01 (cosmos)
+        - { ref: app-siem-connector }
+        - { ref: app-directory-sync }  # looted from kv-bz30-vault03 (kv secret)
+        - { ref: app-ga }              # final takeover; holds Global Administrator
+      groups:
+        - { ref: g-engineering }        # inner (nested x3 with devops/platform)
+        - { ref: g-devops }
+        - { ref: g-platform }            # carries the Function App RBAC
+        - { ref: g-cloud-admins }        # carries the VM #1 RBAC
+        - { ref: g-automation-ops }      # carries the Automation Account RBAC
+        - { ref: g-integration }         # carries the Logic App RBAC
+        - { ref: g-data-eng }            # inner (nested with data-platform)
+        - { ref: g-data-platform }       # carries the App Service RBAC
+        - { ref: g-security-ops }        # carries the VM #2 RBAC
+      administrative_units:
+        - { ref: au-corp-tier0 }
+        - { ref: au-service-desk }
+
+    resources:
+      # All globally-unique names below must be made your own before a live build.
+      resource_groups:
+        - { ref: rg-compute, location: "West US" }
+        - { ref: rg-data,    location: "West US" }
+        - { ref: rg-apps,    location: "West US" }
+        - { ref: rg-shared,  location: "West US" }
+      virtual_machines:
+        - { ref: vm-build01, resource_group: rg-compute }
+        - { ref: vm-jump02,  resource_group: rg-compute }
+      function_apps:       [{ ref: func-bz30-api01, resource_group: rg-compute }]
+      automation_accounts: [{ ref: auto-runbook01,   resource_group: rg-compute }]
+      logic_apps:          [{ ref: logic-etl01 }]                         # random placement
+      app_services:        [{ ref: app-bz30-portal02, resource_group: rg-apps }]
+      key_vaults:
+        - { ref: kv-bz30-vault01, resource_group: rg-data }
+        - { ref: kv-bz30-vault02, resource_group: rg-data }
+        - { ref: kv-bz30-vault03, resource_group: rg-data }
+      storage_accounts:
+        - { ref: stbz30data01, resource_group: rg-data }
+        - { ref: stbz30data02 }                                          # random placement
+      cosmos_dbs:          [{ ref: cosmos-bz30-app01, resource_group: rg-data }]
+
+    # -- the chain --------------------------------------------------------------
+    assignments:
+      # ===== ACT I — foothold, identity recon, first managed-identity pivot =====
+      # 2) sp-ci owns app-build-agent (a build automation SP).
+      - { id: own1, type: app_ownership, principal_ref: sp-ci, app_ref: app-build-agent }
+      # recon (off-spine): the build agent can read the whole directory.
+      - { id: api_recon, type: api_permission, principal_ref: app-build-agent,
+          api_type: graph, app_role: "Directory.Read.All" }
+      # 3-5) build-agent -> engineering -> devops -> platform (3-level nested groups).
+      - { id: mem1, type: group_membership, principal_ref: app-build-agent, group_ref: g-engineering }
+      - { id: mem2, type: group_membership, principal_ref: g-engineering, group_ref: g-devops }
+      - { id: mem3, type: group_membership, principal_ref: g-devops, group_ref: g-platform }
+      # 6) g-platform can operate the function app -> control it + its managed identity.
+      - { id: rbac_f_ctrl, type: azure_rbac, principal_ref: g-platform,
+          role: "Website Contributor", scope_ref: func-bz30-api01 }
+      # (read edge) the function MI can read storage account stbz30data01.
+      - { id: rbac_f_read, type: azure_rbac, principal_ref: func-bz30-api01,
+          principal_type: managed_identity, mi_source: function_app,
+          role: "Storage Blob Data Reader", scope_ref: stbz30data01 }
+      # (off-spine, safe) the function MI also gets a benign monitoring role over
+      # the compute RG — NOT a key_vault/storage/cosmos read role, so it can't
+      # leak any other loot store.
+      - { id: rbac_f_monitor, type: azure_rbac, principal_ref: func-bz30-api01,
+          principal_type: managed_identity, mi_source: function_app,
+          role: "Monitoring Reader", scope_ref: rg-compute, scope_type: resource_group }
+
+      # ===== ACT II — privileged group takeover, VM #1 theft =====
+      # 8) the looted secscanner SP owns the backup SP.
+      - { id: own2, type: app_ownership, principal_ref: app-secscanner, app_ref: app-backup }
+      # 9) the backup SP OWNS the cloud-admins group -> wield its grants.
+      - { id: own3, type: group_ownership, principal_ref: app-backup, group_ref: g-cloud-admins }
+      # 10) cloud-admins can operate vm-build01 -> control it + its managed identity.
+      - { id: rbac_v1_ctrl, type: azure_rbac, principal_ref: g-cloud-admins,
+          role: "Virtual Machine Contributor", scope_ref: vm-build01 }
+      # (read edge) vm-build01's MI can read Key Vault kv-bz30-vault01.
+      - { id: rbac_v1_read, type: azure_rbac, principal_ref: vm-build01,
+          principal_type: managed_identity, mi_source: vm,
+          role: "Key Vault Secrets User", scope_ref: kv-bz30-vault01 }
+
+      # ===== ACT III — automation pivot, second storage theft =====
+      # 12) the looted hr-connector SP owns the graph-sync SP.
+      - { id: own4, type: app_ownership, principal_ref: app-hr-connector, app_ref: app-graph-sync }
+      # (off-spine exfil) graph-sync can access all mailboxes directly via Exchange.
+      - { id: api_mail, type: api_permission, principal_ref: app-graph-sync,
+          api_type: exchange, app_role: "full_access_as_app" }
+      # 13) graph-sync is a member of automation-ops.
+      - { id: mem4, type: group_membership, principal_ref: app-graph-sync, group_ref: g-automation-ops }
+      # 14) automation-ops can operate the automation account -> MI.
+      - { id: rbac_a_ctrl, type: azure_rbac, principal_ref: g-automation-ops,
+          role: "Automation Contributor", scope_ref: auto-runbook01 }
+      # (read edge) the automation MI can read storage account stbz30data02.
+      - { id: rbac_a_read, type: azure_rbac, principal_ref: auto-runbook01,
+          principal_type: managed_identity, mi_source: automation_account,
+          role: "Storage Blob Data Reader", scope_ref: stbz30data02 }
+
+      # ===== ACT IV — logic-app pivot, CERTIFICATE theft =====
+      # 16) the looted cert-mgr SP owns the logic-svc SP.
+      - { id: own5, type: app_ownership, principal_ref: app-cert-mgr, app_ref: app-logic-svc }
+      # 17) logic-svc OWNS the integration group.
+      - { id: own6, type: group_ownership, principal_ref: app-logic-svc, group_ref: g-integration }
+      # 18) integration can operate the logic app -> MI.
+      - { id: rbac_l_ctrl, type: azure_rbac, principal_ref: g-integration,
+          role: "Logic App Contributor", scope_ref: logic-etl01 }
+      # (read edge) the logic-app MI can read certificates out of kv-bz30-vault02.
+      - { id: rbac_l_read, type: azure_rbac, principal_ref: logic-etl01,
+          principal_type: managed_identity, mi_source: logic_app,
+          role: "Key Vault Certificates Officer", scope_ref: kv-bz30-vault02 }
+
+      # ===== ACT V — app-service pivot, Cosmos DB theft =====
+      # 20) the looted webhook-relay SP owns the report-svc SP.
+      - { id: own7, type: app_ownership, principal_ref: app-webhook-relay, app_ref: app-report-svc }
+      # (off-spine recon) report-svc can read SharePoint sites.
+      - { id: api_sites, type: api_permission, principal_ref: app-report-svc,
+          api_type: graph, app_role: "Sites.Read.All" }
+      # 21-22) report-svc -> data-eng -> data-platform (nested groups).
+      - { id: mem5, type: group_membership, principal_ref: app-report-svc, group_ref: g-data-eng }
+      - { id: mem6, type: group_membership, principal_ref: g-data-eng, group_ref: g-data-platform }
+      # 23) data-platform can operate the App Service -> control it + its MI
+      #     (via the Kudu/SCM REST API).
+      - { id: rbac_p_ctrl, type: azure_rbac, principal_ref: g-data-platform,
+          role: "Website Contributor", scope_ref: app-bz30-portal02 }
+      # (read edge) the App Service MI holds the Cosmos SQL data-plane role, so it
+      # can read documents out of cosmos-bz30-app01.
+      - { id: rbac_p_read, type: azure_rbac, principal_ref: app-bz30-portal02,
+          principal_type: managed_identity, mi_source: app_service,
+          role: "00000000-0000-0000-0000-000000000002", scope_ref: cosmos-bz30-app01,
+          scope_resource_type: cosmos_db, data_plane: cosmos_sql }
+
+      # ===== ACT VI — security-group takeover, VM #2 theft, Global Administrator =====
+      # 25) the looted cosmos-sync SP owns the siem-connector SP.
+      - { id: own8, type: app_ownership, principal_ref: app-cosmos-sync, app_ref: app-siem-connector }
+      # 26) siem-connector OWNS the security-ops group.
+      - { id: own9, type: group_ownership, principal_ref: app-siem-connector, group_ref: g-security-ops }
+      # 27) security-ops can operate vm-jump02 -> control it + its managed identity.
+      - { id: rbac_v2_ctrl, type: azure_rbac, principal_ref: g-security-ops,
+          role: "Virtual Machine Contributor", scope_ref: vm-jump02 }
+      # (read edge) vm-jump02's MI can read Key Vault kv-bz30-vault03.
+      - { id: rbac_v2_read, type: azure_rbac, principal_ref: vm-jump02,
+          principal_type: managed_identity, mi_source: vm,
+          role: "Key Vault Secrets User", scope_ref: kv-bz30-vault03 }
+      # 29) the looted directory-sync SP owns app-ga.
+      - { id: own10, type: app_ownership, principal_ref: app-directory-sync, app_ref: app-ga }
+      # 30) the final controlled app holds Global Administrator — the objective.
+      - { id: role_ga, type: entra_role, principal_ref: app-ga, role: "Global Administrator" }
+
+      # ===== off-spine structural realism =====
+      # A human admin owns the entry-point engineering group...
+      - { id: own_user, type: group_ownership, principal_ref: svc-it-admin, group_ref: g-engineering }
+      # ...a help-desk lead LOOKS privileged (holds a directory role) but it isn't GA...
+      - { id: role_helpdesk, type: entra_role, principal_ref: helpdesk-lead, role: "Groups Administrator" }
+      # ...and admins/privileged groups sit in Tier-0 / service-desk admin units.
+      - { id: au_user,     type: au_membership, principal_ref: svc-it-admin,    au_ref: au-corp-tier0 }
+      - { id: au_group,    type: au_membership, principal_ref: g-security-ops,  au_ref: au-corp-tier0 }
+      - { id: au_helpdesk, type: au_membership, principal_ref: helpdesk-lead,   au_ref: au-service-desk }
+
+    # -- planted credentials the loots steal -----------------------------------
+    credentials:
+      - { ref: cr_secscanner, app_ref: app-secscanner,     type: password }
+      - { ref: cr_hrconn,     app_ref: app-hr-connector,   type: password }
+      - { ref: cr_certmgr,    app_ref: app-cert-mgr,       type: password }
+      # The certificate PAIR: this credential registers the public cert on
+      # app-webhook-relay, making the matching planted .pfx (below) authenticate
+      # as that app once looted.
+      - { ref: cr_webhook,    app_ref: app-webhook-relay,  type: certificate }
+      - { ref: cr_cosmossync, app_ref: app-cosmos-sync,    type: password }
+      - { ref: cr_dirsync,    app_ref: app-directory-sync, type: password }
+
+    # -- the six planted loots, each in its OWN store --------------------------
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: cr_secscanner,
+          location: storage_blob,       location_ref: stbz30data01,   name: deploy-config.json }
+      - { id: d2, material: app_secret, credential_ref: cr_hrconn,
+          location: key_vault_secret,   location_ref: kv-bz30-vault01, name: hr-connector-client-secret }
+      - { id: d3, material: app_secret, credential_ref: cr_certmgr,
+          location: storage_blob,       location_ref: stbz30data02,   name: backup-agent-creds.txt }
+      # CERTIFICATE theft: the planted .pfx is only usable because cr_webhook
+      # (above) registers a matching certificate credential on app-webhook-relay.
+      - { id: d4, material: app_certificate, source_ref: app-webhook-relay,
+          location: key_vault_certificate, location_ref: kv-bz30-vault02, name: webhook-relay-cert }
+      - { id: d5, material: app_secret, credential_ref: cr_cosmossync,
+          location: cosmos_document,    location_ref: cosmos-bz30-app01, name: cosmos-sync-secret-doc }
+      - { id: d6, material: app_secret, credential_ref: cr_dirsync,
+          location: key_vault_secret,   location_ref: kv-bz30-vault03, name: directorysync-client-secret }
