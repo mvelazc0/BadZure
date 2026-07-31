@@ -16,9 +16,8 @@ Run the reachability gate on the config and report the result:
 ./venv/bin/python BadZure.py check --config generated.yml --json
 ```
 Then summarize the JSON for the crew:
-- If `ok: true`: say each path is REACHABLE and in how many hops (the `steps` count). Also
-  read out each path's `objective.description` (the narrative) so the crew hears what the
-  attack actually does.
+- If `ok: true`: say each path is REACHABLE and in how many hops (the `steps` count). State each
+  path's `objective.description` as a one-line factual label — a config summary, not a story.
 - If `ok: false`: for every path with `reachable: false`, report its `name`, its `status`
   (`blocked`/`invalid`), and — most importantly — the `reason` string, which names the hop
   where the walk dead-ends. This `reason` is what the Adversary needs to repair the chain.
