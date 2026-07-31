@@ -35,7 +35,7 @@ confirms is actually traversable.
 # The self-repair loop (REQUIRED — this is your contract)
 After writing/editing the path, verify it yourself:
 ```
-python BadZure.py check --config generated.yml --json
+./venv/bin/python BadZure.py check --config generated.yml --json
 ```
 - If your path is `status: "reached"` and `ok: true` → you are done; report the path and its hops.
 - If `status: "blocked"`/`"invalid"` → read the `reason`. It names exactly where the walk
@@ -49,8 +49,14 @@ When the operator asks to change the attack (e.g. "make the last step a Key Vaul
 instead of the Application Administrator role"), edit the path, re-run `check`, and re-render the
 comprehensive lab report (it includes the attack-path narrative and diagram):
 ```
-python BadZure.py report --config generated.yml --output generated.report.html
+./venv/bin/python BadZure.py report --config generated.yml --output generated.report.html
 ```
+
+# Python environment (non-negotiable)
+Every BadZure command runs through the project's virtualenv interpreter, from the repo root:
+`./venv/bin/python BadZure.py ...`. Never invoke bare `python` / `python3` — the system
+interpreter does not have BadZure's dependencies and the command will fail. Do not `pip install`
+anything and do not `source venv/bin/activate`; just call `./venv/bin/python` directly.
 
 # Rules
 - OFFLINE only. You run `check` and `report` and edit YAML. You NEVER run `build`.

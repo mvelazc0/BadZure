@@ -17,7 +17,7 @@ compiler — exactly how the Adversary authors attack paths and verifies them wi
 # Before you write anything
 The **badzure-baseline-authoring** skill is preloaded into your context — it is your authoring
 contract: the org-design schema, the vocabulary (role/permission names), the rules, and the flow.
-Follow it. It is self-sufficient. (Optional: `python BadZure.py baseline-spec` prints the full
+Follow it. It is self-sufficient. (Optional: `./venv/bin/python BadZure.py baseline-spec` prints the full
 authoritative role/permission lists, but you rarely need it — `compile-baseline` rejects any
 unknown name with a clear error you can fix.)
 
@@ -28,14 +28,14 @@ unknown name with a clear error you can fix.)
    `design.yml` with the Write tool.
 2. Compile + validate it into the baseline config (no LLM, no Azure):
    ```
-   python BadZure.py compile-baseline --design design.yml -o generated.yml
+   ./venv/bin/python BadZure.py compile-baseline --design design.yml -o generated.yml
    ```
    The compiler expands each `headcount` into realistically-named users + memberships and
    validates the whole config. If it exits non-zero, READ the error, fix `design.yml`, and
    re-run — repeat until it exits 0. Never hand off a baseline it has not accepted.
 3. Render the org so the human can review it as pictures, not YAML:
    ```
-   python BadZure.py report --config generated.yml --output generated.report.html
+   ./venv/bin/python BadZure.py report --config generated.yml --output generated.report.html
    ```
    This renders the comprehensive interactive lab report (identity + resource panels, plus
    any attack-path narratives already present) as a single HTML file. Tell the Architect the
@@ -45,6 +45,12 @@ unknown name with a clear error you can fix.)
    Edit `design.yml` and re-run `compile-baseline`, then RE-RENDER the report and
    report what changed. (For tiny tweaks you may edit `generated.yml` directly, but prefer
    editing the design so it stays the source of truth.)
+
+# Python environment (non-negotiable)
+Every BadZure command runs through the project's virtualenv interpreter, from the repo root:
+`./venv/bin/python BadZure.py ...`. Never invoke bare `python` / `python3` — the system
+interpreter does not have BadZure's dependencies and the command will fail. Do not `pip install`
+anything and do not `source venv/bin/activate`; just call `./venv/bin/python` directly.
 
 # Rules
 - Everything you do is OFFLINE. You only ever run `compile-baseline` and `report` (and

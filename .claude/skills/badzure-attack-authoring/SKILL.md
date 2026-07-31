@@ -108,7 +108,7 @@ baseline employee/resource instead, add `match:` —
    sit on an app/identity the attacker provably controls via the chain.
 
 ## Escalation-worthy Entra roles (common terminal/high-priv)
-<!-- GENERATED from src/vocabulary.py — run `python -m src.skill_vocab` to refresh. -->
+<!-- GENERATED from src/vocabulary.py — run `./venv/bin/python -m src.skill_vocab` to refresh. -->
 <!-- BADZURE:GEN escalation_entra_roles -->
 `Global Administrator`, `Privileged Role Administrator`, `Application Administrator`, `Cloud
 Application Administrator`, `Privileged Authentication Administrator`, `User Administrator`
@@ -118,8 +118,11 @@ Application Administrator`, `Privileged Authentication Administrator`, `User Adm
 ## Self-check loop (ALWAYS do this)
 After writing/editing the `attack_paths:` block:
 ```
-python BadZure.py check --config <file> --json
+./venv/bin/python BadZure.py check --config <file> --json
 ```
+Always run BadZure through the project virtualenv interpreter (`./venv/bin/python`, from the repo
+root) — bare `python` / `python3` is the system interpreter, lacks BadZure's dependencies, and fails.
+
 - `ok: true` and your path `status: "reached"` → done.
 - `status: "blocked"/"invalid"` → read `reason`, it names where the walk dead-ends. Insert the
   missing hop (usually an ownership or RBAC grant) or re-route, and check again. Repeat until green.

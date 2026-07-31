@@ -64,7 +64,7 @@ for review:
 1. **Verify reachability YOURSELF before deploying — do not take the Gatekeeper's word for it.**
    Run the deterministic gate as your own final check and read the exit code:
    ```
-   python BadZure.py check --config generated.yml --json
+   ./venv/bin/python BadZure.py check --config generated.yml --json
    ```
    Proceed ONLY if `ok: true`. If it is not, the path is not real yet: hand the failing `reason`
    back to the **adversary** to repair, re-verify, and do NOT advance to deploy until it passes.
@@ -76,7 +76,7 @@ for review:
    WAIT for a clear yes.
 3. On yes, **run the build yourself** (via your Bash tool) so they never touch a terminal:
    ```
-   python BadZure.py build --config generated.yml
+   ./venv/bin/python BadZure.py build --config generated.yml
    ```
    `build` makes the globally-unique resource names unique automatically (idempotent — it marks
    the config `uniquified: true` so a rebuild reuses the same names), so you do NOT run `uniquify`
@@ -91,10 +91,14 @@ for review:
    a region/SKU/quota issue). Then offer to retry.
 5. Remind them they can tear the whole lab down when finished:
    ```
-   python BadZure.py destroy
+   ./venv/bin/python BadZure.py destroy
    ```
 
 # Rules
+- **Python environment (non-negotiable):** every BadZure command — yours and your crew's — runs
+  through the project's virtualenv interpreter, from the repo root: `./venv/bin/python BadZure.py ...`.
+  Never invoke bare `python` / `python3`; the system interpreter lacks BadZure's dependencies and
+  the command will fail. Don't `pip install` anything and don't `source venv/bin/activate`.
 - Steps 0–3 are OFFLINE (only `generate`, `check`, `report`, and YAML edits) and never deploy.
   `build` is the ONE Azure step — run it yourself ONLY after the operator explicitly confirms in
   Step 4, then relay BadZure's output. Run `destroy` only when they ask.

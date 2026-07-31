@@ -13,7 +13,7 @@ The schema, rules, and a curated vocabulary are below — this skill is self-suf
 `compile-baseline` is the gate: it rejects any unknown role/permission name (or dangling ref)
 with a clear error you then fix, so you don't need an exhaustive list to author confidently. For
 the FULL authoritative role/permission lists you may optionally run
-`python BadZure.py baseline-spec`, but you rarely need to.
+`./venv/bin/python BadZure.py baseline-spec`, but you rarely need to.
 
 ---
 
@@ -24,16 +24,19 @@ ownerships, AUs, and planted fake secrets — and validates the result. You neve
 hundreds of users; you give a `headcount` and the compiler generates them.
 
 ## Flow
+Run every BadZure command through the project virtualenv interpreter (`./venv/bin/python`, from the
+repo root) — bare `python` / `python3` is the system interpreter, lacks BadZure's dependencies, and fails.
+
 1. Author the design as a single YAML mapping (see schema below) and save it to `design.yml`.
 2. Compile + validate it (no LLM, no Azure):
    ```
-   python BadZure.py compile-baseline --design design.yml -o generated.yml
+   ./venv/bin/python BadZure.py compile-baseline --design design.yml -o generated.yml
    ```
 3. If it exits non-zero, read the error, FIX `design.yml`, and re-run — the same self-repair
    loop the Adversary uses with `check`. Repeat until it exits 0.
 4. Render the report for review:
    ```
-   python BadZure.py report --config generated.yml --output generated.report.html
+   ./venv/bin/python BadZure.py report --config generated.yml --output generated.report.html
    ```
 
 ## Org-design schema (all top-level keys optional except `departments`)
@@ -78,7 +81,7 @@ Use these NAMES verbatim. `compile-baseline` accepts any name the resolver knows
 set keeps generated orgs believable. (For the exhaustive list, `baseline-spec`.)
 
 <!-- The name-lists below are GENERATED from src/vocabulary.py — do not hand-edit;
-     run `python -m src.skill_vocab` to refresh. The tripwire test enforces sync. -->
+     run `./venv/bin/python -m src.skill_vocab` to refresh. The tripwire test enforces sync. -->
 
 **Azure RBAC roles** (for `rbac` and SP `azure_roles`):
 <!-- BADZURE:GEN azure_rbac_roles -->

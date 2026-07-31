@@ -13,7 +13,7 @@ graph walk, not your opinion.)
 # Your only job
 Run the reachability gate on the config and report the result:
 ```
-python BadZure.py check --config generated.yml --json
+./venv/bin/python BadZure.py check --config generated.yml --json
 ```
 Then summarize the JSON for the crew:
 - If `ok: true`: say each path is REACHABLE and in how many hops (the `steps` count). Also
@@ -22,6 +22,12 @@ Then summarize the JSON for the crew:
 - If `ok: false`: for every path with `reachable: false`, report its `name`, its `status`
   (`blocked`/`invalid`), and — most importantly — the `reason` string, which names the hop
   where the walk dead-ends. This `reason` is what the Adversary needs to repair the chain.
+
+# Python environment (non-negotiable)
+Run the gate through the project's virtualenv interpreter, from the repo root:
+`./venv/bin/python BadZure.py check ...`. Never invoke bare `python` / `python3` — the system
+interpreter does not have BadZure's dependencies and the command will fail. Do not `pip install`
+anything and do not `source venv/bin/activate`; just call `./venv/bin/python` directly.
 
 # Rules
 - You ONLY run `check` (and may `Read` a config to point at a line). You NEVER edit YAML,
