@@ -83,6 +83,12 @@ class PathVerdict:
     reason: str
     terminal_node: Optional[str] = None
     derived_steps: List[Dict] = field(default_factory=list)
+    # Populated only for BLOCKED verdicts: WHY the objective is unreachable, so an
+    # operator (or the Adversary self-repair loop / Gatekeeper subagent) can fix the
+    # chain without re-deriving the walk. Keys: `reached` (the frontier the attacker
+    # actually controls), `dead_ends` (planted credentials that loot to nothing),
+    # `blocked_edges` (edges toward the objective whose source is never controlled).
+    diagnostics: Optional[Dict] = None
 
     @property
     def ok(self) -> bool:
@@ -124,6 +130,8 @@ def attach_derived_steps(overlays: List, report: ReachabilityReport) -> None:
         if not v:
             continue
         ov.reachability = {"status": v.status, "reason": v.reason}
+        if v.diagnostics:
+            ov.reachability["diagnostics"] = v.diagnostics
         if not ov.steps and v.derived_steps:
             ov.steps = v.derived_steps
 
@@ -204,6 +212,8 @@ class _Analyzer:
         if verdict.status == REACHED and verdict.terminal_node is not None:
             verdict.derived_steps = self._derive_steps(
                 seed, verdict.terminal_node, parent, overlay, capability, objective)
+        elif verdict.status == BLOCKED:
+            verdict.diagnostics = self._diagnose(seed, capability, objective, control)
         return verdict
 
     # -- the fixpoint walk ----------------------------------------------------
@@ -258,6 +268,118 @@ class _Analyzer:
                 reader = self._reader_of(p.location_ref, self._inject_rtype(p), control)
                 if reader:
                     return [(reader, app)]
+        return []
+
+    # -- diagnostics (only computed for BLOCKED paths) ------------------------
+    def _diagnose(self, seed: str, capability: str, objective: Dict,
+                  control: set) -> Dict:
+        """Explain WHY a blocked objective is unreachable. Returns a dict with any
+        of: `reached` (the control frontier), `dead_ends` (planted credentials that
+        loot to nothing / sit in an unreadable resource), `blocked_edges` (edges on a
+        path to the objective whose source is never controlled). Best-effort and
+        read-only — it never changes the verdict, only annotates it."""
+        diag: Dict = {"reached": sorted(control)}
+        dead_ends = self._dead_end_injects(control)
+        if dead_ends:
+            diag["dead_ends"] = dead_ends
+
+        blocked: List[str] = []
+        target = objective.get("target_ref")
+        if target:
+            blocked.extend(self._blocked_edges_toward(target, control))
+        # A read objective can also be blocked because a principal HOLDS a read role
+        # on the target but was never controlled — that's not a control-set edge, so
+        # surface it explicitly.
+        if capability in capabilities.READ_CAPABILITY_RESOURCE and target:
+            rtype = capabilities.READ_CAPABILITY_RESOURCE[capability]
+            for r in self.rbac:
+                if r.principal_ref not in control \
+                        and capabilities.rbac_reads_resource(r.role, rtype) \
+                        and self._scope_covers(r, target, rtype):
+                    blocked.append(
+                        f"{r.principal_ref} holds read role '{r.role}' on '{target}', "
+                        f"but {r.principal_ref} is never controlled.")
+        if blocked:
+            diag["blocked_edges"] = blocked
+        return diag
+
+    def _dead_end_injects(self, control: set) -> List[str]:
+        """Planted credentials whose loot hop cannot fire: an orphaned cert/secret
+        (nothing authenticates), or a valid credential in a resource no controlled
+        principal can read."""
+        out: List[str] = []
+        for p in self.primitives:
+            if not isinstance(p, DataInject) \
+                    or p.material not in ("app_secret", "app_certificate"):
+                continue
+            app = self._loot_app(p)
+            if app is None:
+                if p.material == "app_certificate":
+                    intended = p.source_ref or (
+                        self.creds[p.credential_ref].app_ref
+                        if p.credential_ref in self.creds else None)
+                    if intended:
+                        out.append(
+                            f"planted certificate '{p.name}' targets app "
+                            f"'{intended}', but no certificate is registered on "
+                            f"'{intended}' — add a `type: certificate` credential "
+                            f"so the looted .pfx authenticates.")
+                    else:
+                        out.append(
+                            f"planted certificate '{p.name}' has no resolvable "
+                            f"target app (set source_ref or a valid credential_ref).")
+                else:  # app_secret
+                    out.append(
+                        f"planted secret '{p.name}' references credential "
+                        f"'{p.credential_ref}', which is not registered on any app — "
+                        f"the loot yields nothing.")
+            elif app not in control:
+                rtype = self._inject_rtype(p)
+                if self._reader_of(p.location_ref, rtype, control) is None:
+                    out.append(
+                        f"planted credential '{p.name}' -> '{app}' sits in "
+                        f"'{p.location_ref}', which no controlled principal can read.")
+        return out
+
+    def _blocked_edges_toward(self, target: str, control: set) -> List[str]:
+        """Edges (ownership / membership / RBAC-control / app-takeover) that lie on
+        SOME path to `target` but whose source is never controlled — the frontier of
+        why the walk stalled. Computed by backward reachability over potential edges
+        (control ignored), then filtered to uncontrolled sources."""
+        edges = [e for p in self.primitives for e in self._potential_edges(p)]
+        can_reach = {target}
+        changed = True
+        while changed:
+            changed = False
+            for src, dst, _ in edges:
+                if dst in can_reach and src not in can_reach:
+                    can_reach.add(src)
+                    changed = True
+        out: List[str] = []
+        seen = set()
+        for src, dst, prim in edges:
+            if dst in can_reach and src not in control and (src, dst) not in seen:
+                seen.add((src, dst))
+                rel = _RELATION.get(type(prim), "reaches")
+                out.append(f"{src} {rel} {dst}, but {src} is never controlled.")
+        return out
+
+    def _potential_edges(self, p) -> List[Tuple[str, str, object]]:
+        """Like `_edges`, but ignores the control set — the edges this primitive
+        COULD contribute if its source were controlled. DataInject loot is excluded
+        (its failures are reported by `_dead_end_injects`, not as a graph edge)."""
+        if isinstance(p, AppOwnership):
+            return [(p.principal_ref, p.app_ref, p)]
+        if isinstance(p, (GroupOwnership, GroupMembership)):
+            return [(p.principal_ref, p.group_ref, p)]
+        if isinstance(p, EntraRoleAssignment) \
+                and capabilities.entra_role_controls_apps(p.role):
+            if p.scope_app_ref:
+                return [(p.principal_ref, p.scope_app_ref, p)]
+            return [(p.principal_ref, app, p) for app in self.model.applications]
+        if isinstance(p, AzureRbacAssignment):
+            return [(p.principal_ref, res, p)
+                    for res in self._controlled_resources(p)]
         return []
 
     # -- resource-control / read helpers --------------------------------------
@@ -504,6 +626,16 @@ _ACTIONS = {
     EntraRoleAssignment: "app_admin_credential_addition",
     AzureRbacAssignment: "resource_control",
     DataInject: "credential_loot",
+}
+
+# Primitive type -> a short relation verb for the blocked-edge diagnostic
+# ("<src> <verb> <dst>, but <src> is never controlled.").
+_RELATION = {
+    AppOwnership: "owns app",
+    GroupOwnership: "owns group",
+    GroupMembership: "is a member of",
+    EntraRoleAssignment: "can take over app",
+    AzureRbacAssignment: "controls resource",
 }
 
 # Primitive type -> a human-readable phrase for the derived step's name. The hop's

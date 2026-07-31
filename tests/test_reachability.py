@@ -291,6 +291,48 @@ def test_certificate_loot_blocked_without_registered_credential():
     print("ok: cert loot blocked when no credential registers the cert")
 
 
+def test_blocked_verdict_carries_diagnostics():
+    # A BLOCKED path must explain WHY, so the operator / self-repair loop can fix it
+    # without re-deriving the walk: the frontier the attacker actually reached, and the
+    # orphaned planted credential that loots to nothing.
+    broken = copy.deepcopy(_CERT_TO_GA)
+    broken["attack_paths"]["cert_to_ga"]["credentials"] = []
+    v = _status(broken, "cert_to_ga")
+    assert v.status == reachability.BLOCKED
+    diag = v.diagnostics or {}
+    assert diag.get("reached") == ["alice"], "frontier should be the seed alone"
+    dead_ends = diag.get("dead_ends") or []
+    assert any("app_highpriv" in d and "no certificate is registered" in d
+               for d in dead_ends), dead_ends
+    print("ok: blocked verdict carries dead-end diagnostics")
+
+
+def test_blocked_verdict_reports_uncontrolled_edge_toward_target():
+    # control_principal objective whose target is owned by an app that is never
+    # controlled -> the blocked-edge diagnostic should name that ownership hop.
+    cfg = copy.deepcopy(_CERT_TO_GA)
+    path = cfg["attack_paths"]["cert_to_ga"]
+    path["objective"] = {"name": "own the app", "capability": "control_principal",
+                         "target_ref": "app_victim"}
+    path["identities"]["applications"].append({"ref": "app_victim"})
+    path["assignments"].append(
+        {"id": "a3", "type": "app_ownership",
+         "principal_ref": "app_highpriv", "app_ref": "app_victim"})
+    path["credentials"] = []  # orphan the cert -> app_highpriv never controlled
+    v = _status(cfg, "cert_to_ga")
+    assert v.status == reachability.BLOCKED
+    blocked = (v.diagnostics or {}).get("blocked_edges") or []
+    assert any("app_highpriv" in b and "app_victim" in b for b in blocked), blocked
+    print("ok: blocked verdict reports uncontrolled edge toward target")
+
+
+def test_reached_verdict_has_no_diagnostics():
+    v = _status(_KV_TO_GA, "kv_to_ga")
+    assert v.status == reachability.REACHED
+    assert v.diagnostics is None, "diagnostics are only computed for blocked paths"
+    print("ok: reached verdict carries no diagnostics")
+
+
 def test_authored_steps_preserved():
     cfg = copy.deepcopy(_KV_TO_GA)
     cfg["attack_paths"]["kv_to_ga"]["steps"] = [

@@ -487,6 +487,7 @@ class CheckCommand:
             "status": status,
             "reachable": status in (reachability.REACHED, reachability.UNVERIFIED),
             "reason": reach.get('reason', ''),
+            "diagnostics": reach.get('diagnostics'),
             "steps": steps,
         }
 
@@ -513,6 +514,15 @@ class CheckCommand:
                 log(f"  Narrative: {desc}")
             marker = cls._MARKERS.get(r['status'], r['status'] or '[unknown]')
             log(f"  Reachability: {marker} {r['reason']}".rstrip())
+            diag = r.get('diagnostics') or {}
+            if diag:
+                reached = diag.get('reached') or []
+                if reached:
+                    log(f"  Attacker reached: {', '.join(reached)}")
+                for de in diag.get('dead_ends') or []:
+                    log(f"  Dead end: {de}")
+                for be in diag.get('blocked_edges') or []:
+                    log(f"  Blocked edge: {be}")
             log(f"  Steps: {len(r['steps'])}")
             if verbose:
                 for i, s in enumerate(r['steps'], 1):
