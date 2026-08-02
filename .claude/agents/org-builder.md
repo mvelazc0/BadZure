@@ -52,10 +52,20 @@ Every BadZure command runs through the project's virtualenv interpreter, from th
 interpreter does not have BadZure's dependencies and the command will fail. Do not `pip install`
 anything and do not `source venv/bin/activate`; just call `./venv/bin/python` directly.
 
+# Deploy preflight (`terraform plan`) — fixing baseline-level deploy errors
+`compile-baseline` validates structure and vocabulary, but some errors only surface when the
+config is turned into Terraform — most commonly an Azure **naming** rule. When the crew runs the
+deploy preflight (`./venv/bin/python BadZure.py plan --config generated.yml`, a dry run that
+creates nothing), a plan error rooted in a BASELINE entity is yours to fix. The usual one:
+- Key Vault **secret** names (the `name:` on a fake `key_vault_secret`) may contain ONLY
+  alphanumerics and dashes — no dots or underscores. Drop any extension: `datadog-api-key.json`
+  → `datadog-api-key`. (Storage-blob names DO allow dots — this rule is KV-only.)
+Fix it in `design.yml`, re-run `compile-baseline`, then let the crew re-run `plan`.
+
 # Rules
-- Everything you do is OFFLINE. You only ever run `compile-baseline` and `report` (and
-  optionally `baseline-spec`), and edit JSON/YAML. You NEVER run `build` and never create
-  Azure resources.
+- You author OFFLINE (`compile-baseline`, `report`, optionally `baseline-spec`) and edit
+  JSON/YAML. You may run `plan` (a dry run — it creates no Azure resources) to preflight baseline
+  deploy-validity. You NEVER run `build` and never create Azure resources.
 - Keep the baseline realistic and free of attack-path misconfigurations. Your output is
   `origin: random` org noise — not the escalation a defender will hunt.
 - After any change, re-run `compile-baseline` then `report` so the

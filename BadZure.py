@@ -22,7 +22,7 @@ except ImportError:
 
 from src.cli import (
     BuildCommand, ShowCommand, DestroyCommand, GenerateCommand, CheckCommand,
-    ReportCommand, UniquifyCommand, CompileBaselineCommand,
+    PlanCommand, ReportCommand, UniquifyCommand, CompileBaselineCommand,
     BaselineSpecCommand,
 )
 
@@ -171,6 +171,16 @@ def check(config, json_output, verbose):
 
 
 @cli.command()
+@click.option('--config', type=click.Path(exists=True), default='generated.yml',
+              help="Path to the configuration YAML file")
+@click.option('--verbose', is_flag=True, help="Stream full terraform plan output")
+def plan(config, verbose):
+    """Preflight a config with `terraform plan` (dry run, no deploy; needs Azure login)"""
+    code = PlanCommand().execute(config, verbose=verbose)
+    raise SystemExit(code)
+
+
+@cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
 def show(verbose):
     """Show all the created resources in the tenant"""
@@ -190,7 +200,7 @@ if __name__ == '__main__':
     setup_logging(logging.INFO)
     # Offline and machine-oriented commands skip the banner + sleep.
     if not (set(sys.argv[1:]) & {
-        'check', 'report', 'compile-baseline', 'baseline-spec',
+        'check', 'plan', 'report', 'compile-baseline', 'baseline-spec',
     }):
         print(banner)
         time.sleep(2)

@@ -65,7 +65,7 @@ _KV_THEFT = {
             "data_injects": [
                 {"id": "d1", "material": "app_secret", "credential_ref": "app_secret",
                  "location": "key_vault_secret", "location_ref": "kv01",
-                 "name": "client-secret-app_highpriv"},
+                 "name": "client-secret-app-highpriv"},
             ],
         }
     },
@@ -96,7 +96,7 @@ def test_kv_theft_chain_compiles_to_generic_families():
     assert inj["material"] == "app_secret"
     assert inj["location_type"] == "key_vault_secret"
     assert inj["location_ref"] == "kv01"
-    assert inj["name"] == "client-secret-app_highpriv"
+    assert inj["name"] == "client-secret-app-highpriv"
     # credential_ref is origin-prefixed to the looted credential's namespaced key
     assert inj["credential_ref"] == "ap:kv_theft__app_secret"
 

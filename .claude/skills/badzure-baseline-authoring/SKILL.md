@@ -76,6 +76,10 @@ blobs:
   - { storage: "sthxprod01", name: "backup.json" }
 ```
 
+> **Secret naming rule:** a Key Vault `secret` `name` may contain ONLY alphanumerics and dashes —
+> no dots or underscores (Azure rejects the dotted form at deploy). Use `datadog-api-key`, not
+> `datadog-api-key.json`. Blob names, by contrast, DO allow dots (`backup.json` is fine).
+
 ## Vocabulary (the common, realistic palette)
 Use these NAMES verbatim. `compile-baseline` accepts any name the resolver knows; this curated
 set keeps generated orgs believable. (For the exhaustive list, `baseline-spec`.)

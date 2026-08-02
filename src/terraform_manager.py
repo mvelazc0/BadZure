@@ -52,6 +52,16 @@ class TerraformManager:
         """Apply Terraform configuration."""
         return self._run(self.tf.apply, skip_plan=True, capture_output=not verbose)
 
+    def plan(self, verbose: bool = False) -> Tuple[int, str, str]:
+        """Run `terraform plan` (a DRY RUN — creates nothing). Used as a preflight
+        gate: plan evaluates every template interpolation and runs each provider's
+        resource ValidateFuncs, so it surfaces malformed-Terraform errors the offline
+        reachability gate structurally can't see — a null var interpolation, an invalid
+        Azure resource name, a bad reference — WITHOUT touching Azure state. Requires an
+        authenticated Azure session and a prior `init`. Return code: 0 = plan OK,
+        non-zero = errors (stderr carries the diagnostics)."""
+        return self._run(self.tf.plan, input=False, capture_output=not verbose)
+
     def destroy(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Destroy Terraform resources."""
         return self._run(self.tf.apply, skip_plan=True, destroy=True, auto_approve=True, capture_output=not verbose)

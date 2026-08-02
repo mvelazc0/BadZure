@@ -171,6 +171,45 @@ def test_secret_material_in_key_vault_certificate_rejected():
     _assert_raises(lambda: build_tfvars(m, verify_files=False))
 
 
+def test_key_vault_secret_dotted_name_rejected():
+    # KV secret/certificate names may only contain alphanumerics and dashes; a dotted
+    # extension is accepted here but rejected by the AzureRM provider mid plan/apply.
+    m = _base_model(primitives=[
+        DataInject("inj", ATTACK_PATH, "literal", "key_vault_secret", "kv1",
+                   "portal-config.json", literal_value="x"),
+    ])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_key_vault_certificate_underscored_name_rejected():
+    m = _base_model(primitives=[
+        DataInject("inj", ATTACK_PATH, "app_certificate", "key_vault_certificate", "kv1",
+                   "breakglass_emergency_access", source_ref="app1", file_path="x.pfx"),
+    ])
+    _assert_raises(lambda: build_tfvars(m, verify_files=False))
+
+
+def test_key_vault_dashed_name_accepted():
+    # The valid form (alphanumerics + dashes) compiles cleanly.
+    m = _base_model(primitives=[
+        DataInject("inj", ATTACK_PATH, "literal", "key_vault_secret", "kv1",
+                   "portal-config-json", literal_value="x"),
+    ])
+    build_tfvars(m, verify_files=False)
+
+
+def test_storage_blob_dotted_name_allowed():
+    # Storage blob names DO permit dots — the KV-only charset lint must not touch them.
+    m = _base_model(
+        storage_accounts={"sa1": {"name": "sa1", "location": "West US",
+                                  "resource_group_name": "rg1"}},
+        primitives=[
+            DataInject("inj", ATTACK_PATH, "literal", "storage_blob", "sa1",
+                       "portal-config.json", literal_value="x"),
+        ])
+    build_tfvars(m, verify_files=False)  # dotted blob name compiles cleanly
+
+
 def test_app_certificate_missing_file_rejected_when_verifying():
     m = _base_model(primitives=[
         DataInject("inj", ATTACK_PATH, "app_certificate", "key_vault_certificate", "kv1",

@@ -152,6 +152,18 @@ def build_attack_panel(model, overlay) -> GraphPanel:
             identity = _managed_identity_node(target_ref)
             _add_node(nodes, compute)
             _add_node(nodes, identity)
+            if source.type == "ComputeResource":
+                # A resource-seed foothold (exposed host / vulnerable web app) lands
+                # the walk on the host ComputeResource itself. EXECUTES_ON must start
+                # at an identity, so first cross into the foothold's OWN managed
+                # identity (mirrors the objective-read bridge below).
+                foothold_mi = _managed_identity_node(source.properties.get("ref"))
+                _add_node(nodes, foothold_mi)
+                edges.append(_edge(
+                    overlay.name, index, "USES_MANAGED_IDENTITY", source, foothold_mi,
+                    step, suffix="foothold-managed-identity",
+                ))
+                source = foothold_mi
             edges.append(_edge(
                 overlay.name, index, "EXECUTES_ON", source, compute, step, suffix="execute",
             ))

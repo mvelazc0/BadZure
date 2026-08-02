@@ -76,6 +76,11 @@ baseline employee/resource instead, add `match:` —
 `credentials`: `{ ref, app_ref, type: password|certificate }`.
 `data_injects`: `{ id, material: app_secret|app_certificate, credential_ref (app_secret) | source_ref (app_certificate), location: key_vault_secret|key_vault_certificate|storage_blob|cosmos_document, location_ref, name }`.
 
+> **Naming rule (KV only):** a `name` on a `key_vault_secret` or `key_vault_certificate` may
+> contain ONLY alphanumerics and dashes — no dots, no underscores. Drop file extensions:
+> `breakglass-emergency-access.pfx` → `breakglass-emergency-access`. Azure rejects the dotted
+> form at deploy. (Storage-blob names DO allow dots — this rule is KV-only.)
+
 ## How a hop actually chains (the mental model the gate enforces)
 - **Own an app → become it.** `app_ownership` lets the attacker mint a credential on the app and
   authenticate as that service principal.
@@ -123,8 +128,19 @@ After writing/editing the `attack_paths:` block:
 Always run BadZure through the project virtualenv interpreter (`./venv/bin/python`, from the repo
 root) — bare `python` / `python3` is the system interpreter, lacks BadZure's dependencies, and fails.
 
-- `ok: true` and your path `status: "reached"` → done.
+- `ok: true` and your path `status: "reached"` → gate 1 passes; run the deploy preflight below.
 - `status: "blocked"/"invalid"` → read `reason`, it names where the walk dead-ends. Insert the
   missing hop (usually an ownership or RBAC grant) or re-route, and check again. Repeat until green.
+
+Then run the deploy preflight — a `terraform plan` dry run (creates nothing; needs an Azure login)
+that catches Terraform-level errors `check` can't see (invalid Azure resource names, null vars,
+bad refs):
+```
+./venv/bin/python BadZure.py plan --config <file>
+```
+- Exit 0 → deploy-ready, done.
+- Exit non-zero → read the terraform error and fix the YAML (most often the KV **naming rule**
+  above), then re-run both gates. A `var.public_ip is null` error is environmental, not a config
+  defect — set `export BADZURE_PUBLIC_IP=<ip>` (or fix network egress) rather than editing YAML.
 
 Never hand off a path the gate has not confirmed `reached`.

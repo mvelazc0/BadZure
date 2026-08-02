@@ -34,6 +34,7 @@ Three cross-block jobs that don't belong to a single handler live here:
 from typing import Dict, List
 import logging
 import os
+import re
 
 from src.primitives import (
     DeploymentModel, Primitive, EntraRoleAssignment, AzureRbacAssignment, ApiPermission,
@@ -135,6 +136,15 @@ _LOCATION_MATERIALS = {
     "storage_blob":          frozenset({"literal", "app_secret", "app_client_id", "app_certificate"}),
     "cosmos_document":       frozenset({"literal", "app_secret", "app_client_id", "app_certificate"}),
 }
+
+# Azure Key Vault object names (secrets AND certificates) may only contain
+# alphanumerics and dashes, 1-127 chars. A dotted/underscored name — e.g. a
+# ".pfx"/".json" extension carried over from a filename — is rejected by the AzureRM
+# provider (at plan/apply) with: `"name" may only contain alphanumeric characters and
+# dashes`. Storage-blob names are far more permissive (dots/slashes allowed), which is
+# why the SAME dotted name is fine for a storage_blob but not a key_vault_* location.
+_KEY_VAULT_NAME_LOCATIONS = frozenset({"key_vault_secret", "key_vault_certificate"})
+_KEY_VAULT_NAME_RE = re.compile(r"^[0-9a-zA-Z-]{1,127}$")
 
 # Cert/key/pfx file paths are emitted as basenames relative to the terraform working
 # dir (where crypto.py writes them and where `terraform apply` resolves file()).
@@ -442,6 +452,19 @@ class TerraformBuilder:
             raise LabValidationError(
                 f"DataInject '{p.key}': unknown location_type '{p.location_type}' "
                 f"(valid: {', '.join(sorted(_VALID_INJECT_LOCATIONS))})."
+            )
+
+        # 2b. Azure Key Vault object-name charset. A KV secret/certificate name may
+        #     only contain alphanumerics and dashes (1-127 chars); a dotted extension
+        #     (breakglass-emergency-access.pfx) or underscore is accepted here but
+        #     rejected by the provider mid plan/apply. Flag it offline instead.
+        if p.location_type in _KEY_VAULT_NAME_LOCATIONS and not _KEY_VAULT_NAME_RE.match(p.name or ""):
+            raise LabValidationError(
+                f"DataInject '{p.key}': name '{p.name}' is not a valid Azure Key "
+                f"Vault {p.location_type.replace('key_vault_', '')} name — it may only "
+                f"contain alphanumeric characters and dashes (no dots, underscores, or "
+                f"other symbols; 1-127 chars). Drop the extension "
+                f"(e.g. use '{re.sub(r'[^0-9a-zA-Z-]', '-', p.name or '').strip('-') or 'my-secret'}')."
             )
 
         # 3. location_type x material compatibility (mirrors generic.tf's emitters).

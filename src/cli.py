@@ -102,6 +102,28 @@ class BuildCommand:
                 f"'{config_file}' as uniquified (so a rebuild reuses these names).")
         return new_config
 
+    @staticmethod
+    def _resolve_public_ip() -> Optional[str]:
+        """Resolve the operator public IP (needed to lock foothold NSG/App-Service
+        access down to the operator) and FAIL FAST if it can't be determined. A null
+        IP is not a config defect — it's an environment failure (no egress to ipify /
+        proxy) — but if it slips through it flows into `${var.public_ip}/32` and
+        detonates mid-apply with "Cannot include a null value in a string template".
+        Returns the IP, or None after logging a clear, actionable error."""
+        public_ip = utils.get_public_ip()
+        if public_ip:
+            return public_ip
+        logging.error("=" * 60)
+        logging.error("Could not determine the operator's public IP.")
+        logging.error(
+            "BadZure needs it to lock foothold NSG rules and App Service access "
+            "restrictions down to your IP (terraform var.public_ip). The lookup to "
+            "api64.ipify.org failed — check network egress/proxy, or set an explicit "
+            "IP:  export BADZURE_PUBLIC_IP=<your.public.ip>   then retry. Nothing "
+            "was created.")
+        logging.error("=" * 60)
+        return None
+
     def _reachability_gate(self, config_file: str) -> None:
         """Refuse to deploy a config whose attack path isn't provably reachable.
 
@@ -158,10 +180,15 @@ class BuildCommand:
     # DeploymentModel via the scenario loader and call build_tfvars directly
     # (no legacy-splice needed — legacy assignment variables default to {}).
     # ------------------------------------------------------------------
-    def _build_declarative_mode(self, config: Dict, verbose: bool) -> None:
-        """Build from a declarative graph config (Phase 3, Slice 1)."""
-        start_time = time.time()
+    def _compile_and_write_tfvars(self, config: Dict):
+        """Compile a declarative config into a DeploymentModel and write
+        terraform.tfvars.json — the shared prep that both `build` (init + apply) and
+        `plan` (init + plan) run first. Returns (scenario, domain) on success, or None
+        after logging a clear error (bad tenant config, unresolvable public IP,
+        declarative/compile error, or a tfvars build/validation failure).
 
+        Sets AZURE_CONFIG_DIR as a side effect so downstream Terraform/Azure calls use
+        the same config dir."""
         azure_config_dir = os.path.expanduser('~/.azure')
         os.environ['AZURE_CONFIG_DIR'] = azure_config_dir
 
@@ -170,9 +197,11 @@ class BuildCommand:
             tenant_id, domain, subscription_id = self.config_mgr.resolve_tenant_config(config)
         except ValueError as e:
             logging.error(str(e))
-            return
+            return None
 
-        public_ip = utils.get_public_ip()
+        public_ip = self._resolve_public_ip()
+        if public_ip is None:
+            return None
 
         # Parse the declarative config into a deployable DeploymentModel.
         logging.info("Compiling declarative attack paths into generic primitives")
@@ -184,19 +213,29 @@ class BuildCommand:
             )
         except ValueError as e:
             logging.error(f"Declarative config error: {e}")
-            return
+            return None
 
-        model = scenario.model
         for overlay in scenario.attack_paths:
             logging.info(f"Compiled attack path '{overlay.name}'")
 
         # Everything is generic — produce the full tfvars directly.
         try:
-            tf_vars = build_tfvars(model)
+            tf_vars = build_tfvars(scenario.model)
         except ValueError as e:
             logging.error(f"Failed to build Terraform variables: {e}")
-            return
+            return None
         self.terraform_mgr.write_terraform_vars(tf_vars)
+        return scenario, domain
+
+    def _build_declarative_mode(self, config: Dict, verbose: bool) -> None:
+        """Build from a declarative graph config (Phase 3, Slice 1)."""
+        start_time = time.time()
+
+        prepared = self._compile_and_write_tfvars(config)
+        if prepared is None:
+            return
+        scenario, domain = prepared
+        model = scenario.model
 
         # Execute Terraform
         logging.info("Calling terraform init")
@@ -542,6 +581,80 @@ class CheckCommand:
         else:
             logging.error(message)
         return 2
+
+
+class PlanCommand:
+    """Handles `plan`: run the full pre-deploy preflight (uniquify + offline
+    reachability gate + tfvars build/validation) and then `terraform plan` — a DRY RUN
+    that creates NOTHING — to catch malformed-Terraform errors the offline gates
+    structurally can't see: a null var interpolation, an invalid Azure resource name, a
+    bad reference. It surfaces them here instead of minutes into the operator's `apply`.
+
+    This is the agents' deploy-safety gate: the operator runs `build` (apply), but the
+    crew runs `plan` first, reads any diagnostics, repairs the config, and re-runs until
+    it's clean. Requires an authenticated Azure session (plan validates against the
+    azurerm/azuread providers).
+
+    Exit codes: 0 = plan clean (deploy-ready), 1 = preflight/plan failed,
+    2 = terraform not installed.
+    """
+
+    def __init__(self):
+        self.build = BuildCommand()
+        self.config_mgr = self.build.config_mgr
+        self.terraform_mgr = self.build.terraform_mgr
+
+    def execute(self, config_file: str, verbose: bool = False) -> int:
+        try:
+            TerraformManager.ensure_installed()
+        except TerraformNotFoundError as e:
+            logging.error(str(e))
+            return 2
+
+        try:
+            config = self.config_mgr.load_config(config_file)
+        except (FileNotFoundError, yaml.YAMLError) as e:
+            logging.error(f"Could not load config: {e}")
+            return 1
+        if not isinstance(config, dict) or BuildCommand._is_legacy_config(config):
+            logging.error("Not a declarative config (legacy 'mode:' shape or invalid). "
+                          "Convert it to the baseline:/attack_paths: shape.")
+            return 1
+
+        # Same pre-deploy prep as `build`: make globally-unique names unique (persisted),
+        # then run the offline reachability gate. The gate raises SystemExit(1|2) on an
+        # unreachable/invalid config and passes silently otherwise — mirror that here.
+        config = self.build._ensure_uniquified(config, config_file)
+        try:
+            self.build._reachability_gate(config_file)
+        except SystemExit as e:
+            return int(e.code) if e.code else 1
+
+        # Compile + write terraform.tfvars.json (also runs the builder's offline
+        # validation, e.g. the Key Vault name-charset lint).
+        if self.build._compile_and_write_tfvars(config) is None:
+            return 1
+
+        logging.info("Calling terraform init")
+        return_code, stdout, stderr = self.terraform_mgr.init()
+        if return_code != 0:
+            logging.error(f"Terraform init failed: {stderr}")
+            if verbose and stdout:
+                logging.error(stdout)
+            return 1
+
+        logging.info("Calling terraform plan (dry run — nothing will be created) ...")
+        return_code, stdout, stderr = self.terraform_mgr.plan(verbose)
+        if return_code != 0:
+            logging.error("Terraform plan reported errors — fix these before `build`:")
+            detail = stderr or stdout
+            if detail:
+                logging.error(detail)
+            return 1
+
+        logging.info("terraform plan succeeded — the config is deploy-ready. "
+                     "Run `build` to apply.")
+        return 0
 
 
 class ReportCommand:
