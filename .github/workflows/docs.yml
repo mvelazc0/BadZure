@@ -6,6 +6,10 @@ on:
     paths:
       - 'docs/**'
       - 'mkdocs.yml'
+      # The docs build renders live lab reports from the tool, so a change to the
+      # reporting engine or the example/lab configs must republish the graphs.
+      - 'src/**'
+      - 'examples/**'
   workflow_dispatch:
 
 permissions:
@@ -21,6 +25,9 @@ jobs:
         with:
           python-version: '3.x'
 
+      # The build hook (docs/hooks/reports.py) imports src.reporting, which needs
+      # the project's runtime dependencies (jinja2, pyyaml, click, cryptography).
       - run: pip install mkdocs-material
+      - run: pip install -r requirements.txt
 
       - run: mkdocs gh-deploy --force

@@ -307,6 +307,16 @@ def build_path_narrative(overlay) -> AttackPathNarrative:
         overlay.reachability or {}, ("status", "reason"),
     )
     steps = [safe_properties(step, _NARRATIVE_STEP_FIELDS) for step in overlay.steps or []]
+    # A path's ATT&CK coverage is the union of what each step performs (derived
+    # from the traversal) plus anything the author declared. This makes the
+    # path-level `mitre` complete even when the author set none.
+    step_mitre = [item for step in steps for item in (step.get("mitre") or [])]
+    if step_mitre:
+        coverage = list(metadata.get("mitre") or [])
+        for item in step_mitre:
+            if item not in coverage:
+                coverage.append(item)
+        metadata["mitre"] = coverage
     objective_name = objective.get("name") or objective.get("role") or overlay.name
     entry = initial_access.get("principal_ref") or initial_access.get("target_ref") \
         or "the initial-access point"

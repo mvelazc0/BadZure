@@ -222,7 +222,10 @@ def _panel_payload(panel: GraphPanel, dom_key: str) -> Dict[str, Any]:
                 "type": node.type,
                 "properties": node.properties,
                 "node_color": color_for(node.type),
-                "border_color": SENSITIVE_BORDER_COLOR if node.sensitive else BACKGROUND_COLOR,
+                # Sensitive nodes get the red ring; others get a transparent border
+                # (theme-independent) instead of the dark canvas color, which would
+                # paint a dark ring on a light background.
+                "border_color": SENSITIVE_BORDER_COLOR if node.sensitive else "transparent",
                 "border_width": 5 if node.sensitive else 2,
                 "aggregate": node.aggregate,
                 "sensitive": node.sensitive,

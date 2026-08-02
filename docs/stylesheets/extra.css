@@ -18,3 +18,62 @@
   --md-default-bg-color: #1a1f2e;
   --md-default-bg-color--light: #212738;
 }
+
+/* Widen the content column so the interactive graphs get real horizontal space.
+   Material caps this at 61rem by default. */
+.md-grid {
+  max-width: 84rem;
+}
+
+/* ---------------------------------------------------------------------------
+   Embedded attack-path graphs (BadZure lab reports rendered by the build hook).
+   Each figure is an iframe into /reports/<lab>.report.html?embed=<panel-key>.
+   --------------------------------------------------------------------------- */
+.bz-graph {
+  width: 100%;
+  height: 560px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+  border-radius: 8px;
+  background: var(--md-code-bg-color);
+}
+
+.bz-graph-caption {
+  display: block;
+  margin: 0.4rem 0 1.2rem;
+  font-size: 0.75rem;
+  color: var(--md-default-fg-color--light);
+}
+
+.bz-graph-caption a {
+  font-weight: 600;
+}
+
+/* State (posture) and traversal (attack) graphs, stacked one above the other so
+   each gets the full column width. Each figure holds a caption + full-width
+   iframe. */
+.bz-graph-pair {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2rem;
+  margin: 1rem 0 1.4rem;
+}
+
+/* Material sets .md-typeset figure { width: fit-content }, which collapses an
+   iframe figure to its intrinsic width. Force full column width. */
+.bz-graph-pair figure {
+  margin: 0;
+  width: 100%;
+  max-width: 100%;
+  text-align: left;
+}
+
+.bz-graph-pair figcaption {
+  margin: 0 0 0.4rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--md-default-fg-color--light);
+}
+
+.bz-graph-pair .bz-graph {
+  height: 560px;
+}

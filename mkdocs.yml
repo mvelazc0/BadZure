@@ -53,6 +53,9 @@ nav:
   - Configuration Guide: configuration.md
   - Talks & Demos: talks-and-demos.md
 
+hooks:
+  - docs/hooks/reports.py
+
 markdown_extensions:
   - admonition
   - pymdownx.details
@@ -75,6 +78,9 @@ markdown_extensions:
 
 extra_css:
   - stylesheets/extra.css
+
+extra_javascript:
+  - javascripts/graph-theme.js
 
 extra:
   analytics:

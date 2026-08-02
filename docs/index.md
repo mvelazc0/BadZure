@@ -62,7 +62,7 @@ BadZure supports seven privilege escalation techniques across two categories. To
 ```bash
 git clone https://github.com/mvelazc0/BadZure
 cd BadZure
-python -m venv venv && venv\Scripts\activate
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 az login
 python BadZure.py build

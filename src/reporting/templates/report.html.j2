@@ -8,8 +8,16 @@
     // A report can double as an interactive documentation figure. The full
     // standalone experience remains the default; ``?embed=<panel-key>`` strips
     // the report chrome and opens only the requested graph panel.
-    const requestedEmbeddedPanel = new URLSearchParams(window.location.search).get("embed");
+    const reportParams = new URLSearchParams(window.location.search);
+    const requestedEmbeddedPanel = reportParams.get("embed");
     if (requestedEmbeddedPanel) document.documentElement.classList.add("embed-mode");
+    // Standalone reports stay dark. ``?theme=light|dark`` pins a palette so an
+    // embed can follow the host page's theme (e.g. the docs light/dark toggle);
+    // with no override the report honors prefers-color-scheme.
+    const requestedTheme = reportParams.get("theme");
+    if (requestedTheme === "light" || requestedTheme === "dark") {
+      document.documentElement.classList.add("theme-" + requestedTheme);
+    }
   </script>
   <style>
     :root {
@@ -28,6 +36,57 @@
       --danger: {{ sensitive_border_color }};
       --success: #22c55e;
       --warning: #f59e0b;
+      /* Themed surfaces. Read into cytoscape at graph init, so graph labels
+         track the palette too. */
+      --nav-bg: rgba(26, 31, 46, .97);
+      --canvas: #171c29;
+      --tip-bg: #151a27;
+      --hover-text: #ffffff;
+      --graph-node-label: #f5f7fb;
+      --graph-edge-label: #d7dceb;
+      --graph-edge-chip: #171c29;
+    }
+    /* Light palette. Applied when the host pins ``?theme=light`` (``.theme-light``)
+       or, absent any override, when the OS prefers light. ``.theme-dark`` opts back
+       out so an embed can always force dark. */
+    :root.theme-light,
+    :root.theme-light body { color-scheme: light; }
+    @media (prefers-color-scheme: light) {
+      :root:not(.theme-dark) { color-scheme: light; }
+    }
+    :root.theme-light {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --panel-2: #eef1f8;
+      --border: #d3dae8;
+      --text: #1a2233;
+      --muted: #566079;
+      --accent-soft: rgba(230, 81, 0, .1);
+      --nav-bg: rgba(244, 246, 251, .97);
+      --canvas: #eef2f8;
+      --tip-bg: #ffffff;
+      --hover-text: #0d47a1;
+      --graph-node-label: #1a2233;
+      --graph-edge-label: #33405c;
+      --graph-edge-chip: #ffffff;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not(.theme-dark):not(.theme-light) {
+        --bg: #f4f6fb;
+        --panel: #ffffff;
+        --panel-2: #eef1f8;
+        --border: #d3dae8;
+        --text: #1a2233;
+        --muted: #566079;
+        --accent-soft: rgba(230, 81, 0, .1);
+        --nav-bg: rgba(244, 246, 251, .97);
+        --canvas: #eef2f8;
+        --tip-bg: #ffffff;
+        --hover-text: #0d47a1;
+        --graph-node-label: #1a2233;
+        --graph-edge-label: #33405c;
+        --graph-edge-chip: #ffffff;
+      }
     }
     * { box-sizing: border-box; }
     body {
@@ -54,7 +113,7 @@
       position: sticky;
       top: 0;
       z-index: 20;
-      background: rgba(26, 31, 46, .97);
+      background: var(--nav-bg);
       border-bottom: 1px solid var(--border);
     }
     .tab-button, .control-button, .panel-link {
@@ -68,14 +127,16 @@
     }
     .tab-button:hover, .control-button:hover, .panel-link:hover {
       border-color: var(--accent);
-      color: #fff;
+      color: var(--hover-text);
     }
     .tab-button.active {
       background: var(--primary);
       border-color: var(--primary-light);
       box-shadow: inset 0 -2px 0 var(--accent);
+      color: #f5f7fb;
     }
-    .control-button, .panel-link { background: var(--primary-dark); }
+    .control-button, .panel-link { background: var(--primary-dark); color: #f5f7fb; }
+    .control-button:hover, .panel-link:hover { color: #ffffff; }
     main { max-width: 1600px; margin: 0 auto; padding: 1.25rem; }
     .tab-page { display: none; }
     .tab-page.active { display: block; }
@@ -145,7 +206,7 @@
       min-height: 500px;
       border: 1px solid var(--border);
       border-radius: 9px;
-      background: #171c29;
+      background: var(--canvas);
     }
     .detail-card {
       min-height: 180px;
@@ -171,7 +232,7 @@
       padding: .45rem .6rem;
       border-radius: 6px;
       border: 1px solid var(--border);
-      background: #151a27;
+      background: var(--tip-bg);
       color: var(--text);
       box-shadow: 0 8px 24px rgba(0,0,0,.45);
       pointer-events: none;
@@ -181,14 +242,31 @@
       .graph-layout { grid-template-columns: 1fr; }
       .graph-canvas { min-height: 430px; }
     }
+    /* Embed mode fills the iframe viewport as a flex column: the controls and
+       legend take their natural height and the graph canvas fills the rest, so
+       the figure never scrolls and the graph gets all the leftover space. The
+       detail sidebar is dropped — hover tooltips carry the same information and a
+       docs figure wants the full width for the graph. */
+    html.embed-mode, html.embed-mode body { height: 100vh; }
+    html.embed-mode body { overflow: hidden; display: flex; flex-direction: column; }
     html.embed-mode .report-header,
     html.embed-mode .tab-nav,
     html.embed-mode #page-overview { display: none !important; }
-    html.embed-mode main { max-width: none; padding: .65rem; }
-    html.embed-mode .panel-header { justify-content: flex-end; }
+    html.embed-mode main {
+      max-width: none; padding: .6rem;
+      flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    }
+    html.embed-mode .tab-page.active {
+      flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    }
+    html.embed-mode .panel-header { justify-content: flex-end; flex: 0 0 auto; }
     html.embed-mode .panel-header > div:first-child { display: none; }
-    html.embed-mode .graph-layout { margin-top: .45rem; }
-    html.embed-mode .graph-canvas { height: 540px; min-height: 420px; }
+    html.embed-mode .legend { flex: 0 0 auto; margin: .35rem 0 .5rem; }
+    html.embed-mode .graph-layout {
+      margin-top: 0; flex: 1 1 auto; min-height: 0; grid-template-columns: 1fr;
+    }
+    html.embed-mode .detail-card { display: none; }
+    html.embed-mode .graph-canvas { height: 100%; min-height: 0; }
   </style>
 </head>
 <body>
@@ -425,6 +503,13 @@
       if (graphInstances[key]) return graphInstances[key];
       const panel = REPORT_PANELS[key];
       if (!panel) return null;
+      // Graph label colors track the active palette. Read them once at init; the
+      // theme is pinned before load (``?theme=`` / prefers-color-scheme), so the
+      // values are correct when the first panel is drawn.
+      const themeCss = getComputedStyle(document.documentElement);
+      const nodeLabelColor = themeCss.getPropertyValue("--graph-node-label").trim() || "#f5f7fb";
+      const edgeLabelColor = themeCss.getPropertyValue("--graph-edge-label").trim() || "#d7dceb";
+      const edgeChipColor = themeCss.getPropertyValue("--graph-edge-chip").trim() || "#171c29";
       const cy = cytoscape({
         container: document.getElementById(`graph-${panel.dom_key}`),
         elements: panel.elements,
@@ -440,7 +525,7 @@
               "border-color": "data(border_color)",
               "border-width": "data(border_width)",
               "label": "data(label)",
-              "color": "#f5f7fb",
+              "color": nodeLabelColor,
               "font-size": 13,
               "text-wrap": "wrap",
               "text-max-width": 145,
@@ -469,9 +554,9 @@
               "width": "data(edge_width)",
               "line-style": "data(line_style)",
               "label": "data(label)",
-              "color": "#d7dceb",
+              "color": edgeLabelColor,
               "font-size": 9,
-              "text-background-color": "#171c29",
+              "text-background-color": edgeChipColor,
               "text-background-opacity": .82,
               "text-background-padding": 3,
               "text-rotation": "autorotate"

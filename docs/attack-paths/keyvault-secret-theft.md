@@ -4,23 +4,22 @@
 
 An attacker compromises an identity with **direct access to Azure Key Vault** and retrieves application client secrets stored inside. The attacker uses the secrets to authenticate as a privileged application.
 
-## Posture
+The graphs below are rendered from a real BadZure lab. Drag nodes, hover for detail,
+and click any node or edge to inspect it. **Posture** is the misconfiguration that
+exists in the tenant; **Attack** is the sequence of actions that exploits it.
 
-``` mermaid
-graph LR
-    ID(("Compromised<br/>Identity")) -->|"Key Vault<br/>Contributor on"| KV(("Azure<br/>Key Vault"))
-    KV -->|"stores secret for"| APP(("Privileged<br/>Application"))
-    APP -->|"assigned"| PRIV(("Entra ID Role<br/>or API Permission"))
-```
+<div class="bz-graph-pair" markdown="0">
+  <figure>
+    <figcaption>Posture — the state that exists</figcaption>
+    <iframe class="bz-graph" src="/reports/atomic-gallery.report.html?embed=posture-kv_theft" title="KeyVaultSecretTheft posture graph" loading="lazy"></iframe>
+  </figure>
+  <figure>
+    <figcaption>Attack — what the adversary does</figcaption>
+    <iframe class="bz-graph" src="/reports/atomic-gallery.report.html?embed=attack-kv_theft" title="KeyVaultSecretTheft attack graph" loading="lazy"></iframe>
+  </figure>
+</div>
 
-## Attack Steps
-
-``` mermaid
-graph LR
-    A(("Attacker")) -->|"1. Retrieve secret from"| KV(("Azure<br/>Key Vault"))
-    A -->|"2. Authenticate as"| SP(("Service<br/>Principal"))
-    SP -->|"3. Escalate to"| ACCESS(("Privileged<br/>Access"))
-```
+<small class="bz-graph-caption"><a href="/reports/atomic-gallery.report.html" target="_blank" rel="noopener">Open the full lab report ↗</a></small>
 
 ## What Happens
 

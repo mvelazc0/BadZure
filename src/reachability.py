@@ -572,7 +572,7 @@ class _Analyzer:
             "name": first_name,
             "source_ref": seed,
             "action": method,
-            "mitre": ia.get("mitre"),
+            "mitre": _merge_mitre(_INITIAL_ACCESS_MITRE.get(method), ia.get("mitre")),
             "derived": True,
         }]
         for src, dst, prim in self._trace(terminal, parent, seed):
@@ -584,6 +584,7 @@ class _Analyzer:
                 "target_ref": dst,
                 "uses": [prim.key],
                 "action": _ACTIONS.get(type(prim), "traverse"),
+                "mitre": _mitre_for_hop(prim),
                 "derived": True,
             }
             # A credential loot is read OUT of a data resource — name it so the step
@@ -627,6 +628,62 @@ _ACTIONS = {
     AzureRbacAssignment: "resource_control",
     DataInject: "credential_loot",
 }
+
+# MITRE ATT&CK IDs derived from the traversal itself, so every path — atomic or
+# chained — is mapped without an author writing `mitre:` by hand. A path's author
+# may still supply `mitre:` to augment (union) these. IDs are intentionally
+# per-primitive; refine the table here and it flows to every report and doc.
+# Azure RBAC scopes that are compute hosts: controlling one yields its attached
+# managed-identity token (the pivot ManagedIdentityAbuse turns on).
+_COMPUTE_SCOPE_TYPES = {
+    "virtual_machine", "logic_app", "automation_account", "function_app", "app_service",
+}
+
+_INITIAL_ACCESS_MITRE = {
+    "compromised_identity": ["T1078.004"],    # Valid Accounts: Cloud Accounts
+    "compromised_credential": ["T1078.004"],
+    "exposed_rdp": ["T1133", "T1110.001"],     # External Remote Services + Password Guessing
+    "exposed_ssh": ["T1133", "T1110.001"],
+    "vulnerable_web_app": ["T1190"],           # Exploit Public-Facing Application
+}
+
+
+def _merge_mitre(*sources) -> Optional[List[str]]:
+    """Union ATT&CK IDs from several sources (derived + author-supplied), order
+    preserved, duplicates dropped. Returns None when empty so the field stays
+    absent rather than an empty list."""
+    merged: List[str] = []
+    for source in sources:
+        if not source:
+            continue
+        items = [source] if isinstance(source, str) else source
+        for item in items:
+            if item and item not in merged:
+                merged.append(item)
+    return merged or None
+
+
+def _mitre_for_hop(prim) -> List[str]:
+    """The ATT&CK technique(s) a single traversal hop performs. Some primitives
+    branch on their fields (an RBAC role over a compute resource abuses that
+    resource's managed identity; a data inject's location decides the theft
+    technique)."""
+    if isinstance(prim, (AppOwnership, EntraRoleAssignment)):
+        return ["T1098.001"]                   # Additional Cloud Credentials (add creds to an app)
+    if isinstance(prim, (GroupOwnership, GroupMembership)):
+        return ["T1098.003"]                   # Additional Cloud Roles (self-add to a privileged group)
+    if isinstance(prim, AzureRbacAssignment):
+        if prim.scope_resource_type in _COMPUTE_SCOPE_TYPES:
+            # Controlling a compute host yields its managed-identity token.
+            return ["T1078.004", "T1528"]      # + Steal Application Access Token
+        return ["T1078.004"]                   # use the granted role directly
+    if isinstance(prim, DataInject):
+        if prim.location_type in ("key_vault_secret", "key_vault_certificate"):
+            return ["T1555.006"]               # Cloud Secrets Management Stores
+        if prim.location_type == "storage_blob":
+            return ["T1552.001"]               # Unsecured Credentials: Credentials In Files
+        return ["T1552"]                       # cosmos_document — Unsecured Credentials
+    return []
 
 # Primitive type -> a short relation verb for the blocked-edge diagnostic
 # ("<src> <verb> <dst>, but <src> is never controlled.").

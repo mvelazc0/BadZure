@@ -1,0 +1,21 @@
+# Concept lab: implicit relationship — a role that controls every application.
+# The Cloud Application Administrator role grants control over all applications in
+# the tenant. If any one of them holds a powerful permission, the role holder can
+# add credentials to it, authenticate as it, and inherit that permission. Nothing
+# here was configured to connect the user to that specific app — the connection is
+# implicit in the role.
+#
+# Verify: python BadZure.py check --config docs/labs/concepts/cloud-app-admin.yml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+
+baseline:
+  identities: { users: 3, applications: 4, groups: 1 }
+
+attack_paths:
+  cloud_app_admin_to_ga:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: CloudAppAdministratorAbuse
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator

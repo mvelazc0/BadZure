@@ -1,0 +1,25 @@
+# Concept lab: explicit relationship — application ownership.
+# A user owns an application that holds a privileged role. Owning an app lets you
+# add credentials to it and authenticate as its service principal, inheriting its
+# privilege. One deliberate edge, nothing implicit.
+#
+# Verify: python BadZure.py check --config docs/labs/concepts/app-ownership.yml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+
+attack_paths:
+  owns_privileged_app:
+    objective:
+      name: "Global Administrator via owned application"
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: "A user owns an application that holds Global Administrator."
+    initial_access: { method: compromised_identity, principal_ref: jordan }
+    identities:
+      users:        [{ ref: jordan }]
+      applications: [{ ref: automation-app }]
+    assignments:
+      - { id: a1, type: app_ownership, principal_ref: jordan, app_ref: automation-app }
+      - { id: a2, type: entra_role, principal_ref: automation-app, role: "Global Administrator" }
+    credentials:
+      - { ref: app_secret, app_ref: automation-app, type: password }

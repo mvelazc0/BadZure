@@ -110,7 +110,6 @@ python BadZure.py destroy --verbose
 BadZure uses a single declarative YAML config with three parts: your `tenant` identifiers, a **`baseline`** (the realistic background organization the attack lands in), and **`attack_paths`** (the misconfigurations layered on top).
 
 ```yaml
-
 tenant:
   tenant_id: YOUR-TENANT-GUID
   domain: yourdomain.onmicrosoft.com
@@ -118,17 +117,22 @@ tenant:
 
 # The background org: benign users/apps/groups the attack lands in.
 baseline:
-  identities: 
+  identities:
     users: 10
     applications: 5
-    groups: 3 
+    groups: 3
 
-# The deliberate misconfiguration. Pick a privilege_escalation technique.
+# The deliberate misconfiguration. Pick a privilege escalation technique.
 attack_paths:
   my_attack_path:
-    privilege_escalation: ApplicationOwnershipAbuse
-    method: AzureADRole
-    entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ApplicationOwnershipAbuse
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10  # Global Administrator
 ```
 
 ## What's Next?
