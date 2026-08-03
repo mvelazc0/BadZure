@@ -33,7 +33,7 @@ BadZure provides two ways to author an attack path: **atomic** (one named techni
 ### Requirements
 
 - [Azure CLI](https://docs.microsoft.com/en-us/cli/azure/install-azure-cli) and [Terraform](https://learn.hashicorp.com/tutorials/terraform/install-cli)
-- An Azure subscription with an Entra ID tenant. [Creating one](https://learn.microsoft.com/en-us/training/modules/create-an-azure-account/1-introduction) provides both. BadZure uses only Entra ID Free tier features; Azure compute resources incur standard charges until you `destroy` the lab.
+- An Azure subscription with an Entra ID tenant. [Creating one](https://learn.microsoft.com/en-us/training/modules/create-an-azure-account/1-introduction) provides both. Azure compute resources incur standard charges until you `destroy` the lab.
 
 ### Install and run
 
