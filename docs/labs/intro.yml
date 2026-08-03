@@ -1,0 +1,53 @@
+# =============================================================================
+# Documentation lab: the first attack path a newcomer sees (home page).
+#
+# A single, named, two-step Key Vault secret theft to Global Administrator. The
+# entities are named so the home-page scenario can refer to them by name and have
+# them match the rendered graph. Kept deliberately simple.
+#
+# Panel key the home page embeds: attack-keyvault_to_ga
+#
+# Verify:  python BadZure.py check  --config docs/labs/intro.yml
+# Preview: python BadZure.py report --config docs/labs/intro.yml
+# =============================================================================
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  keyvault_to_ga:
+    objective:
+      name: "Global Administrator via Key Vault"
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: >-
+        A developer with Key Vault access reads a privileged application's secret
+        and authenticates as it, reaching Global Administrator.
+    initial_access: { method: compromised_identity, principal_ref: dave.park }
+
+    identities:
+      users:        [{ ref: dave.park }]
+      applications: [{ ref: hr-sync }]           # holds Global Administrator
+    resources:
+      resource_groups:
+        - { ref: rg-corp, location: East US }
+      key_vaults:
+        - { ref: kv-corp-01, resource_group: rg-corp }
+
+    assignments:
+      # dave.park can read the vault's secrets.
+      - { id: a1, type: azure_rbac, principal_ref: dave.park,
+          role: "Key Vault Contributor", scope_ref: kv-corp-01 }
+      # hr-sync holds Global Administrator — reading its secret is the escalation.
+      - { id: a2, type: entra_role, principal_ref: hr-sync,
+          role: "Global Administrator" }
+
+    credentials:
+      - { ref: app_secret, app_ref: hr-sync, type: password }
+
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-corp-01,
+          name: client-secret-hr-sync }

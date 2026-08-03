@@ -34,24 +34,41 @@ theme:
     - toc.integrate
 
 nav:
-  - BadZure:
-    - Home: index.md
-    - What Are Cloud Attack Paths?: what-are-cloud-attack-paths.md
-    - Getting Started: getting-started.md
-  - Attack Paths:
-    - Overview: attack-paths/index.md
-    - Atomic:
-      - Overview: attack-paths/atomic.md
-      - ApplicationOwnershipAbuse: attack-paths/app-ownership-abuse.md
-      - ApplicationAdministratorAbuse: attack-paths/app-administrator-abuse.md
-      - CloudAppAdministratorAbuse: attack-paths/cloud-app-administrator-abuse.md
-      - ManagedIdentityAbuse: attack-paths/managed-identity-abuse.md
-      - KeyVaultSecretTheft: attack-paths/keyvault-secret-theft.md
-      - StorageCertificateTheft: attack-paths/storage-certificate-theft.md
-      - CosmosDBSecretTheft: attack-paths/cosmosdb-secret-theft.md
-    - Chained: attack-paths/chained.md
-  - Configuration Guide: configuration.md
-  - Talks & Demos: talks-and-demos.md
+  - Start Here:
+    - Introduction: index.md
+    - Installation: installation.md
+    - Your First Lab: first-lab.md
+  - Cloud Attack Paths:
+    - Attack Paths Explained: attack-paths/explained.md
+    - How to Read These Graphs: attack-paths/reading-graphs.md
+    - Anatomy of a Path: attack-paths/anatomy.md
+    - Initial Access: attack-paths/initial-access.md
+  - Atomic & Chained Paths:
+    - Overview: attack-paths/atomic-vs-chained.md
+    - Atomic Techniques:
+      - Overview: attack-paths/techniques/index.md
+      - ApplicationOwnershipAbuse: attack-paths/techniques/application-ownership-abuse.md
+      - ApplicationAdministratorAbuse: attack-paths/techniques/application-administrator-abuse.md
+      - CloudAppAdministratorAbuse: attack-paths/techniques/cloud-app-administrator-abuse.md
+      - ManagedIdentityAbuse: attack-paths/techniques/managed-identity-abuse.md
+      - KeyVaultSecretTheft: attack-paths/techniques/keyvault-secret-theft.md
+      - StorageCertificateTheft: attack-paths/techniques/storage-certificate-theft.md
+      - CosmosDBSecretTheft: attack-paths/techniques/cosmosdb-secret-theft.md
+    - Chained Paths and Primitives: attack-paths/chaining.md
+  - Building Labs:
+    - Lab Anatomy: building/lab-anatomy.md
+    - Author an Atomic Path: building/authoring-atomic.md
+    - Author a Chained Path: building/authoring-chained.md
+    - Authoring with Claude Code: building/authoring-with-claude.md
+  - Reference:
+    - CLI Commands: reference/commands.md
+    - Tenant & Baseline: reference/tenant-baseline.md
+    - Atomic Path Options: reference/atomic.md
+    - Chained Path Schema: reference/chained.md
+    - Vocabulary: reference/vocabulary.md
+  - Project:
+    - What's New: whats-new.md
+    - Talks & Demos: talks-and-demos.md
 
 hooks:
   - docs/hooks/reports.py

@@ -41,6 +41,7 @@ log = logging.getLogger("mkdocs.hooks.reports")
 # Every lab config whose report the docs embed. Nested labs (concepts/) keep their
 # subdirectory in the output path so panel URLs are stable and collision-free.
 _LAB_CONFIGS = [
+    "intro.yml",
     "atomic-gallery.yml",
     "chained-showcase.yml",
     "blocked.yml",
@@ -48,7 +49,7 @@ _LAB_CONFIGS = [
     "concepts/app-ownership.yml",
     "concepts/key-vault-to-app.yml",
     "concepts/group-indirection.yml",
-    "concepts/cloud-app-admin.yml",
+    "concepts/managed-identity.yml",
 ]
 
 
