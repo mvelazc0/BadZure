@@ -1,0 +1,107 @@
+# =============================================================================
+# DEMO 1 — the CHAINED version (the one you BUILD on stage).
+# Same first half as demo1_atomic.yml, but authored as an explicit graph so we can
+# (a) chain PAST the looted SP into a second app via ownership, and (b) decorate the
+# attack entities with off-spine decoys + recon — neither of which atomic can express.
+#
+# SPINE (what the reachability walk verifies):
+#   1. Initial access: brute-force internet-exposed RDP on vm-jumpbox  (T1190)
+#   2. vm-jumpbox managed identity reads storage stbackupsloot01        (T1552)
+#   3. loot the planted .pfx -> authenticate as app-backup-agent        (T1528)
+#   4. app-backup-agent OWNS app-onedrive-sync -> mint cred, become it  (T1098)
+#   5. app-onedrive-sync holds Files.Read.All -> read all OneDrive       <- OBJECTIVE
+#
+# OFF-SPINE (real deployed edges, add TTP breadth, NOT on the critical path):
+#   - vm-jumpbox MI also reads Cosmos DB cosmos-analytics01   (side collection, T1530)
+#   - app-backup-agent holds Directory.Read.All              (recon, T1087)
+#
+# GLOBALLY-UNIQUE names to make your own before a live build (or let `build`
+# auto-uniquify): storage stbackupsloot01, cosmos cosmos-analytics01.
+#
+#   python BadZure.py check --config examples/demo/demo1_chained.yml --json
+#   python BadZure.py graph --config examples/demo/demo1_chained.yml --view attack
+#   python BadZure.py build --config examples/demo/demo1_chained.yml     # live
+# =============================================================================
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+# Identity-rich baseline (the believable org + permission sprawl). Resource noise
+# kept light on purpose — the attack path brings its own compute/data resources.
+baseline:
+  identities: { users: 15, groups: 5, applications: 10, administrative_units: 2 }
+  resources:  { resource_groups: 2, key_vaults: 1, storage_accounts: 1 }
+  assignments:
+    group_memberships: 12
+    entra_roles: 4
+    api_permissions: 4
+    au_memberships: 3
+    azure_rbac: 5
+    group_ownerships: 3
+    app_ownerships: 4
+    app_credentials: 4
+    data_injects: 2
+
+attack_paths:
+  onedrive_exfil_chain:
+    objective:
+      name: "OneDrive/SharePoint exfiltration via an exposed jump box"
+      capability: control_principal
+      target_ref: app-onedrive-sync
+      impact: high
+      description: >-
+        Brute-force an internet-exposed RDP jump box, ride its managed identity into
+        a backup storage account, loot a service-principal certificate, take over a
+        second app via ownership, and reach a service principal with Files.Read.All —
+        able to read every user's OneDrive and SharePoint.
+    metadata:
+      complexity: medium
+      tags: [initial-access, managed-identity, storage, certificate, app-ownership, graph-exfil]
+      mitre: [T1190, T1078, T1552, T1528, T1098, T1530, T1087]
+
+    initial_access:
+      vector: exposed_rdp
+      target_ref: vm-jumpbox
+      expose_to_internet: true
+      credential: weak
+
+    identities:
+      applications:
+        - { ref: app-backup-agent }
+        - { ref: app-onedrive-sync }
+    resources:
+      resource_groups:
+        - { ref: rg-compute, location: "West US" }
+        - { ref: rg-data,    location: "West US" }
+      virtual_machines: [{ ref: vm-jumpbox, os_type: Windows, resource_group: rg-compute }]
+      storage_accounts: [{ ref: stbackupsloot01, resource_group: rg-data }]
+      cosmos_dbs:       [{ ref: cosmos-analytics01, resource_group: rg-data }]
+
+    assignments:
+      # --- spine ---
+      # 2) the foothold VM's managed identity can read the backup storage account
+      - { id: a1, type: azure_rbac, principal_ref: vm-jumpbox,
+          principal_type: managed_identity, mi_source: vm,
+          role: "Storage Blob Data Reader", scope_ref: stbackupsloot01 }
+      # 4) the looted backup-agent SP OWNS the onedrive-sync app -> become it
+      - { id: a2, type: app_ownership, principal_ref: app-backup-agent, app_ref: app-onedrive-sync }
+      # 5) onedrive-sync holds Files.Read.All -> read every user's OneDrive/SharePoint
+      - { id: a3, type: api_permission, principal_ref: app-onedrive-sync,
+          api_type: graph, app_role: "Files.Read.All" }
+
+      # --- off-spine (decoys / recon — deployed, but not on the GA-critical path) ---
+      - { id: o1, type: azure_rbac, principal_ref: vm-jumpbox,
+          principal_type: managed_identity, mi_source: vm,
+          role: "Cosmos DB Account Reader Role", scope_ref: cosmos-analytics01 }
+      - { id: o2, type: api_permission, principal_ref: app-backup-agent,
+          api_type: graph, app_role: "Directory.Read.All" }
+
+    # the certificate the loot steals (registered on the app so cert-auth works)
+    credentials:
+      - { ref: cr_backup, app_ref: app-backup-agent, type: certificate }
+
+    # plant that cert as a lootable .pfx in the storage account
+    data_injects:
+      - { id: d1, material: app_certificate, source_ref: app-backup-agent,
+          location: storage_blob, location_ref: stbackupsloot01, name: backup-agent.pfx }

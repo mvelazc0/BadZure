@@ -1,0 +1,35 @@
+# Concept lab: explicit relationship — a secret in a vault bridges two identities.
+# A user with Key Vault Contributor reads a secret stored in the vault. The secret
+# is the client secret of an application that holds a privileged API permission, so
+# reading it lets the user authenticate as that application.
+#
+# Verify: python BadZure.py check --config docs/labs/concepts/key-vault-to-app.yml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+
+attack_paths:
+  vault_secret_to_mailbox:
+    objective:
+      name: "Read all mail via a vaulted app secret"
+      capability: read_mail
+      impact: high
+      description: >-
+        A user reads an app's client secret from a Key Vault and authenticates as
+        that app, which can read every mailbox in the tenant.
+    initial_access: { method: compromised_identity, principal_ref: sam }
+    identities:
+      users:        [{ ref: sam }]
+      applications: [{ ref: mail-reader-app }]
+    resources:
+      resource_groups: [{ ref: rg-prod, location: East US }]
+      key_vaults:      [{ ref: kv-app-secrets, resource_group: rg-prod }]
+    assignments:
+      - { id: a1, type: azure_rbac, principal_ref: sam,
+          role: "Key Vault Contributor", scope_ref: kv-app-secrets }
+      - { id: a2, type: api_permission, principal_ref: mail-reader-app,
+          app_role: "Mail.Read", api_type: graph }
+    credentials:
+      - { ref: app_secret, app_ref: mail-reader-app, type: password }
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-app-secrets,
+          name: client-secret-mail-reader-app }

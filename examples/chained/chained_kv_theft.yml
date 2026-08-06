@@ -1,0 +1,58 @@
+# Phase-3 declarative graph config (Slice 1) — a KeyVaultSecretTheft-equivalent
+# chain written declaratively instead of via the `privilege_escalation:` macro.
+#
+# Live test:
+#   python BadZure.py build --config examples/chained/chained_kv_theft.yml --verbose
+#   python BadZure.py destroy --verbose
+#
+# tenant_id/domain/subscription_id resolve from BADZURE_* env vars when null.
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  kv_theft:
+    objective:
+      name: "Global Administrator via Key Vault"
+      # Machine-checkable objective for the reachability gate (Slice 4): the
+      # escalation is attaining GA by looting app_highpriv's secret from the vault.
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: "Read a high-privilege app's client secret stored in a Key Vault."
+    metadata:
+      complexity: low
+      tags: [key-vault]
+      mitre: [T1078, T1552]
+    initial_access:
+      method: compromised_identity
+      principal_ref: alice
+
+    identities:
+      users:        [{ ref: alice }]
+      applications: [{ ref: app_highpriv }]
+    resources:
+      # On this declarative path the ref doubles as the real Key Vault name, which
+      # must be GLOBALLY UNIQUE (3-24 chars, lowercase alphanumerics + hyphens).
+      # Change kv-replace-me to your own unique value in all three places below.
+      resource_groups:
+        - { ref: rg-prod, location: "West US" }
+      key_vaults:   [{ ref: kv-replace-me, resource_group: rg-prod }]
+
+    assignments:
+      # alice can manage the vault (Key Vault Contributor -> read any secret).
+      - { id: a1, type: azure_rbac, principal_ref: alice,
+          role: "Key Vault Contributor", scope_ref: kv-replace-me }
+      # the looted app is Global Administrator — reading its secret is the escalation.
+      # role accepts a friendly name (resolved to a GUID), a GUID, or a list.
+      - { id: a2, type: entra_role, principal_ref: app_highpriv,
+          role: "Global Administrator" }
+
+    credentials:
+      - { ref: app_secret, app_ref: app_highpriv, type: password }
+
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-replace-me, name: client-secret-app-highpriv }

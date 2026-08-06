@@ -5,32 +5,70 @@ Handles all Terraform operations and variable building.
 import os
 import json
 import logging
+import shutil
 from typing import Dict, Tuple
 from python_terraform import Terraform
 
 
+class TerraformNotFoundError(RuntimeError):
+    """Raised when the `terraform` binary isn't installed / on PATH."""
+
+    def __init__(self):
+        super().__init__(
+            "Terraform is not installed or not on PATH. Install it from "
+            "https://developer.hashicorp.com/terraform/install and make sure "
+            "the `terraform` command is available in your shell, then retry."
+        )
+
+
 class TerraformManager:
     """Manages Terraform operations."""
-    
+
     def __init__(self, terraform_dir: str = "terraform"):
         self.terraform_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), terraform_dir)
         self.tf = Terraform(working_dir=self.terraform_dir)
-    
+
+    @staticmethod
+    def ensure_installed() -> None:
+        """Raise a friendly error up front if `terraform` isn't on PATH."""
+        if shutil.which("terraform") is None:
+            raise TerraformNotFoundError()
+
+    @staticmethod
+    def _run(fn, *args, **kwargs) -> Tuple[int, str, str]:
+        """Run a python_terraform call, converting a missing binary into a
+        friendly TerraformNotFoundError instead of a raw FileNotFoundError
+        traceback from subprocess.Popen."""
+        try:
+            return fn(*args, **kwargs)
+        except FileNotFoundError:
+            raise TerraformNotFoundError()
+
     def init(self) -> Tuple[int, str, str]:
         """Initialize Terraform."""
-        return self.tf.init()
-    
+        return self._run(self.tf.init)
+
     def apply(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Apply Terraform configuration."""
-        return self.tf.apply(skip_plan=True, capture_output=not verbose)
-    
+        return self._run(self.tf.apply, skip_plan=True, capture_output=not verbose)
+
+    def plan(self, verbose: bool = False) -> Tuple[int, str, str]:
+        """Run `terraform plan` (a DRY RUN — creates nothing). Used as a preflight
+        gate: plan evaluates every template interpolation and runs each provider's
+        resource ValidateFuncs, so it surfaces malformed-Terraform errors the offline
+        reachability gate structurally can't see — a null var interpolation, an invalid
+        Azure resource name, a bad reference — WITHOUT touching Azure state. Requires an
+        authenticated Azure session and a prior `init`. Return code: 0 = plan OK,
+        non-zero = errors (stderr carries the diagnostics)."""
+        return self._run(self.tf.plan, input=False, capture_output=not verbose)
+
     def destroy(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Destroy Terraform resources."""
-        return self.tf.apply(skip_plan=True, destroy=True, auto_approve=True, capture_output=not verbose)
-    
+        return self._run(self.tf.apply, skip_plan=True, destroy=True, auto_approve=True, capture_output=not verbose)
+
     def show(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Show Terraform state."""
-        return self.tf.show(json=True, capture_output=not verbose)
+        return self._run(self.tf.show, json=True, capture_output=not verbose)
 
     def get_outputs(self) -> Dict:
         """Get Terraform outputs as a dictionary."""
@@ -45,113 +83,6 @@ class TerraformManager:
         except (json.JSONDecodeError, AttributeError):
             logging.warning("Failed to parse Terraform output JSON")
             return {}
-    
-    def build_terraform_vars(
-        self,
-        tenant_id: str,
-        domain: str,
-        subscription_id: str,
-        public_ip: str,
-        azure_config_dir: str,
-        users: Dict,
-        groups: Dict,
-        applications: Dict,
-        administrative_units: Dict,
-        resource_groups: Dict,
-        key_vaults: Dict,
-        storage_accounts: Dict,
-        virtual_machines: Dict,
-        logic_apps: Dict,
-        automation_accounts: Dict,
-        function_apps: Dict,
-        cosmos_dbs: Dict,
-        user_group_assignments: Dict,
-        user_au_assignments: Dict,
-        user_role_assignments: Dict,
-        app_role_assignments: Dict,
-        app_api_permission_assignments: Dict,
-        attack_path_application_owner_assignments: Dict,
-        attack_path_user_role_assignments: Dict,
-        attack_path_application_role_assignments: Dict,
-        attack_path_application_api_permission_assignments: Dict,
-        attack_path_kv_abuse_assignments: Dict,
-        attack_path_storage_abuse_assignments: Dict,
-        attack_path_managed_identity_abuse_assignments: Dict,
-        attack_path_vm_contributor_assignments: Dict,
-        attack_path_cosmos_abuse_assignments: Dict = None,
-        attack_path_group_memberships: Dict = None,
-        attack_path_compromised_sp_credentials: Dict = None,
-        attack_path_subscription_reader_assignments: Dict = None
-    ) -> Dict:
-        """
-        Build Terraform variables dictionary.
-        
-        Args:
-            attack_path_group_memberships: Group membership assignments for attack paths.
-                                          Maps attack path keys to group membership info.
-        
-        Returns:
-            Dictionary of Terraform variables
-        """
-        # Initialize optional parameters
-        attack_path_cosmos_abuse_assignments = attack_path_cosmos_abuse_assignments or {}
-        attack_path_group_memberships = attack_path_group_memberships or {}
-        attack_path_compromised_sp_credentials = attack_path_compromised_sp_credentials or {}
-        attack_path_subscription_reader_assignments = attack_path_subscription_reader_assignments or {}
-        
-        # Convert entity dictionaries to Terraform format
-        user_vars = {user['user_principal_name']: user for user in users.values()}
-        group_vars = {group['display_name']: group for group in groups.values()}
-        application_vars = {app['display_name']: app for app in applications.values()}
-        administrative_unit_vars = {au['display_name']: au for au in administrative_units.values()}
-        
-        tf_vars = {
-            # Environment
-            'tenant_id': tenant_id,
-            'domain': domain,
-            'public_ip': public_ip,
-            'subscription_id': subscription_id,
-            
-            # Entities
-            'users': user_vars,
-            'azure_config_dir': azure_config_dir,
-            'groups': group_vars,
-            'applications': application_vars,
-            'administrative_units': administrative_unit_vars,
-            
-            # ARM Resources
-            'resource_groups': resource_groups,
-            'key_vaults': key_vaults,
-            'storage_accounts': storage_accounts,
-            'virtual_machines': virtual_machines,
-            'logic_apps': logic_apps,
-            'automation_accounts': automation_accounts,
-            'function_apps': function_apps,
-            'cosmos_dbs': cosmos_dbs,
-            
-            # Assignments
-            'user_group_assignments': user_group_assignments,
-            'user_au_assignments': user_au_assignments,
-            'user_role_assignments': user_role_assignments,
-            'app_role_assignments': app_role_assignments,
-            'app_api_permission_assignments': app_api_permission_assignments,
-            
-            # Attack Paths
-            'attack_path_application_owner_assignments': attack_path_application_owner_assignments,
-            'attack_path_user_role_assignments': attack_path_user_role_assignments,
-            'attack_path_application_role_assignments': attack_path_application_role_assignments,
-            'attack_path_application_api_permission_assignments': attack_path_application_api_permission_assignments,
-            'attack_path_kv_abuse_assignments': attack_path_kv_abuse_assignments,
-            'attack_path_storage_abuse_assignments': attack_path_storage_abuse_assignments,
-            'attack_path_managed_identity_abuse_assignments': attack_path_managed_identity_abuse_assignments,
-            'attack_path_cosmos_abuse_assignments': attack_path_cosmos_abuse_assignments,
-            'attack_path_vm_contributor_assignments': attack_path_vm_contributor_assignments,
-            'attack_path_group_memberships': attack_path_group_memberships,
-            'attack_path_compromised_sp_credentials': attack_path_compromised_sp_credentials,
-            'attack_path_subscription_reader_assignments': attack_path_subscription_reader_assignments
-        }
-        
-        return tf_vars
     
     def write_terraform_vars(self, tf_vars: Dict) -> None:
         """Write Terraform variables to file."""

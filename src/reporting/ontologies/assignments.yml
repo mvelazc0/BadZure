@@ -1,0 +1,41 @@
+name: assignments
+
+node_types:
+  AssignmentCatalog:
+    properties: [count]
+    required_properties: [count]
+  AssignmentFamily:
+    properties: [count]
+    required_properties: [count]
+  Role: &assignment_kind
+    properties: [assignment_family, count]
+    required_properties: [assignment_family, count]
+  Permission: *assignment_kind
+  Relationship: *assignment_kind
+  PrincipalSummary:
+    properties:
+      - principal_type
+      - count
+      - unique_principals
+      - principals
+      - baseline_count
+      - attack_path_count
+      - assignment_keys
+    required_properties: [principal_type, count, unique_principals]
+
+edge_types:
+  CONTAINS_FAMILY:
+    from: [AssignmentCatalog]
+    to: [AssignmentFamily]
+    properties: [count]
+    required_properties: [count]
+  CONTAINS_KIND:
+    from: [AssignmentFamily]
+    to: [Role, Permission, Relationship]
+    properties: [count]
+    required_properties: [count]
+  ASSIGNED_TO:
+    from: [Role, Permission, Relationship]
+    to: [PrincipalSummary]
+    properties: [count, baseline_count, attack_path_count]
+    required_properties: [count, baseline_count, attack_path_count]

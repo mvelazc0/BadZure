@@ -1,0 +1,53 @@
+# Exposed-host foothold (exposed RDP) -> ManagedIdentityAbuse (atomic).
+# The attacker brute-forces an internet-exposed VM, gains code execution, and pivots
+# through the VM's managed identity to read a Key Vault secret. The `initial_access`
+# knob carries the vector; the foothold VM is the MI source.
+#
+# Live test:
+#   python BadZure.py build --config examples/atomic/atomic_exposed_rdp_mi.yml --verbose
+#   python BadZure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 2
+    groups: 1
+    applications: 2
+  resources:
+    resource_groups: 2
+    key_vaults: 1
+    virtual_machines: 6
+attack_paths:
+  exposed_rdp_to_keyvault:
+    initial_access:
+      vector: exposed_rdp
+      expose_to_internet: true
+      credential: known
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph:
+        - 06b708a9-e830-4db3-a914-8e69da51d44f
+  exposed_ssh_to_keyvault:
+    initial_access:
+      vector: exposed_ssh
+      expose_to_internet: true
+      credential: known
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      api_permission:
+        graph:
+        - 06b708a9-e830-4db3-a914-8e69da51d44f

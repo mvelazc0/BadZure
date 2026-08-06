@@ -1,0 +1,157 @@
+name: posture
+
+node_types:
+  Internet:
+    properties: []
+  User: &identity
+    properties: [origin, entry, controlled]
+  Group: *identity
+  ServicePrincipal: *identity
+  AdministrativeUnit:
+    properties: [origin]
+  ManagedIdentity:
+    properties: [origin, entry, controlled, source_type]
+  Subscription:
+    properties: [subscription_id]
+  ResourceGroup:
+    properties: [location, origin]
+  KeyVault: &resource
+    properties: [origin, resource_group, objective]
+  StorageAccount: *resource
+  VirtualMachine: *resource
+  LogicApp: *resource
+  AutomationAccount: *resource
+  FunctionApp: *resource
+  AppService: *resource
+  CosmosDB: *resource
+  MicrosoftGraph:
+    properties: []
+  ExchangeOnline:
+    properties: []
+  Credential:
+    properties: [credential_type, material, origin]
+  EntraRole:
+    properties: [role_id, display_name]
+  Objective:
+    properties: [capability, status, impact, reason, target_ref]
+    required_properties: [status]
+
+edge_types:
+  CAN_REACH:
+    from: [Internet]
+    to: [VirtualMachine, AppService]
+    properties: [method, exposure]
+  MEMBER_OF:
+    from: [User, Group, ServicePrincipal]
+    to: [Group]
+    properties: [origin, key]
+    required_properties: [origin]
+  MEMBER_OF_AU:
+    from: [User, Group]
+    to: [AdministrativeUnit]
+    properties: [origin, key]
+    required_properties: [origin]
+  OWNS:
+    from: [User, ServicePrincipal]
+    to: [Group, ServicePrincipal]
+    properties: [origin, key]
+    required_properties: [origin]
+  RUNS_AS:
+    from: [VirtualMachine, LogicApp, AutomationAccount, FunctionApp, AppService]
+    to: [ManagedIdentity]
+    properties: [source_type]
+    required_properties: [source_type]
+  HAS_ENTRA_ROLE:
+    from: [User, Group, ServicePrincipal]
+    to: [EntraRole, ServicePrincipal]
+    properties: [origin, key, role, scope_app_ref]
+    required_properties: [origin, role]
+  HAS_AZURE_ROLE:
+    from: [User, Group, ServicePrincipal, ManagedIdentity]
+    to:
+      - Subscription
+      - ResourceGroup
+      - KeyVault
+      - StorageAccount
+      - VirtualMachine
+      - LogicApp
+      - AutomationAccount
+      - FunctionApp
+      - AppService
+      - CosmosDB
+    properties: [origin, key, role, scope_type, scope_ref, data_plane]
+    required_properties: [origin, role, scope_type]
+  HAS_API_PERMISSION:
+    from: [ServicePrincipal]
+    to: [MicrosoftGraph, ExchangeOnline]
+    properties: [origin, key, permission, permission_id, api_type]
+    required_properties: [origin, permission, api_type]
+  HAS_CREDENTIAL:
+    from: [ServicePrincipal]
+    to: [Credential]
+    properties: [origin, key, credential_type]
+    required_properties: [origin, credential_type]
+  STORES:
+    from: [KeyVault, StorageAccount, CosmosDB]
+    to: [Credential]
+    properties: [origin, key, location_type, item_name, material]
+    required_properties: [origin, location_type, material]
+  CREDENTIAL_FOR:
+    from: [Credential]
+    to: [ServicePrincipal]
+    properties: [origin]
+    required_properties: [origin]
+  CAN_MANAGE:
+    from:
+      - User
+      - Group
+      - ServicePrincipal
+      - ManagedIdentity
+      - VirtualMachine
+      - LogicApp
+      - AutomationAccount
+      - FunctionApp
+      - AppService
+    to: [User, Group, ServicePrincipal]
+    properties: [derived, reason, capability]
+    required_properties: [derived, reason, capability]
+  SATISFIES_OBJECTIVE:
+    from:
+      - User
+      - Group
+      - ServicePrincipal
+      - ManagedIdentity
+      - KeyVault
+      - StorageAccount
+      - VirtualMachine
+      - LogicApp
+      - AutomationAccount
+      - FunctionApp
+      - AppService
+      - CosmosDB
+      - EntraRole
+      - MicrosoftGraph
+      - ExchangeOnline
+    to: [Objective]
+    properties: [capability]
+    required_properties: [capability]
+  TARGETS_OBJECTIVE:
+    from:
+      - User
+      - Group
+      - ServicePrincipal
+      - ManagedIdentity
+      - KeyVault
+      - StorageAccount
+      - VirtualMachine
+      - LogicApp
+      - AutomationAccount
+      - FunctionApp
+      - AppService
+      - CosmosDB
+      - EntraRole
+      - MicrosoftGraph
+      - ExchangeOnline
+    to: [Objective]
+    properties: [capability, status]
+    required_properties: [capability, status]

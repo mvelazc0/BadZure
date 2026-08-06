@@ -1,30 +1,29 @@
 # BadZure
 
 <div align="center">
-    <img src="img/BadZure-cropped.png" alt="BadZure" style="width: 30%;">
+    <img src="img/BadZure-cropped.png" alt="BadZure" style="width: 28%;">
 </div>
 
-**BadZure** is a Python tool that automates the creation of misconfigured Azure environments, enabling security teams to simulate adversary techniques, develop and test detection controls, and run purple team exercises across Entra ID and Azure infrastructure. It uses Terraform to populate Entra ID tenants and Azure subscriptions with entities and intentional misconfigurations, producing complete attack paths that span identity and cloud infrastructure layers.
+BadZure automates the creation of intentionally misconfigured Entra ID tenants and Azure subscriptions for security exploration. It populates a tenant with realistic identities and Azure resources (users, groups, service principals, key vaults, storage accounts, virtual machines, and more) and randomly assigns Entra roles, Graph permissions, and resource access to mimic the organic permission sprawl of a real organization. The misconfigurations it introduces connect these identities and resources into exploitable attack paths.
 
-BadZure automates the creation of users, groups, application registrations, service principals, administrative units, and Azure resources such as Key Vaults, Storage Accounts, Virtual Machines, Logic Apps, Automation Accounts, Function Apps, Cosmos DB Accounts, and Resource Groups. To simulate a realistic tenant, it randomly assigns Entra ID roles, Graph permissions, and Azure resource access permissions to selected security principals, mimicking the organic permission sprawl found in real environments. On top of this realistic baseline, BadZure layers intentional misconfigurations through configurable attack paths, producing exploitable privilege escalation chains for adversary simulation.
+[Cloud attack paths](attack-paths/explained.md) are the chains of everyday misconfigurations that let an attacker escalate from an initial foothold to higher-impact outcomes such as resource abuse, data exfiltration, or full tenant compromise. Attack paths can be hard to understand and defend against through conceptual analysis alone. BadZure turns them into something you can explore in live Azure tenants, seeded with the misconfigurations that create those paths, safe to attack and quick to rebuild.
 
-The key advantage of BadZure is its ability to quickly populate and purge tenants with configurations, pre-configured initial access, and intentional attack paths, facilitating continuous and iterative adversary simulation and detection development. It is designed for security practitioners interested in exploring and understanding Entra ID and Azure security, cloud resource misconfigurations, and modern cloud-native attack technique.
+[![BlackHat Arsenal 2024](https://img.shields.io/badge/BlackHat_Arsenal_US-2024-blue)](https://www.blackhat.com/us-24/arsenal/schedule/index.html#badzure-simulating-and-exploring-entra-id-attack-paths-39628)    [![BlackHat Arsenal 2026](https://img.shields.io/badge/BlackHat_Arsenal_US-2026-blue)](https://blackhat.com/us-26/arsenal/schedule/#badzure-building-cloud-attack-labs-with-ai-52966)
 
-[![BlackHat Arsenal 2024](https://raw.githubusercontent.com/toolswatch/badges/master/arsenal/usa/2024.svg)](https://www.blackhat.com/us-24/arsenal/schedule/index.html#badzure-simulating-and-exploring-entra-id-attack-paths-39628)
 
----
+## Who it's for
 
-## What Can You Do With It?
+You might be one of these, or several:
 
-- **Red team exercises** — Practice Entra ID and Azure attack techniques against realistic environments
-- **Detection engineering** — Generate attack telemetry across identity and infrastructure layers to build and test detections
-- **Purple team operations** — Run collaborative exercises covering identity attacks and cloud-native compromise scenarios
-- **Security training** — Facilitate hands-on Azure security workshops with pre-built attack paths
-- **CTF events** — Host dynamic cloud security capture-the-flag competitions with multi-vector scenarios
+- 🗡️ **Red teamers**: rehearse Entra ID and Azure tradecraft in a safe, disposable tenant.
+- 🎯 **Detection engineers & threat hunters**: generate attack telemetry to build and validate detections.
+- 🟣 **Purple teams**: reproduce a specific technique end to end and watch it from both sides.
+- 🔬 **Security researchers**: explore cloud attack primitives and discover new ones.
+- 🎓 **Trainers & CTF authors**: run practical cloud security labs and capture the flag challenges.
 
 ## How It Works
 
-BadZure reads a YAML configuration file, generates Entra ID entities and Azure resources via Terraform, and configures privilege escalation paths between them. Every attack path starts with a compromised identity (user or service principal) and ends at a high-privilege target.
+BadZure reads a YAML configuration file, generates Entra ID entities and Azure resources via Terraform, and configures privilege escalation paths between them. Each attack path starts at an initial foothold, either a compromised identity or a foothold on an internet-exposed resource such as a VM or web app, and ends at a high-privilege target.
 
 ``` mermaid
 graph LR
@@ -36,37 +35,27 @@ graph LR
 
 ```
 
-## Supported Attack Paths
+## A first attack path
 
-BadZure supports seven privilege escalation techniques across two categories. To learn more about what attack paths are and how they emerge in cloud environments, see [What Are Attack Cloud Paths?](what-are-cloud-attack-paths.md).
+Consider the following scenario: A developer account, `dave.park`, is compromised. It holds nothing obviously dangerous, only access to a Key Vault. But that vault stores the client secret of `hr-sync`, an application with the Global Administrator role. The attacker reads the secret, authenticates as `hr-sync`, and turns one ordinary developer account into full control of the tenant.
 
-### Identity-Based
+The graph below is a live BadZure lab, not a picture. Drag it.
 
-| Attack Path | Description |
-|---|---|
-| [**ApplicationOwnershipAbuse**](attack-paths/app-ownership-abuse.md) | Exploit application ownership to add credentials to a privileged app |
-| [**ApplicationAdministratorAbuse**](attack-paths/app-administrator-abuse.md) | Exploit the Application Administrator role to manage any app in the tenant |
-| [**CloudAppAdministratorAbuse**](attack-paths/cloud-app-administrator-abuse.md) | Exploit the Cloud Application Administrator role — narrower scope than Application Administrator |
-| [**ManagedIdentityAbuse**](attack-paths/managed-identity-abuse.md) | Steal managed identity tokens from Azure resources to pivot to Key Vaults, Storage Accounts, or Cosmos DB |
+<iframe class="bz-graph" src="/reports/intro.report.html?embed=attack-keyvault_to_ga" title="A first attack path: Key Vault secret theft to Global Administrator" loading="lazy"></iframe>
 
-### Resource-Based
+<small class="bz-graph-caption"><a href="/reports/intro.report.html" target="_blank" rel="noopener">Open the full lab report ↗</a></small>
 
-| Attack Path | Description |
-|---|---|
-| [**KeyVaultSecretTheft**](attack-paths/keyvault-secret-theft.md) | Retrieve application secrets directly from Azure Key Vault |
-| [**StorageCertificateTheft**](attack-paths/storage-certificate-theft.md) | Retrieve application certificates from Azure Storage |
-| [**CosmosDBSecretTheft**](attack-paths/cosmosdb-secret-theft.md) | Retrieve application secrets from Azure Cosmos DB |
+This is one example of what BadZure can deploy in minutes. Explore the full catalog in [Cloud Attack Paths](attack-paths/explained.md), and see [How to Read These Graphs](attack-paths/reading-graphs.md) for the colors and line styles.
 
-## Quick Start
+## Quick start
 
 ```bash
 git clone https://github.com/mvelazc0/BadZure
 cd BadZure
-python -m venv venv && venv\Scripts\activate
+python -m venv venv && source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
 az login
-python badzure.py build
+python BadZure.py build
 ```
 
-See the [Getting Started](getting-started.md) guide for full setup instructions.
-
+See [Installation](installation.md) for full setup and [Your First Lab](first-lab.md) for a guided walkthrough.

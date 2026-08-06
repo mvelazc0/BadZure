@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "Optional catalog overrides for the Phase-3 name->GUID resolver.",
+    "Copy this file to 'catalog_overrides.json' at the repo root (or point",
+    "BADZURE_CATALOG_OVERRIDES at it) to teach the resolver about Entra roles or",
+    "Graph/Exchange app-role permissions that src/constants.py doesn't list yet,",
+    "or to correct a stale GUID. Entries here win over the built-in catalog.",
+    "Names are matched case-insensitively; values must be permission/role GUIDs."
+  ],
+  "entra_roles": {
+    "Knowledge Manager": "744ec460-397e-42ad-a462-8b3f9747a02c"
+  },
+  "graph_permissions": {
+    "Directory.ReadWrite.All": "19dbc75e-c2e2-444c-a770-ec69d8559fc7"
+  },
+  "exchange_permissions": {
+    "full_access_as_app": "dc890d15-9560-4a4c-9b7f-a736ec74ec40"
+  }
+}

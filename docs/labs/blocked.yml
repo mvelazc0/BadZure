@@ -1,0 +1,56 @@
+# =============================================================================
+# Documentation lab: a blocked (unreachable) path — for "When Paths Fail".
+#
+# Every ingredient of a Key Vault secret theft is present: a compromised user, a
+# vault holding a Global Administrator app's secret, and that app holding GA. The
+# ONE missing edge is access — no controlled principal can read the vault — so the
+# chain dead-ends. The report renders the attack graph with the objective marked
+# BLOCKED and the reason attached.
+#
+# This config is INTENTIONALLY unreachable. `check` reports it as blocked (exit 1);
+# `report` still renders it (reports never enforce reachability).
+#
+# Verify:  python BadZure.py check  --config docs/labs/blocked.yml
+# Preview: python BadZure.py report --config docs/labs/blocked.yml
+# =============================================================================
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  kv_theft_blocked:
+    objective:
+      name: "Global Administrator via Key Vault"
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: >-
+        The same goal as a Key Vault secret theft — but the access edge is missing,
+        so the planted secret can never be read.
+    initial_access:
+      method: compromised_identity
+      principal_ref: priya
+
+    identities:
+      users:        [{ ref: priya }]
+      applications: [{ ref: directory-sync }]   # holds Global Administrator
+    resources:
+      resource_groups:
+        - { ref: rg-prod, location: East US }
+      key_vaults:
+        - { ref: kv-prod-secrets, resource_group: rg-prod }
+
+    assignments:
+      # directory-sync holds Global Administrator — looting its secret WOULD be the
+      # escalation. But priya has NO role on kv-prod-secrets, so she cannot read it.
+      - { id: a1, type: entra_role, principal_ref: directory-sync,
+          role: "Global Administrator" }
+
+    credentials:
+      - { ref: app_secret, app_ref: directory-sync, type: password }
+
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-prod-secrets,
+          name: client-secret-directory-sync }

@@ -1,0 +1,625 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ report.title }}</title>
+  <script>
+    // A report can double as an interactive documentation figure. The full
+    // standalone experience remains the default; ``?embed=<panel-key>`` strips
+    // the report chrome and opens only the requested graph panel.
+    const reportParams = new URLSearchParams(window.location.search);
+    const requestedEmbeddedPanel = reportParams.get("embed");
+    if (requestedEmbeddedPanel) document.documentElement.classList.add("embed-mode");
+    // Standalone reports stay dark. ``?theme=light|dark`` pins a palette so an
+    // embed can follow the host page's theme (e.g. the docs light/dark toggle);
+    // with no override the report honors prefers-color-scheme.
+    const requestedTheme = reportParams.get("theme");
+    if (requestedTheme === "light" || requestedTheme === "dark") {
+      document.documentElement.classList.add("theme-" + requestedTheme);
+    }
+  </script>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: {{ background_color }};
+      --panel: #212738;
+      --panel-2: #282f43;
+      --border: #3a435c;
+      --text: #f5f7fb;
+      --muted: #b2bacb;
+      --primary: #1565c0;
+      --primary-light: #1e88e5;
+      --primary-dark: #0d47a1;
+      --accent: #ff6d00;
+      --accent-soft: rgba(255, 109, 0, .12);
+      --danger: {{ sensitive_border_color }};
+      --success: #22c55e;
+      --warning: #f59e0b;
+      /* Themed surfaces. Read into cytoscape at graph init, so graph labels
+         track the palette too. */
+      --nav-bg: rgba(26, 31, 46, .97);
+      --canvas: #171c29;
+      --tip-bg: #151a27;
+      --hover-text: #ffffff;
+      --graph-node-label: #f5f7fb;
+      --graph-edge-label: #d7dceb;
+      --graph-edge-chip: #171c29;
+    }
+    /* Light palette. Applied when the host pins ``?theme=light`` (``.theme-light``)
+       or, absent any override, when the OS prefers light. ``.theme-dark`` opts back
+       out so an embed can always force dark. */
+    :root.theme-light,
+    :root.theme-light body { color-scheme: light; }
+    @media (prefers-color-scheme: light) {
+      :root:not(.theme-dark) { color-scheme: light; }
+    }
+    :root.theme-light {
+      --bg: #f4f6fb;
+      --panel: #ffffff;
+      --panel-2: #eef1f8;
+      --border: #d3dae8;
+      --text: #1a2233;
+      --muted: #566079;
+      --accent-soft: rgba(230, 81, 0, .1);
+      --nav-bg: rgba(244, 246, 251, .97);
+      --canvas: #eef2f8;
+      --tip-bg: #ffffff;
+      --hover-text: #0d47a1;
+      --graph-node-label: #1a2233;
+      --graph-edge-label: #33405c;
+      --graph-edge-chip: #ffffff;
+    }
+    @media (prefers-color-scheme: light) {
+      :root:not(.theme-dark):not(.theme-light) {
+        --bg: #f4f6fb;
+        --panel: #ffffff;
+        --panel-2: #eef1f8;
+        --border: #d3dae8;
+        --text: #1a2233;
+        --muted: #566079;
+        --accent-soft: rgba(230, 81, 0, .1);
+        --nav-bg: rgba(244, 246, 251, .97);
+        --canvas: #eef2f8;
+        --tip-bg: #ffffff;
+        --hover-text: #0d47a1;
+        --graph-node-label: #1a2233;
+        --graph-edge-label: #33405c;
+        --graph-edge-chip: #ffffff;
+      }
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+        "Segoe UI", sans-serif;
+    }
+    button { font: inherit; }
+    .report-header {
+      padding: 1.5rem 2rem 1rem;
+      border-bottom: 3px solid var(--accent);
+      background: linear-gradient(120deg, var(--primary-dark), var(--primary));
+      box-shadow: 0 3px 12px rgba(0, 0, 0, .3);
+    }
+    .report-header h1 { margin: 0 0 .4rem; font-size: 1.55rem; }
+    .report-header p { margin: 0; color: var(--muted); }
+    .tab-nav {
+      display: flex;
+      gap: .45rem;
+      padding: .75rem 1rem;
+      overflow-x: auto;
+      position: sticky;
+      top: 0;
+      z-index: 20;
+      background: var(--nav-bg);
+      border-bottom: 1px solid var(--border);
+    }
+    .tab-button, .control-button, .panel-link {
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      background: var(--panel);
+      color: var(--text);
+      padding: .48rem .75rem;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+    .tab-button:hover, .control-button:hover, .panel-link:hover {
+      border-color: var(--accent);
+      color: var(--hover-text);
+    }
+    .tab-button.active {
+      background: var(--primary);
+      border-color: var(--primary-light);
+      box-shadow: inset 0 -2px 0 var(--accent);
+      color: #f5f7fb;
+    }
+    .control-button, .panel-link { background: var(--primary-dark); color: #f5f7fb; }
+    .control-button:hover, .panel-link:hover { color: #ffffff; }
+    main { max-width: 1600px; margin: 0 auto; padding: 1.25rem; }
+    .tab-page { display: none; }
+    .tab-page.active { display: block; }
+    .overview-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(135px, 1fr));
+      gap: .75rem;
+      margin: 1rem 0 1.5rem;
+    }
+    .overview-section { margin: 1.25rem 0 1.75rem; }
+    .overview-section h2 { margin: 0 0 .25rem; font-size: 1.15rem; }
+    .overview-section .overview-grid { margin-top: .65rem; }
+    .stat-card, .content-card, details {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+    }
+    .stat-card { padding: .9rem; border-top: 3px solid var(--primary-light); }
+    .stat-card .value {
+      display: block;
+      color: var(--primary-light);
+      font-size: 1.45rem;
+      font-weight: 700;
+    }
+    .stat-card .label { color: var(--muted); font-size: .84rem; }
+    .content-card { padding: 1rem; margin: .85rem 0; }
+    .content-card h2, .content-card h3 { margin-top: 0; }
+    .muted { color: var(--muted); }
+    .path-card { border-left: 4px solid var(--border); }
+    .path-card.status-reached { border-left-color: var(--success); }
+    .path-card.status-blocked, .path-card.status-invalid { border-left-color: var(--danger); }
+    .path-card.status-unverified { border-left-color: var(--warning); }
+    .status-pill {
+      display: inline-block;
+      padding: .2rem .5rem;
+      border-radius: 999px;
+      background: var(--panel-2);
+      text-transform: uppercase;
+      font-size: .72rem;
+      letter-spacing: .04em;
+    }
+    .path-actions { display: flex; gap: .5rem; flex-wrap: wrap; margin: .75rem 0; }
+    .step-list { padding-left: 1.35rem; }
+    .step-list li { margin: .35rem 0; }
+    details { padding: .75rem 1rem; margin: .65rem 0; }
+    summary { cursor: pointer; font-weight: 600; }
+    .detail-table { width: 100%; border-collapse: collapse; margin-top: .7rem; }
+    .detail-table th, .detail-table td {
+      text-align: left;
+      vertical-align: top;
+      border-bottom: 1px solid var(--border);
+      padding: .45rem .55rem;
+      overflow-wrap: anywhere;
+    }
+    .detail-table th { color: var(--muted); font-size: .8rem; }
+    .panel-header { display: flex; justify-content: space-between; gap: 1rem; align-items: start; }
+    .panel-header h2 { margin: 0 0 .3rem; }
+    .panel-controls { display: flex; gap: .45rem; }
+    .graph-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 290px;
+      gap: .8rem;
+      margin-top: .8rem;
+    }
+    .graph-canvas {
+      height: min(72vh, 760px);
+      min-height: 500px;
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      background: var(--canvas);
+    }
+    .detail-card {
+      min-height: 180px;
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 9px;
+      padding: .9rem;
+      overflow-wrap: anywhere;
+    }
+    .detail-card h3 { margin-top: 0; }
+    .property-list { margin: 0; }
+    .property-list dt { color: var(--muted); font-size: .78rem; margin-top: .55rem; }
+    .property-list dd { margin: .1rem 0 0; }
+    .legend { display: flex; gap: .7rem 1rem; flex-wrap: wrap; margin: .8rem 0; }
+    .legend-item { display: inline-flex; align-items: center; gap: .35rem; color: var(--muted); font-size: .8rem; }
+    .legend-dot { width: .75rem; height: .75rem; border-radius: 50%; display: inline-block; }
+    .legend-line { width: 1.4rem; height: 2px; background: #94a3b8; display: inline-block; }
+    .hover-tip {
+      display: none;
+      position: fixed;
+      z-index: 100;
+      max-width: 340px;
+      padding: .45rem .6rem;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--tip-bg);
+      color: var(--text);
+      box-shadow: 0 8px 24px rgba(0,0,0,.45);
+      pointer-events: none;
+      font-size: .8rem;
+    }
+    @media (max-width: 900px) {
+      .graph-layout { grid-template-columns: 1fr; }
+      .graph-canvas { min-height: 430px; }
+    }
+    /* Embed mode fills the iframe viewport as a flex column: the controls and
+       legend take their natural height and the graph canvas fills the rest, so
+       the figure never scrolls and the graph gets all the leftover space. The
+       detail sidebar is dropped — hover tooltips carry the same information and a
+       docs figure wants the full width for the graph. */
+    html.embed-mode, html.embed-mode body { height: 100vh; }
+    html.embed-mode body { overflow: hidden; display: flex; flex-direction: column; }
+    html.embed-mode .report-header,
+    html.embed-mode .tab-nav,
+    html.embed-mode #page-overview { display: none !important; }
+    html.embed-mode main {
+      max-width: none; padding: .6rem;
+      flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    }
+    html.embed-mode .tab-page.active {
+      flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column;
+    }
+    html.embed-mode .panel-header { justify-content: flex-end; flex: 0 0 auto; }
+    html.embed-mode .panel-header > div:first-child { display: none; }
+    html.embed-mode .legend { flex: 0 0 auto; margin: .35rem 0 .5rem; }
+    html.embed-mode .graph-layout {
+      margin-top: 0; flex: 1 1 auto; min-height: 0; grid-template-columns: 1fr;
+    }
+    html.embed-mode .detail-card { display: none; }
+    html.embed-mode .graph-canvas { height: 100%; min-height: 0; }
+  </style>
+</head>
+<body>
+  <header class="report-header">
+    <h1>{{ report.title }}</h1>
+    <p>Source: {{ report.source_config }}</p>
+  </header>
+
+  <nav class="tab-nav" aria-label="Report sections">
+    <button class="tab-button active" type="button" data-tab="overview">Overview</button>
+    {% for panel in panel_views %}
+    <button class="tab-button" type="button" data-tab="{{ panel.key }}">{{ panel.title }}</button>
+    {% endfor %}
+  </nav>
+
+  <main>
+    <section id="page-overview" class="tab-page active" data-page="overview">
+      {% if report.lab_description %}
+      <article class="content-card">
+        <h2>Lab description</h2>
+        <p>{{ report.lab_description }}</p>
+      </article>
+      {% endif %}
+      {% if report.organization_description %}
+      <article class="content-card">
+        <h2>Organization</h2>
+        <p>{{ report.organization_description }}</p>
+      </article>
+      {% endif %}
+
+      {% for overview_section in overview_sections %}
+      <section class="overview-section" aria-labelledby="overview-{{ loop.index }}-heading">
+        <h2 id="overview-{{ loop.index }}-heading">{{ overview_section.title }}</h2>
+        <div class="overview-grid">
+          {% for label, value in overview_section.metrics %}
+          <div class="stat-card"><span class="value">{{ value }}</span><span class="label">{{ label }}</span></div>
+          {% endfor %}
+        </div>
+        <div class="plane-inventory">
+          {% for category, rows in overview_section.categories %}
+          <details>
+            <summary>{{ category.replace('_', ' ').title() }} ({{ rows|length }})</summary>
+            {% if rows %}
+            <table class="detail-table">
+              <thead><tr><th>Object</th><th>Properties</th></tr></thead>
+              <tbody>
+                {% for row in rows %}
+                <tr>
+                  <td>{{ row.get('ref', '') }}</td>
+                  <td>
+                    {% for key, value in row.items() if key != 'ref' %}
+                      <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
+                    {% endfor %}
+                  </td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+            {% else %}<p class="muted">None</p>{% endif %}
+          </details>
+          {% endfor %}
+        </div>
+        {% if overview_section.title == 'Identity Plane' %}
+        <details>
+          <summary>Assignments({{ report.assignments|length }})</summary>
+          {% if report.assignments %}
+          <table class="detail-table">
+            <thead><tr><th>Type</th><th>Source</th><th>Target</th><th>Properties</th></tr></thead>
+            <tbody>
+              {% for assignment in report.assignments %}
+              <tr>
+                <td>{{ assignment.get('type', '') }}</td>
+                <td>{{ assignment.get('source', '') }}</td>
+                <td>{{ assignment.get('target', '') }}</td>
+                <td>
+                  {% for key, value in assignment.items() if key not in ('type', 'source', 'target') %}
+                    <strong>{{ key.replace('_', ' ') }}:</strong> {{ value|display_value }}{% if not loop.last %}<br>{% endif %}
+                  {% endfor %}
+                </td>
+              </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+          {% else %}<p class="muted">No assignments.</p>{% endif %}
+        </details>
+        {% endif %}
+      </section>
+      {% endfor %}
+
+      <section aria-labelledby="paths-heading">
+        <h2 id="paths-heading">Attack paths</h2>
+        {% if report.paths %}
+          {% for path in report.paths %}
+          {% set status = path.reachability.get('status', 'unverified') %}
+          <article class="content-card path-card status-{{ status }}">
+            <h3>{{ path.objective.get('name', path.name) }}</h3>
+            <span class="status-pill">{{ status }}</span>
+            <p>{{ path.summary }}</p>
+            {% if path.reachability.get('reason') %}<p class="muted">{{ path.reachability.reason }}</p>{% endif %}
+            <div class="path-actions">
+              <button type="button" class="panel-link" data-open-panel="{{ path.posture_panel_key }}">Open posture graph</button>
+              <button type="button" class="panel-link" data-open-panel="{{ path.attack_panel_key }}">Open attack graph</button>
+            </div>
+            {% if path.metadata %}
+            <p class="muted">
+              {% if path.metadata.get('complexity') %}Complexity: {{ path.metadata.complexity }}. {% endif %}
+              {% if path.metadata.get('tags') %}Tags: {{ path.metadata.tags|display_value }}. {% endif %}
+              {% if path.metadata.get('mitre') %}MITRE: {{ path.metadata.mitre|display_value }}.{% endif %}
+            </p>
+            {% endif %}
+            {% if path.steps %}
+            <details>
+              <summary>Ordered narrative ({{ path.steps|length }} steps)</summary>
+              <ol class="step-list">
+                {% for step in path.steps %}
+                <li>
+                  {{ step.get('name', step.get('action', 'Step')) }}
+                  {% if step.get('target_ref') %} → {{ step.target_ref }}{% endif %}
+                </li>
+                {% endfor %}
+              </ol>
+            </details>
+            {% endif %}
+          </article>
+          {% endfor %}
+        {% else %}
+          <article class="content-card"><p>No enabled attack paths are defined in this configuration.</p></article>
+        {% endif %}
+      </section>
+    </section>
+
+    {% for panel in panel_views %}
+    <section id="page-{{ panel.dom_key }}" class="tab-page" data-page="{{ panel.key }}">
+      <div class="panel-header">
+        <div><h2>{{ panel.title }}</h2><p class="muted">{{ panel.caption }}</p></div>
+        <div class="panel-controls">
+          {% if panel.ontology == 'assignments' %}
+          <button type="button" class="control-button" data-action="family-overview" data-panel="{{ panel.key }}">Family overview</button>
+          {% endif %}
+          <button type="button" class="control-button" data-action="fit" data-panel="{{ panel.key }}">Fit</button>
+          <button type="button" class="control-button" data-action="reset" data-panel="{{ panel.key }}">Reset</button>
+        </div>
+      </div>
+      <div class="legend" aria-label="{{ panel.title }} legend">
+        {% for item in panel.node_legend %}
+        <span class="legend-item"><span class="legend-dot" style="background: {{ item.color }}"></span>{{ item.type }}</span>
+        {% endfor %}
+        {% for edge_type in panel.edge_legend %}
+        <span class="legend-item"><span class="legend-line"></span>{{ edge_type.replace('_', ' ') }}</span>
+        {% endfor %}
+      </div>
+      <div class="graph-layout">
+        <div id="graph-{{ panel.dom_key }}" class="graph-canvas" role="img" aria-label="{{ panel.title }} graph"></div>
+        <aside id="detail-{{ panel.dom_key }}" class="detail-card" aria-live="polite">
+          <h3>Element details</h3><p class="muted">Select a node or relationship.</p>
+        </aside>
+      </div>
+    </section>
+    {% endfor %}
+  </main>
+
+  <div id="hover-tip" class="hover-tip" role="tooltip"></div>
+
+  <script>{{ cytoscape_js|safe }}</script>
+  <script>
+    "use strict";
+    const REPORT_PANELS = {{ panels_json|safe }};
+    const graphInstances = Object.create(null);
+    const hoverTip = document.getElementById("hover-tip");
+
+    function textValue(value) {
+      if (Array.isArray(value)) return value.join(", ");
+      if (value && typeof value === "object") {
+        return Object.entries(value).map(([key, item]) => `${key}: ${item}`).join(", ");
+      }
+      return String(value);
+    }
+
+    function renderDetails(panel, element) {
+      const card = document.getElementById(`detail-${panel.dom_key}`);
+      card.replaceChildren();
+      const heading = document.createElement("h3");
+      heading.textContent = element.data("label") || element.data("id");
+      card.appendChild(heading);
+      const type = document.createElement("p");
+      type.className = "muted";
+      type.textContent = element.data("type") || element.group();
+      card.appendChild(type);
+      const properties = element.data("properties") || {};
+      const list = document.createElement("dl");
+      list.className = "property-list";
+      Object.entries(properties).forEach(([key, value]) => {
+        const term = document.createElement("dt");
+        term.textContent = key.replaceAll("_", " ");
+        const detail = document.createElement("dd");
+        detail.textContent = textValue(value);
+        list.append(term, detail);
+      });
+      card.appendChild(list);
+    }
+
+    function showHover(event) {
+      const element = event.target;
+      const properties = element.data("properties") || {};
+      const summary = Object.entries(properties).slice(0, 3)
+        .map(([key, value]) => `${key.replaceAll("_", " ")}: ${textValue(value)}`);
+      hoverTip.textContent = [element.data("label") || element.data("id"), ...summary].join(" · ");
+      hoverTip.style.display = "block";
+    }
+
+    function moveHover(event) {
+      const original = event.originalEvent;
+      if (!original) return;
+      hoverTip.style.left = `${original.clientX + 14}px`;
+      hoverTip.style.top = `${original.clientY + 14}px`;
+    }
+
+    function showAssignmentOverview(cy, fit = true) {
+      cy.batch(() => {
+        cy.elements().style("display", "element");
+        cy.nodes("[type = 'Role'], [type = 'Permission'], [type = 'Relationship'], [type = 'PrincipalSummary']")
+          .style("display", "none");
+      });
+      if (fit) requestAnimationFrame(() => cy.fit(cy.elements(":visible"), 65));
+    }
+
+    function expandAssignmentFamily(cy, family) {
+      showAssignmentOverview(cy, false);
+      cy.batch(() => family.successors().style("display", "element"));
+      requestAnimationFrame(() => cy.fit(cy.elements(":visible"), 65));
+    }
+
+    function initPanel(key) {
+      if (graphInstances[key]) return graphInstances[key];
+      const panel = REPORT_PANELS[key];
+      if (!panel) return null;
+      // Graph label colors track the active palette. Read them once at init; the
+      // theme is pinned before load (``?theme=`` / prefers-color-scheme), so the
+      // values are correct when the first panel is drawn.
+      const themeCss = getComputedStyle(document.documentElement);
+      const nodeLabelColor = themeCss.getPropertyValue("--graph-node-label").trim() || "#f5f7fb";
+      const edgeLabelColor = themeCss.getPropertyValue("--graph-edge-label").trim() || "#d7dceb";
+      const edgeChipColor = themeCss.getPropertyValue("--graph-edge-chip").trim() || "#171c29";
+      const cy = cytoscape({
+        container: document.getElementById(`graph-${panel.dom_key}`),
+        elements: panel.elements,
+        layout: { name: "preset", fit: true, padding: 45 },
+        minZoom: 0.15,
+        maxZoom: 3.5,
+        wheelSensitivity: 0.18,
+        style: [
+          {
+            selector: "node",
+            style: {
+              "background-color": "data(node_color)",
+              "border-color": "data(border_color)",
+              "border-width": "data(border_width)",
+              "label": "data(label)",
+              "color": nodeLabelColor,
+              "font-size": 13,
+              "text-wrap": "wrap",
+              "text-max-width": 145,
+              "text-valign": "bottom",
+              "text-margin-y": 8,
+              "shape": "ellipse",
+              "width": 62,
+              "height": 62
+            }
+          },
+          {
+            selector: "node[aggregate = true]",
+            style: { "shape": "ellipse", "width": 80, "height": 80 }
+          },
+          {
+            selector: "node[type = 'Objective']",
+            style: { "border-color": "#ff6d00", "border-width": 5 }
+          },
+          {
+            selector: "edge",
+            style: {
+              "curve-style": "bezier",
+              "line-color": "data(edge_color)",
+              "target-arrow-color": "data(edge_color)",
+              "target-arrow-shape": "triangle",
+              "width": "data(edge_width)",
+              "line-style": "data(line_style)",
+              "label": "data(label)",
+              "color": edgeLabelColor,
+              "font-size": 9,
+              "text-background-color": edgeChipColor,
+              "text-background-opacity": .82,
+              "text-background-padding": 3,
+              "text-rotation": "autorotate"
+            }
+          },
+          { selector: ":selected", style: { "overlay-color": "#ff6d00", "overlay-opacity": .2 } }
+        ]
+      });
+      cy.on("tap", "node, edge", event => renderDetails(panel, event.target));
+      if (panel.ontology === "assignments") {
+        cy.on("tap", "node[type = 'AssignmentFamily']", event => {
+          expandAssignmentFamily(cy, event.target);
+        });
+        showAssignmentOverview(cy, false);
+      }
+      cy.on("mouseover", "node, edge", showHover);
+      cy.on("mousemove", "node, edge", moveHover);
+      cy.on("mouseout", "node, edge", () => { hoverTip.style.display = "none"; });
+      graphInstances[key] = cy;
+      return cy;
+    }
+
+    function activateTab(key) {
+      document.querySelectorAll(".tab-page").forEach(page => page.classList.remove("active"));
+      document.querySelectorAll(".tab-button").forEach(button => {
+        button.classList.toggle("active", button.dataset.tab === key);
+      });
+      if (key === "overview") {
+        document.getElementById("page-overview").classList.add("active");
+        return;
+      }
+      const panel = REPORT_PANELS[key];
+      if (!panel) return;
+      document.getElementById(`page-${panel.dom_key}`).classList.add("active");
+      const cy = initPanel(key);
+      requestAnimationFrame(() => { cy.resize(); cy.fit(undefined, 45); });
+    }
+
+    document.querySelectorAll(".tab-button").forEach(button => {
+      button.addEventListener("click", () => activateTab(button.dataset.tab));
+    });
+    document.querySelectorAll("[data-open-panel]").forEach(button => {
+      button.addEventListener("click", () => activateTab(button.dataset.openPanel));
+    });
+    document.querySelectorAll("[data-action]").forEach(button => {
+      button.addEventListener("click", () => {
+        const cy = initPanel(button.dataset.panel);
+        if (!cy) return;
+        if (button.dataset.action === "fit") cy.fit(undefined, 45);
+        if (button.dataset.action === "reset") { cy.zoom(1); cy.center(); }
+        if (button.dataset.action === "family-overview") showAssignmentOverview(cy);
+      });
+    });
+    if (requestedEmbeddedPanel) {
+      if (REPORT_PANELS[requestedEmbeddedPanel]) {
+        activateTab(requestedEmbeddedPanel);
+      } else {
+        document.documentElement.classList.remove("embed-mode");
+      }
+    }
+    window.addEventListener("resize", () => {
+      Object.values(graphInstances).forEach(cy => cy.resize());
+    });
+  </script>
+</body>
+</html>

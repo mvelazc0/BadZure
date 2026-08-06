@@ -1,0 +1,486 @@
+"""
+scenario_validator.py — fail-fast validation for the declarative graph config (Slice 5).
+
+The scenario loader and Terraform builder already enforce *referential* integrity
+(a `principal_ref` must resolve to a real entity, a role name must resolve to a
+GUID, ...). This module sits IN FRONT of them and catches the structural mistakes
+that are cheaper to report up front and all at once: a malformed objective, an
+unknown assignment `type`, a `step` that links to an id that doesn't exist.
+
+It is intentionally REGISTRY-DRIVEN — it validates `type`/`capability` tokens
+against the same vocabularies the rest of the system uses
+(`scenario_loader.ASSIGNMENT_TYPES`, `capabilities.KNOWN_CAPABILITIES`) rather
+than re-listing them — so a new assignment type or capability is validated the
+moment it's registered, with no edit here.
+
+Design choices that keep it from fighting the loader:
+  - It AGGREGATES problems and raises ONE `ScenarioConfigError` listing them all,
+    so the operator fixes everything in one pass.
+  - `objective` is treated as RECOMMENDED, not required: a path without one draws a
+    warning (the reachability gate can't validate it), not a hard failure — many
+    legitimate partial configs (and the Slice 1–3 fixtures) omit it.
+  - It does NOT re-implement type/scope inference or ref resolution; those stay the
+    loader's job and surface their own (already-clear) errors. This validator only
+    owns what it can decide from the raw YAML alone.
+"""
+import logging
+from typing import Dict, List
+
+from src import capabilities
+from src.constants import (
+    VALID_TECHNIQUES, RESOURCE_FOOTHOLD_VECTORS, RESOURCE_SEED_VECTORS,
+    WEBAPP_FOOTHOLD_VECTORS, WEBAPP_VULN_VARIANTS,
+    COMPROMISED_CREDENTIAL_VECTOR, CREDENTIAL_PRINCIPAL_TYPES,
+)
+from src.scenario_loader import ScenarioConfigError, ASSIGNMENT_TYPES
+
+# Atomic path knob enums (validated here against the same vocabularies the macros
+# honor). `initial_access.vector` accepts the credential vector (compromised_credential,
+# with a principal_type) plus the resource-seed footholds (exposed-host VMs + vulnerable web app).
+_IA_VECTORS = {COMPROMISED_CREDENTIAL_VECTOR} | set(RESOURCE_SEED_VECTORS)
+_PRINCIPAL_TYPES = set(CREDENTIAL_PRINCIPAL_TYPES)
+_ASSIGNMENT_TYPES_ENUM = {"direct", "group_member", "group_owner"}
+_SCOPE_ENUM = {"directory", "application"}
+_CRED_TYPE_ENUM = {"secret", "certificate"}
+_AZURE_RBAC_SCOPES = {"subscription", "resource_group", "resource"}
+_MI_SOURCE_TYPES = {"vm", "logic_app", "automation_account", "function_app", "app_service"}
+_MI_TARGET_TYPES = {"key_vault", "storage_account", "cosmos_db"}
+_MI_PRIVILEGE_SOURCES = {"managed_identity", "stored_credential"}
+_OBJECTIVE_KEYS = {"entra_role", "api_permission", "azure_role"}
+
+# Per-capability required objective fields (beyond the human-facing name/impact).
+# Capabilities not listed here (e.g. read_mail) need nothing extra.
+_TARGET_REF_CAPABILITIES = set(capabilities.READ_CAPABILITY_RESOURCE) | {
+    "code_execution", "control_principal",
+}
+
+
+def validate(config: Dict) -> None:
+    """Validate the declarative config's `baseline` and `attack_paths` sections.
+    Raises ScenarioConfigError (aggregating every problem found) on a hard error;
+    logs warnings for soft issues."""
+    attack_paths = config.get("attack_paths") or {}
+    if not isinstance(attack_paths, dict):
+        raise ScenarioConfigError("`attack_paths` must be a mapping of name -> path.")
+
+    errors: List[str] = []
+    warnings: List[str] = []
+
+    _validate_baseline(config.get("baseline"), errors)
+    for name, path in attack_paths.items():
+        # `enabled: false` parks a path — skip validation so a half-finished or
+        # intentionally-broken parked path doesn't block the build.
+        if isinstance(path, dict) and path.get("enabled") is False:
+            continue
+        _validate_path(str(name), path, errors, warnings)
+
+    for w in warnings:
+        logging.warning(f"Declarative config: {w}")
+    if errors:
+        raise ScenarioConfigError(
+            f"Declarative config has {len(errors)} problem(s):\n"
+            + "\n".join(f"  - {e}" for e in errors)
+        )
+
+
+def _validate_baseline(baseline, errors: List[str]) -> None:
+    """Validate the EXPLICIT (list-of-specs) baseline forms: each declared
+    identity/resource has a unique `ref`, and each explicit assignment has a known
+    `type` and a `principal_ref`. Count-form kinds (integers) and a None baseline
+    are no-ops here — they carry nothing to check structurally."""
+    if baseline is None:
+        return
+    if not isinstance(baseline, dict):
+        errors.append("`baseline` must be a mapping.")
+        return
+
+    refs = set()
+    for section in ("identities", "resources"):
+        block = baseline.get(section)
+        if block is None:
+            continue
+        if not isinstance(block, dict):
+            errors.append(f"baseline.{section} must be a mapping.")
+            continue
+        for kind, val in block.items():
+            if not isinstance(val, list):
+                continue  # count form (int) — nothing structural to validate
+            for i, spec in enumerate(val):
+                if not isinstance(spec, dict):
+                    errors.append(
+                        f"baseline.{section}.{kind}[{i}] must be a mapping with a `ref`.")
+                    continue
+                ref = spec.get("ref")
+                if not ref:
+                    errors.append(
+                        f"baseline.{section}.{kind}[{i}] is missing a required `ref`.")
+                    continue
+                if ref in refs:
+                    errors.append(f"baseline: duplicate entity ref '{ref}'.")
+                refs.add(ref)
+
+    assignments = baseline.get("assignments")
+    if isinstance(assignments, list):
+        for idx, a in enumerate(assignments):
+            if not isinstance(a, dict):
+                errors.append(f"baseline.assignments[{idx}] must be a mapping.")
+                continue
+            aid = a.get("id") or f"a{idx}"
+            atype = a.get("type")
+            if not atype:
+                errors.append(f"baseline assignment '{aid}' has no `type`.")
+            elif atype not in ASSIGNMENT_TYPES:
+                errors.append(
+                    f"baseline assignment '{aid}' has unknown type '{atype}'. "
+                    f"Valid: {', '.join(sorted(ASSIGNMENT_TYPES))}.")
+            if not a.get("principal_ref"):
+                errors.append(f"baseline assignment '{aid}' has no `principal_ref`.")
+
+    for idx, c in enumerate(baseline.get("credentials") or []):
+        if not isinstance(c, dict):
+            errors.append(f"baseline.credentials[{idx}] must be a mapping.")
+            continue
+        cid = c.get("ref") or f"cred{idx}"
+        if not c.get("ref"):
+            errors.append(f"baseline credential #{idx} is missing a `ref`.")
+        if not c.get("app_ref"):
+            errors.append(f"baseline credential '{cid}' is missing an `app_ref`.")
+
+    for idx, d in enumerate(baseline.get("data_injects") or []):
+        if not isinstance(d, dict):
+            errors.append(f"baseline.data_injects[{idx}] must be a mapping.")
+            continue
+        did = d.get("id") or f"d{idx}"
+        for fld in ("material", "location_ref", "name"):
+            if not d.get(fld):
+                errors.append(f"baseline data_inject '{did}' is missing `{fld}`.")
+        if not (d.get("location_type") or d.get("location")):
+            errors.append(f"baseline data_inject '{did}' is missing `location_type`.")
+
+
+def _validate_path(name: str, path, errors: List[str], warnings: List[str]) -> None:
+    if not isinstance(path, dict):
+        errors.append(f"attack_path '{name}' must be a mapping.")
+        return
+
+    # Tier-1 sugar vs Tier-2 explicit graph: a built-in `privilege_escalation:` path is
+    # validated against the macro knob vocabulary; everything else against the graph schema.
+    if "privilege_escalation" in path:
+        _validate_technique_path(name, path, errors)
+        return
+
+    _validate_objective(name, path.get("objective"), warnings, errors)
+    _validate_initial_access(name, path.get("initial_access"), errors)
+
+    assignment_ids, inject_ids, cred_refs = _validate_assignments(name, path, errors)
+    _validate_steps(name, path.get("steps") or [], assignment_ids,
+                    inject_ids | cred_refs, errors)
+
+
+def _validate_technique_path(name: str, path: Dict, errors: List[str]) -> None:
+    """Validate a built-in atomic path: `privilege_escalation:` is a mapping with a known
+    `technique:`, mutually exclusive with an explicit `assignments:` graph, with a nested
+    `initial_access:` / `objective:` and well-formed per-technique knobs."""
+    pe = path.get("privilege_escalation")
+    if not isinstance(pe, dict):
+        errors.append(
+            f"attack_path '{name}': `privilege_escalation:` must be a mapping with a "
+            f"`technique:` field (and the technique's knobs).")
+        return
+    technique = pe.get("technique")
+    if technique not in VALID_TECHNIQUES:
+        errors.append(
+            f"attack_path '{name}': unknown technique '{technique}'. "
+            f"Valid: {', '.join(VALID_TECHNIQUES)}.")
+
+    if "assignments" in path:
+        errors.append(
+            f"attack_path '{name}': `privilege_escalation:` and `assignments:` are "
+            f"mutually exclusive — a path is either a built-in atomic path OR a Tier-2 "
+            f"explicit graph, not both.")
+
+    # initial_access (nested mapping). The credential vector is `compromised_credential`
+    # with a required `principal_type`; the foothold vectors carry their own options.
+    vector = COMPROMISED_CREDENTIAL_VECTOR
+    ia = path.get("initial_access")
+    if ia is not None:
+        if not isinstance(ia, dict):
+            errors.append(
+                f"attack_path '{name}': `initial_access:` must be a mapping "
+                f"(e.g. {{ vector: compromised_credential, principal_type: user }}).")
+        else:
+            vector = ia.get("vector", COMPROMISED_CREDENTIAL_VECTOR)
+            if vector not in _IA_VECTORS:
+                errors.append(
+                    f"attack_path '{name}': initial_access.vector '{vector}' is invalid. "
+                    f"Valid: {', '.join(sorted(_IA_VECTORS))}.")
+            principal_type = ia.get("principal_type")
+            if vector == COMPROMISED_CREDENTIAL_VECTOR:
+                if principal_type is None:
+                    errors.append(
+                        f"attack_path '{name}': initial_access.vector "
+                        f"'{COMPROMISED_CREDENTIAL_VECTOR}' requires a `principal_type` "
+                        f"(one of: {', '.join(sorted(_PRINCIPAL_TYPES))}).")
+                elif principal_type not in _PRINCIPAL_TYPES:
+                    errors.append(
+                        f"attack_path '{name}': principal_type '{principal_type}' is not "
+                        f"valid; expected one of: {', '.join(sorted(_PRINCIPAL_TYPES))}.")
+            elif principal_type is not None:
+                errors.append(
+                    f"attack_path '{name}': principal_type is only valid with "
+                    f"vector '{COMPROMISED_CREDENTIAL_VECTOR}', not with the foothold "
+                    f"vector '{vector}'.")
+            variant = ia.get("variant")
+            if variant is not None and variant not in WEBAPP_VULN_VARIANTS:
+                errors.append(
+                    f"attack_path '{name}': initial_access.variant '{variant}' is invalid. "
+                    f"Valid: {', '.join(sorted(WEBAPP_VULN_VARIANTS))}.")
+
+    # privilege_escalation knobs.
+    for knob, valid in (("assignment_type", _ASSIGNMENT_TYPES_ENUM),
+                        ("scope", _SCOPE_ENUM), ("credential_type", _CRED_TYPE_ENUM)):
+        val = pe.get(knob)
+        if val is not None and val not in valid:
+            errors.append(
+                f"attack_path '{name}': privilege_escalation.{knob} '{val}' is invalid. "
+                f"Valid: {', '.join(sorted(valid))}.")
+
+    _validate_atomic_objective(name, technique, pe, path.get("objective"), errors)
+
+    if technique == "ManagedIdentityAbuse":
+        _validate_mi_knobs(name, pe, vector, errors)
+    elif vector in RESOURCE_SEED_VECTORS:
+        errors.append(
+            f"attack_path '{name}': initial_access.vector '{vector}' (a resource foothold) "
+            f"is only supported with ManagedIdentityAbuse.")
+
+
+def _validate_atomic_objective(name, technique, pe: Dict, objective, errors) -> None:
+    """The `objective:` is a set of typed entitlement keys; at least one must be present."""
+    direct_mi = (technique == "ManagedIdentityAbuse"
+                 and pe.get("privilege_source", "stored_credential") == "managed_identity")
+    if not isinstance(objective, dict) or not objective:
+        errors.append(
+            f"attack_path '{name}': needs an `objective:` with at least one entitlement "
+            f"({', '.join(sorted(_OBJECTIVE_KEYS))}).")
+        return
+    unknown = set(objective) - _OBJECTIVE_KEYS
+    if unknown:
+        errors.append(
+            f"attack_path '{name}': objective has unknown key(s) {', '.join(sorted(unknown))}. "
+            f"Valid: {', '.join(sorted(_OBJECTIVE_KEYS))}.")
+    if not (_OBJECTIVE_KEYS & set(objective)):
+        errors.append(
+            f"attack_path '{name}': objective needs at least one of "
+            f"{', '.join(sorted(_OBJECTIVE_KEYS))}.")
+
+    ap = objective.get("api_permission")
+    if ap is not None:
+        if not isinstance(ap, dict):
+            errors.append(
+                f"attack_path '{name}': objective.api_permission must be a mapping keyed "
+                f"by API (graph / exchange).")
+        else:
+            for a in ap:
+                if a not in ("graph", "exchange"):
+                    errors.append(
+                        f"attack_path '{name}': objective.api_permission API '{a}' is "
+                        f"invalid. Valid: graph, exchange.")
+
+    az = objective.get("azure_role")
+    if az is not None:
+        if not isinstance(az, list):
+            errors.append(
+                f"attack_path '{name}': objective.azure_role must be a list of "
+                f"{{ role, scope }} entries.")
+        else:
+            for i, entry in enumerate(az):
+                if not isinstance(entry, dict) or not entry.get("role"):
+                    errors.append(
+                        f"attack_path '{name}': objective.azure_role[{i}] needs a `role`.")
+                    continue
+                scope = entry.get("scope", "subscription")
+                if scope not in _AZURE_RBAC_SCOPES:
+                    errors.append(
+                        f"attack_path '{name}': objective.azure_role[{i}].scope '{scope}' "
+                        f"is invalid. Valid: {', '.join(sorted(_AZURE_RBAC_SCOPES))}.")
+                elif scope in ("resource_group", "resource") and not entry.get("scope_ref"):
+                    errors.append(
+                        f"attack_path '{name}': objective.azure_role[{i}] scope '{scope}' "
+                        f"needs a `scope_ref`.")
+
+    # A direct over-privileged-MI path supports only the azure_role objective (the MI
+    # holds Azure RBAC). entra_role / api_permission on a managed identity is not modeled.
+    if direct_mi:
+        if objective.get("entra_role") is not None or objective.get("api_permission") is not None:
+            errors.append(
+                f"attack_path '{name}': a direct ManagedIdentityAbuse path "
+                f"(privilege_source: managed_identity) supports only an `azure_role` "
+                f"objective on the managed identity.")
+        if objective.get("azure_role") is None:
+            errors.append(
+                f"attack_path '{name}': a direct ManagedIdentityAbuse path needs an "
+                f"`azure_role` objective.")
+
+
+def _validate_mi_knobs(name, pe: Dict, vector: str, errors) -> None:
+    """ManagedIdentityAbuse source/target/flavor knobs + foothold<->source cross-checks."""
+    ps = pe.get("privilege_source", "stored_credential")
+    if ps not in _MI_PRIVILEGE_SOURCES:
+        errors.append(
+            f"attack_path '{name}': privilege_source '{ps}' is invalid. "
+            f"Valid: {', '.join(sorted(_MI_PRIVILEGE_SOURCES))}.")
+    direct = ps == "managed_identity"
+
+    src = pe.get("source_type")
+    if src is not None and src not in _MI_SOURCE_TYPES:
+        errors.append(
+            f"attack_path '{name}': source_type '{src}' is invalid. "
+            f"Valid: {', '.join(sorted(_MI_SOURCE_TYPES))}.")
+
+    tgt = pe.get("target_resource_type")
+    if direct:
+        if tgt is not None or pe.get("credential_type") is not None:
+            errors.append(
+                f"attack_path '{name}': a direct ManagedIdentityAbuse path "
+                f"(privilege_source: managed_identity) has no target — remove "
+                f"`target_resource_type` / `credential_type`.")
+    else:
+        if not tgt:
+            errors.append(
+                f"attack_path '{name}': ManagedIdentityAbuse (privilege_source: "
+                f"stored_credential) needs a `target_resource_type` "
+                f"({', '.join(sorted(_MI_TARGET_TYPES))}).")
+        elif tgt not in _MI_TARGET_TYPES:
+            errors.append(
+                f"attack_path '{name}': target_resource_type '{tgt}' is invalid. "
+                f"Valid: {', '.join(sorted(_MI_TARGET_TYPES))}.")
+
+    # Foothold vectors drop the attacker onto a compute resource of a specific type.
+    if vector in RESOURCE_FOOTHOLD_VECTORS and pe.get("source_type", "vm") != "vm":
+        errors.append(
+            f"attack_path '{name}': initial_access.vector '{vector}' (an exposed-host "
+            f"foothold) requires source_type 'vm'; got '{pe.get('source_type')}'.")
+    elif vector in WEBAPP_FOOTHOLD_VECTORS and pe.get("source_type") != "app_service":
+        errors.append(
+            f"attack_path '{name}': initial_access.vector '{vector}' (a vulnerable-web-app "
+            f"foothold) requires source_type 'app_service'; got '{pe.get('source_type')}'.")
+
+
+def _validate_objective(name, objective, warnings, errors) -> None:
+    if objective is None:
+        warnings.append(
+            f"attack_path '{name}' declares no objective - the reachability gate "
+            f"can't validate it (it will be reported 'unverified')."
+        )
+        return
+    if not isinstance(objective, dict):
+        errors.append(f"attack_path '{name}': objective must be a mapping.")
+        return
+
+    capability = objective.get("capability")
+    if not capability:
+        return  # name/impact only — gate reports 'unverified', not an error.
+    if capability not in capabilities.KNOWN_CAPABILITIES:
+        warnings.append(
+            f"attack_path '{name}': capability '{capability}' is not modelled in "
+            f"capabilities.py yet - the gate will mark it 'unverified'."
+        )
+        return
+    if capability == "entra_role" and not (objective.get("role") or objective.get("name")):
+        errors.append(
+            f"attack_path '{name}': objective capability 'entra_role' needs a "
+            f"`role:` (or `name:`) naming the target role."
+        )
+    elif capability in _TARGET_REF_CAPABILITIES and not objective.get("target_ref"):
+        errors.append(
+            f"attack_path '{name}': objective capability '{capability}' needs a "
+            f"`target_ref:` naming the resource/identity to reach."
+        )
+
+
+def _validate_initial_access(name, ia, errors) -> None:
+    if ia is None:
+        return  # absent is allowed; the gate flags it only if an objective needs a seed.
+    if not isinstance(ia, dict):
+        errors.append(f"attack_path '{name}': initial_access must be a mapping.")
+        return
+    # Two shapes: an exposed-host foothold (`vector:` + `target_ref:`) or a
+    # compromised identity (`principal_ref:`).
+    vector = ia.get("vector")
+    if vector is not None:
+        if vector not in RESOURCE_SEED_VECTORS:
+            errors.append(
+                f"attack_path '{name}': initial_access vector '{vector}' is invalid. "
+                f"Valid: {', '.join(sorted(RESOURCE_SEED_VECTORS))}.")
+        if not ia.get("target_ref"):
+            errors.append(
+                f"attack_path '{name}': initial_access vector '{vector}' needs a "
+                f"`target_ref` (the host/app the attacker lands on).")
+        return
+    if not ia.get("principal_ref"):
+        errors.append(
+            f"attack_path '{name}': initial_access has no `principal_ref` "
+            f"(the identity the attacker starts from) or `vector`/`target_ref` "
+            f"(an exposed-host foothold)."
+        )
+
+
+def _validate_assignments(name, path, errors):
+    """Validate each assignment's type/principal_ref and return the id sets the
+    steps link against: (assignment_ids, data_inject_ids, credential_refs)."""
+    assignment_ids, inject_ids, cred_refs = set(), set(), set()
+
+    assignments = path.get("assignments") or []
+    if not isinstance(assignments, list):
+        errors.append(f"attack_path '{name}': assignments must be a list.")
+        assignments = []
+    for idx, a in enumerate(assignments):
+        if not isinstance(a, dict):
+            errors.append(f"attack_path '{name}': assignment #{idx} must be a mapping.")
+            continue
+        aid = a.get("id") or f"a{idx}"
+        assignment_ids.add(aid)
+        atype = a.get("type")
+        if not atype:
+            errors.append(f"attack_path '{name}': assignment '{aid}' has no `type`.")
+        elif atype not in ASSIGNMENT_TYPES:
+            errors.append(
+                f"attack_path '{name}': assignment '{aid}' has unknown type "
+                f"'{atype}'. Valid: {', '.join(sorted(ASSIGNMENT_TYPES))}."
+            )
+        if not a.get("principal_ref"):
+            errors.append(
+                f"attack_path '{name}': assignment '{aid}' has no `principal_ref`.")
+
+    for idx, d in enumerate(path.get("data_injects") or []):
+        if isinstance(d, dict):
+            inject_ids.add(d.get("id") or f"d{idx}")
+    for c in path.get("credentials") or []:
+        if isinstance(c, dict) and c.get("ref"):
+            cred_refs.add(c["ref"])
+
+    return assignment_ids, inject_ids, cred_refs
+
+
+def _validate_steps(name, steps, assignment_ids, readable_ids, errors) -> None:
+    """`uses:` must reference declared assignment ids; `reads:` must reference a
+    declared data_inject id or credential ref."""
+    if not isinstance(steps, list):
+        errors.append(f"attack_path '{name}': steps must be a list.")
+        return
+    for sidx, step in enumerate(steps):
+        if not isinstance(step, dict):
+            errors.append(f"attack_path '{name}': step #{sidx} must be a mapping.")
+            continue
+        label = step.get("name", f"#{sidx}")
+        for u in step.get("uses") or []:
+            if u not in assignment_ids:
+                errors.append(
+                    f"attack_path '{name}': step '{label}' uses unknown assignment "
+                    f"id '{u}'.")
+        for r in step.get("reads") or []:
+            if r not in readable_ids:
+                errors.append(
+                    f"attack_path '{name}': step '{label}' reads unknown "
+                    f"data_inject/credential id '{r}'.")

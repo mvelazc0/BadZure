@@ -154,4 +154,20 @@ site/
 scenarios/
 scenarios2/
 
-.test_configs/
+diagrams/
+
+# Generated graph diagrams & other artifacts
+generated.yml
+generated*.yml
+design.yml
+design.json
+*.graph.html
+generated*.html
+.claude/settings.local.json
+
+# BadZure Python redesign: track the offline test suite and its golden fixture.
+# These hold only fake/sample data — re-included here despite the inherited
+# `tests/` rule and the broad `*.tfvars.json` secrets rule (real tfvars stay ignored).
+!tests/
+!tests/*.py
+!terraform/fixture_full.tfvars.json

@@ -1,0 +1,29 @@
+# Tier-1 `technique:` sugar - same chain, new shape. Live test:
+#   python BadZure.py build --config examples/atomic/atomic_storage_theft_sp.yml --verbose
+#   python BadZure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 1
+    groups: 1
+    applications: 3
+  resources:
+    resource_groups: 2
+    storage_accounts: 1
+attack_paths:
+  storage_theft_sp:
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+        - 06b708a9-e830-4db3-a914-8e69da51d44f
+        - 19dbc75e-c2e2-444c-a770-ec69d8559fc7

@@ -1,0 +1,36 @@
+# Direct over-privileged managed identity -> ManagedIdentityAbuse (atomic).
+# The attacker brute-forces an internet-exposed VM, gains code execution, and acts as the
+# VM's managed identity, which is itself Owner on the subscription. One principal, no stored
+# credential. privilege_source: managed_identity selects the direct flavor; the objective is
+# the Azure RBAC the managed identity holds.
+#
+# Live test:
+#   python BadZure.py build --config examples/atomic/atomic_mi_direct_overprivileged.yml --verbose
+#   python BadZure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 2
+    groups: 1
+    applications: 2
+  resources:
+    resource_groups: 2
+    virtual_machines: 2
+attack_paths:
+  overprivileged_mi:
+    initial_access:
+      vector: exposed_rdp
+      expose_to_internet: true
+      credential: weak
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: managed_identity
+    objective:
+      azure_role:
+      - role: Owner
+        scope: subscription

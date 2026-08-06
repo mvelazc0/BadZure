@@ -1,0 +1,35 @@
+# Concept lab: implicit relationship — privilege inherited through a group.
+# The user holds no role directly. They are a member of a group, and the group
+# holds the privileged role. The privilege reaches the user through membership —
+# a level of indirection that hides the escalation from a per-user review.
+#
+# Verify: python BadZure.py check --config docs/labs/concepts/group-indirection.yml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+
+attack_paths:
+  group_member_to_app_admin:
+    objective:
+      name: "Global Administrator via a group's role"
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: >-
+        A user inherits Application Administrator through group membership, takes
+        over an app holding a privileged Graph permission, and escalates to Global
+        Administrator.
+    initial_access: { method: compromised_identity, principal_ref: robin }
+    identities:
+      users:        [{ ref: robin }]
+      groups:       [{ ref: app-operators }]
+      applications: [{ ref: role-manager-app }]
+    assignments:
+      # robin holds no role directly — the group does.
+      - { id: a1, type: group_membership, principal_ref: robin, group_ref: app-operators }
+      - { id: a2, type: entra_role, principal_ref: app-operators,
+          role: "Application Administrator" }
+      # Application Administrator can add credentials to any app; this one can
+      # promote to Global Administrator.
+      - { id: a3, type: entra_role, principal_ref: role-manager-app,
+          role: "Global Administrator" }
+    credentials:
+      - { ref: app_secret, app_ref: role-manager-app, type: password }

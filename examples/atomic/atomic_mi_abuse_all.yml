@@ -1,0 +1,135 @@
+# Tier-1 `technique:` sugar - same chain, new shape. Live test:
+#   python BadZure.py build --config examples/atomic/atomic_mi_abuse_all.yml --verbose
+#   python BadZure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 10
+    groups: 5
+    applications: 12
+  resources:
+    resource_groups: 2
+    key_vaults: 3
+    storage_accounts: 2
+    virtual_machines: 2
+    logic_apps: 1
+    automation_accounts: 2
+    function_apps: 2
+    app_services: 1
+    cosmos_dbs: 2
+attack_paths:
+  mi_vm_keyvault_user:
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+        - 06b708a9-e830-4db3-a914-8e69da51d44f
+        - 19dbc75e-c2e2-444c-a770-ec69d8559fc7
+  mi_vm_cosmos_user:
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: cosmos_db
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10
+  mi_logicapp_storage_sp:
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: logic_app
+      privilege_source: stored_credential
+      target_resource_type: storage_account
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10
+  mi_automation_keyvault_group_cert:
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: automation_account
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: certificate
+      assignment_type: group_member
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10
+  mi_automation_cosmos_sp_owner:
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: automation_account
+      privilege_source: stored_credential
+      target_resource_type: cosmos_db
+      credential_type: secret
+      assignment_type: group_owner
+    objective:
+      api_permission:
+        graph: 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8
+  mi_functionapp_storage_user_cert:
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: function_app
+      privilege_source: stored_credential
+      target_resource_type: storage_account
+      credential_type: certificate
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f
+  mi_functionapp_keyvault_user_cert:
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: function_app
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: certificate
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 19dbc75e-c2e2-444c-a770-ec69d8559fc7
+  mi_appservice_keyvault_user:
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: app_service
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f

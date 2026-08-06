@@ -2549,6 +2549,67 @@ VALID_TECHNIQUES = [
     'CosmosDBSecretTheft'
 ]
 
+# Initial-access vectors — HOW an attacker first gains a foothold (distinct from
+# WHICH identity/resource they land on). The identity-based vectors are the
+# historical default: `user` / `service_principal` mean "the attacker holds this
+# identity's credentials". The resource-foothold vectors land the attacker on a
+# compute resource (code execution on the host), from which managed-identity and
+# (later) filesystem-secret chains continue. The `initial_access` knob accepts any
+# of these. See dev-docs/redesign/initial-access-vectors.md.
+INITIAL_ACCESS_VECTORS = [
+    'user',                # compromised credentials of a user
+    'service_principal',   # compromised credentials of a service principal
+    'exposed_rdp',         # internet-reachable RDP, brute-forced -> code execution
+    'exposed_ssh',         # internet-reachable SSH, brute-forced -> code execution
+    'vulnerable_web_app',  # internet-facing web app with a code-exec bug -> code execution
+]
+
+# The subset that lands on a compute resource rather than an identity. These seed
+# the reachability walk with the HOST node — controlling a compute resource already
+# means controlling its managed identity, so existing MI chains continue unchanged.
+RESOURCE_FOOTHOLD_VECTORS = ['exposed_rdp', 'exposed_ssh']
+
+# Web-app footholds land on an App Service via a deployed-code vulnerability (not a
+# VM exposure). They are resource-seed vectors like the VM footholds, but they do
+# NOT drive the VM-only projection (_derive_exposed_vms / NSG / public IP / OS
+# coercion) — they project a vulnerable-app variant onto an App Service instead.
+WEBAPP_FOOTHOLD_VECTORS = ['vulnerable_web_app']
+
+# Every vector that seeds the reachability walk at a RESOURCE (the host/app the
+# attacker lands on) rather than at an identity. Drives the generic "seed at a
+# resource" logic (_seed_from_credentials, the formatter, the reachability first
+# step). VM-specific behavior keeps keying off RESOURCE_FOOTHOLD_VECTORS.
+RESOURCE_SEED_VECTORS = RESOURCE_FOOTHOLD_VECTORS + WEBAPP_FOOTHOLD_VECTORS
+
+# The credential entry vector: the attacker already holds an existing identity's
+# credentials. `principal_type` (required) names which identity type. This replaces the
+# former `user` / `service_principal` vectors — those are now principal_type values.
+COMPROMISED_CREDENTIAL_VECTOR = 'compromised_credential'
+CREDENTIAL_PRINCIPAL_TYPES = ('user', 'service_principal')
+
+# Every vector an atomic `initial_access:` accepts: the credential vector + the
+# resource-seed footholds.
+ATOMIC_INITIAL_ACCESS_VECTORS = [COMPROMISED_CREDENTIAL_VECTOR] + RESOURCE_SEED_VECTORS
+
+# Web-app vuln variants that are actually built, mapped to the in-repo app
+# directory under terraform/webapp/ the builder projects onto the foothold app.
+WEBAPP_VARIANT_DIR = {'rce': 'vulnerable_rce'}
+WEBAPP_VULN_VARIANTS = list(WEBAPP_VARIANT_DIR)
+WEBAPP_DEFAULT_VARIANT = 'rce'
+WEBAPP_VULN_PATH = '/diag?host='  # the command-injectable endpoint on the app
+
+# Per-vector protocol/port + the OS it implies, for operator output + NSG narration.
+FOOTHOLD_VECTOR_PROTOCOL = {
+    'exposed_rdp': {'protocol': 'RDP', 'port': 3389, 'os_type': 'Windows'},
+    'exposed_ssh': {'protocol': 'SSH', 'port': 22, 'os_type': 'Linux'},
+}
+
+# A deliberately weak local-admin password for `credential: weak` exposed-host
+# footholds, so the host is genuinely brute-forceable in a red-team exercise. The
+# default `credential: known` keeps the strong generated password (operator-known,
+# surfaced in the build output so the operator can log in directly).
+WEAK_FOOTHOLD_PASSWORD = "Password123!"
+
 # Role ID constants for admin role abuse techniques
 APP_ADMIN_ROLE_ID = "9b895d92-2cd3-44c7-9d02-a6ac2d5ea5c3"
 CLOUD_APP_ADMIN_ROLE_ID = "158c047a-c907-4556-b7ef-446551a6b5f7"

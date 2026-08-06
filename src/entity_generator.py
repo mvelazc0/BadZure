@@ -233,7 +233,7 @@ class EntityGenerator:
         for rg in random_rgs:
             rgs[rg] = {
                 'name': rg,
-                'location': "West US"
+                'location': "West US 2"
             }
         
         return rgs
@@ -245,7 +245,7 @@ class EntityGenerator:
         
         for spec in rg_specs:
             name = spec.get('name', 'random')
-            location = spec.get('location', 'West US')
+            location = spec.get('location', 'West US 2')
             
             if name == 'random':
                 name = random.choice(rg_names)
@@ -283,7 +283,7 @@ class EntityGenerator:
             
             kvs[kv_name] = {
                 'name': kv_name,
-                'location': "West US",
+                'location': "West US 2",
                 'resource_group_name': random_rg,
                 'sku_name': "standard"
             }
@@ -297,7 +297,7 @@ class EntityGenerator:
         
         for spec in kv_specs:
             name = spec.get('name', 'random')
-            rg_name = spec.get('resource_group')
+            rg_name = spec.get('resource_group', 'random')
             
             if name == 'random':
                 base_name = random.choice(kv_names)
@@ -308,7 +308,7 @@ class EntityGenerator:
             if rg_name == 'random':
                 if not resource_groups:
                     continue
-                rg_name = list(resource_groups.keys())[0]
+                rg_name = random.choice(list(resource_groups.keys()))
             
             # Validate resource group exists
             if rg_name not in resource_groups:
@@ -349,7 +349,7 @@ class EntityGenerator:
             
             sas[unique_sa_name] = {
                 'name': unique_sa_name.lower(),
-                'location': "West US",
+                'location': "West US 2",
                 'resource_group_name': random_rg,
                 'account_tier': "Standard",
                 'account_replication_type': "LRS"
@@ -364,7 +364,7 @@ class EntityGenerator:
         
         for spec in sa_specs:
             name = spec.get('name', 'random')
-            rg_name = spec.get('resource_group')
+            rg_name = spec.get('resource_group', 'random')
             
             if name == 'random':
                 base_name = random.choice(sa_names)
@@ -375,7 +375,7 @@ class EntityGenerator:
             if rg_name == 'random':
                 if not resource_groups:
                     continue
-                rg_name = list(resource_groups.keys())[0]
+                rg_name = random.choice(list(resource_groups.keys()))
             
             # Validate resource group exists
             if rg_name not in resource_groups:
@@ -418,7 +418,7 @@ class EntityGenerator:
             
             vms[vm_name] = {
                 "name": vm_name,
-                "location": "West US",
+                "location": "West US 2",
                 "resource_group_name": random_rg,
                 "vm_size": "Standard_D2s_v3",
                 "admin_username": "badzureadmin",
@@ -435,7 +435,7 @@ class EntityGenerator:
         
         for spec in vm_specs:
             name = spec.get('name', 'random')
-            rg_name = spec.get('resource_group')
+            rg_name = spec.get('resource_group', 'random')
             os_type = spec.get('os_type', 'Linux')
             
             if name == 'random':
@@ -447,7 +447,7 @@ class EntityGenerator:
             if rg_name == 'random':
                 if not resource_groups:
                     continue
-                rg_name = list(resource_groups.keys())[0]
+                rg_name = random.choice(list(resource_groups.keys()))
             
             # Validate resource group exists
             if rg_name not in resource_groups:
@@ -659,6 +659,73 @@ class EntityGenerator:
             }
 
         return function_apps
+
+    def generate_app_services(self, count: int, resource_groups: Dict) -> Dict:
+        """Generate random App Services (Linux web apps)."""
+        app_services = {}
+
+        if count == 0 or not resource_groups:
+            return app_services
+
+        # Load App Service names from file
+        app_service_names = self._read_names_from_file('app-services.txt')
+
+        # Shuffle and select the required number of names
+        random.shuffle(app_service_names)
+        selected_names = app_service_names[:count]
+
+        rg_list = list(resource_groups.keys())
+
+        for base_name in selected_names:
+            rg_name = random.choice(rg_list)
+            # Add random suffix for global uniqueness (App Service names must be globally unique)
+            random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=4))
+            name = f"{base_name}-{random_suffix}"
+
+            app_services[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'os_type': 'linux'
+            }
+
+        return app_services
+
+    def generate_app_services_targeted(self, app_service_specs: List[Dict], resource_groups: Dict) -> Dict:
+        """Generate App Services from targeted specifications."""
+        app_services = {}
+
+        # Load App Service names from file
+        app_service_names = self._read_names_from_file('app-services.txt')
+
+        for spec in app_service_specs:
+            name = spec.get('name', 'random')
+            rg_name = spec.get('resource_group', 'random')
+
+            if name == 'random':
+                # Select random name from file
+                base_name = random.choice(app_service_names)
+                random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=2))
+                name = f"{base_name}-{random_suffix}"
+
+            # Handle "random" resource group reference
+            if rg_name == 'random':
+                if not resource_groups:
+                    continue
+                rg_name = random.choice(list(resource_groups.keys()))
+
+            # Validate resource group exists
+            if rg_name not in resource_groups:
+                continue
+
+            app_services[name] = {
+                'name': name,
+                'location': resource_groups[rg_name]['location'],
+                'resource_group_name': rg_name,
+                'os_type': 'linux'
+            }
+
+        return app_services
 
     # Cosmos DB generation
     def generate_cosmos_dbs(self, count: int, resource_groups: Dict) -> Dict:

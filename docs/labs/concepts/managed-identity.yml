@@ -1,0 +1,37 @@
+# Concept lab: implicit relationship — access through a resource's managed identity.
+# An operator holds Contributor on a virtual machine, a compute-management role
+# that says nothing about data. But the VM runs as a managed identity, and
+# controlling the VM means acting as that identity, which can read a sensitive
+# Cosmos DB database the operator was never directly granted. The access is
+# implicit in the resource.
+#
+# Verify: python BadZure.py check --config docs/labs/concepts/managed-identity.yml
+tenant: { tenant_id: null, domain: null, subscription_id: null }
+
+attack_paths:
+  vm_identity_to_cosmos:
+    objective:
+      name: "Sensitive Cosmos DB access via a VM's managed identity"
+      capability: read_cosmos
+      target_ref: cosmos-customers
+      impact: high
+      description: >-
+        An operator with Contributor on a virtual machine controls its managed
+        identity, which can read a sensitive Cosmos DB database.
+    initial_access: { method: compromised_identity, principal_ref: sam.rivera }
+    identities:
+      users: [{ ref: sam.rivera }]
+    resources:
+      resource_groups: [{ ref: rg-ops, location: East US }]
+      virtual_machines: [{ ref: vm-jobs, resource_group: rg-ops }]
+      cosmos_dbs:       [{ ref: cosmos-customers, resource_group: rg-ops }]
+    assignments:
+      # sam holds a compute-management role on the VM.
+      - { id: a1, type: azure_rbac, principal_ref: sam.rivera,
+          role: "Virtual Machine Contributor", scope_ref: vm-jobs }
+      # the VM's managed identity can read the Cosmos database (data plane).
+      - { id: a2, type: azure_rbac, principal_ref: vm-jobs,
+          principal_type: managed_identity, mi_source: vm,
+          role: "00000000-0000-0000-0000-000000000002",
+          scope_ref: cosmos-customers, scope_resource_type: cosmos_db,
+          data_plane: cosmos_sql }

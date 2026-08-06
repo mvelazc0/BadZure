@@ -1,0 +1,32 @@
+# Tier-1 `technique:` sugar - same chain, new shape. Live test:
+#   python BadZure.py build --config examples/atomic/atomic_mi_abuse_functionapp_cert.yml --verbose
+#   python BadZure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 2
+    groups: 1
+    applications: 2
+  resources:
+    resource_groups: 2
+    key_vaults: 1
+    function_apps: 1
+attack_paths:
+  mi_abuse_functionapp_cert:
+    initial_access:
+      vector: compromised_credential
+      principal_type: user
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: function_app
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: certificate
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph: 06b708a9-e830-4db3-a914-8e69da51d44f

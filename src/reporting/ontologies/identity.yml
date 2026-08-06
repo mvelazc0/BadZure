@@ -1,0 +1,69 @@
+name: identity
+
+node_types:
+  Organization:
+    properties: [users, groups, service_principals, managed_identities, administrative_units]
+  SecurityPrincipalCatalog:
+    properties: [count]
+    required_properties: [count]
+  AdministrativeUnitCatalog:
+    properties: [count]
+    required_properties: [count]
+  IdentityCategory:
+    properties: [category, count]
+    required_properties: [category, count]
+  IdentitySummary:
+    properties:
+      - identity_type
+      - count
+      - members
+      - group_memberships
+      - group_ownerships
+      - application_ownerships
+      - administrative_unit_memberships
+      - credential_count
+      - credentialed_principals
+      - source_types
+    required_properties: [count]
+  Group:
+    properties:
+      - member_count
+      - owner_count
+      - user_members
+      - group_members
+      - service_principal_members
+      - user_owners
+      - service_principal_owners
+    required_properties: [member_count, owner_count]
+  AdministrativeUnit:
+    properties: [user_count, group_count]
+    required_properties: [user_count, group_count]
+
+edge_types:
+  HAS_PRINCIPAL_CATALOG:
+    from: [Organization]
+    to: [SecurityPrincipalCatalog]
+    properties: []
+  HAS_ADMINISTRATIVE_UNITS:
+    from: [Organization]
+    to: [AdministrativeUnitCatalog]
+    properties: []
+  HAS_IDENTITY_CATEGORY:
+    from: [Organization, SecurityPrincipalCatalog]
+    to: [IdentityCategory]
+    properties: [count]
+    required_properties: [count]
+  SUMMARIZES:
+    from: [IdentityCategory]
+    to: [IdentitySummary]
+    properties: [count]
+    required_properties: [count]
+  CONTAINS_IDENTITY:
+    from: [IdentityCategory, AdministrativeUnitCatalog]
+    to: [Group, AdministrativeUnit]
+    properties: []
+  NESTED_IN:
+    from: [Group]
+    to: [Group]
+    properties: [origin]
+    required_properties: [origin]

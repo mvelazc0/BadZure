@@ -1,0 +1,26 @@
+# Tier-1 `technique:` sugar - same chain, new shape. Live test:
+#   python BadZure.py build --config examples/atomic/atomic_app_ownership_sp_api.yml --verbose
+#   python BadZure.py destroy --verbose
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+baseline:
+  identities:
+    users: 1
+    groups: 1
+    applications: 3
+attack_paths:
+  app_ownership_sp_api:
+    initial_access:
+      vector: compromised_credential
+      principal_type: service_principal
+    privilege_escalation:
+      technique: ApplicationOwnershipAbuse
+      assignment_type: direct
+    objective:
+      api_permission:
+        graph:
+        - 06b708a9-e830-4db3-a914-8e69da51d44f
+        - 9e3f62cf-ca93-4989-b6ce-bf83c28f9fe8

@@ -1,0 +1,61 @@
+# Chained (explicit-graph) vulnerable-web-app foothold.
+# The attacker exploits an internet-facing App Service (command injection on the
+# "network diagnostics" page), lands with code execution in the app's process
+# context, and the app's managed identity can read a Key Vault where a
+# high-privilege app's secret is planted. Demonstrates the InitialAccessVector
+# `vector: vulnerable_web_app` shape feeding a hand-authored chain.
+#
+# Live test:
+#   python BadZure.py build --config examples/chained/chained_vulnerable_webapp.yml --verbose
+#   python BadZure.py destroy --verbose
+#
+# kv-1999ba-xz must be a GLOBALLY UNIQUE Key Vault name (3-24 chars, lowercase
+# alphanumerics + hyphens) — change it in all three places below. app01-portal is a
+# GLOBALLY UNIQUE App Service name (on azurewebsites.net) — change it too.
+
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+attack_paths:
+  vulnerable_webapp_chain:
+    objective:
+      name: "Key Vault secrets via a vulnerable web app"
+      capability: read_secrets
+      target_ref: kv-1999ba-xz
+      impact: high
+      description: "Exploit an internet-facing web app, then use its managed identity to read a vault secret."
+    metadata:
+      complexity: low
+      tags: [initial-access, managed-identity, app-service]
+      mitre: [T1190, T1078, T1552]
+
+    initial_access:
+      vector: vulnerable_web_app
+      target_ref: app01-portal
+      variant: rce
+      expose_to_internet: false   # false: restrict the app to your operator IP; true: open to the internet
+
+    identities:
+      applications: [{ ref: app_highpriv }]
+    resources:
+      resource_groups:
+        - { ref: rg-app,  location: "West US" }
+        - { ref: rg-data, location: "West US" }
+      app_services: [{ ref: app01-portal, resource_group: rg-app }]
+      key_vaults:    [{ ref: kv-1999ba-xz }]   # random placement across the declared groups
+
+    assignments:
+      # the foothold app's managed identity can read the vault's secrets
+      - { id: a1, type: azure_rbac, principal_ref: app01-portal,
+          principal_type: managed_identity, mi_source_type: app_service,
+          role: "Key Vault Secrets User", scope_ref: kv-1999ba-xz }
+
+    credentials:
+      - { ref: app_secret, app_ref: app_highpriv, type: password }
+
+    data_injects:
+      - { id: d1, material: app_secret, credential_ref: app_secret,
+          location: key_vault_secret, location_ref: kv-1999ba-xz,
+          name: client-secret-app-highpriv }
