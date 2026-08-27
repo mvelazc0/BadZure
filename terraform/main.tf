@@ -45,11 +45,19 @@ data "azuread_domains" "example" {
 }
 
 data "azuread_service_principal" "microsoft_graph" {
-  display_name = "Microsoft Graph"
+  client_id = "00000003-0000-0000-c000-000000000000"
 }
 
+# "Office 365 Exchange Online" is NOT pre-provisioned. Its service principal only
+# exists once the tenant has actually stood up Exchange: an M365 license or trial.
+# Terraform resolves every data source in the configuration regardless of whether
+# anything references it, so an unconditional lookup here failed EVERY deployment
+# into a fresh Entra-only tenant.
+#  Instantiate it only when a config actually asks for one.
 data "azuread_service_principal" "exchange_online" {
-  display_name = "Office 365 Exchange Online"
+  count = length([for v in local.g_api_permission : v if v.api_type == "exchange"]) > 0 ? 1 : 0
+
+  client_id = "00000002-0000-0ff1-ce00-000000000000"
 }
 
 resource "azuread_user" "users" {
