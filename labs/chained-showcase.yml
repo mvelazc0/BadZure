@@ -1,0 +1,127 @@
+# =============================================================================
+# Documentation lab: the chained showcase.
+#
+# A believable "Northwind Tech" org baseline (used for the identity / resources /
+# assignments environment panels) with ONE multi-technique attack path layered on
+# top. The chain weaves four privilege-escalation techniques into a single graph,
+# so the docs can teach anatomy, chaining, and how to read a full lab report from
+# one rendered file.
+#
+# Panel keys the docs embed:
+#   identity · resources · assignments      (environment)
+#   posture-pipeline_to_ga · attack-pipeline_to_ga
+#
+# Verify:  python BadZure.py check  --config docs/labs/chained-showcase.yml
+# Preview: python BadZure.py report --config docs/labs/chained-showcase.yml
+# =============================================================================
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+# The background org — a small startup. Everything here is origin=random (benign
+# permission sprawl), the realistic tenant the attack path hides inside.
+baseline:
+  identities:
+    users:
+      - { ref: alice.chen }       # Engineering
+      - { ref: bob.singh }        # Engineering
+      - { ref: carol.diaz }       # Sales
+      - { ref: dave.kim }         # Finance
+      - { ref: eve.martin }       # IT
+    groups:
+      - { ref: Engineering }
+      - { ref: Sales }
+      - { ref: Finance }
+      - { ref: IT-Admins }
+    applications:
+      - { ref: cicd-pipeline }
+      - { ref: backup-service }
+    administrative_units:
+      - { ref: Finance-Unit }
+  resources:
+    resource_groups:
+      - { ref: rg-prod, location: East US }
+      - { ref: rg-dev,  location: East US }
+    key_vaults:
+      - { ref: kv-northwind-prod, resource_group: rg-prod }
+    storage_accounts:
+      - { ref: stnorthwindprod12 }
+  assignments:
+    - { type: group_membership, principal_ref: alice.chen, group_ref: Engineering }
+    - { type: group_membership, principal_ref: bob.singh,  group_ref: Engineering }
+    - { type: group_membership, principal_ref: carol.diaz, group_ref: Sales }
+    - { type: group_membership, principal_ref: dave.kim,   group_ref: Finance }
+    - { type: group_membership, principal_ref: eve.martin, group_ref: IT-Admins }
+    - { type: entra_role, principal_ref: eve.martin, role: "Helpdesk Administrator" }
+    - { type: azure_rbac, principal_ref: cicd-pipeline, role: "Contributor", scope_ref: rg-dev }
+    - { type: azure_rbac, principal_ref: IT-Admins, role: "Reader", scope_ref: rg-prod }
+    - { type: azure_rbac, principal_ref: backup-service, role: "Storage Blob Data Reader",
+        scope_ref: stnorthwindprod12 }
+    - { type: api_permission, principal_ref: cicd-pipeline, app_role: "User.Read.All", api_type: graph }
+    - { type: au_membership, principal_ref: dave.kim, au_ref: Finance-Unit }
+    - { type: au_membership, principal_ref: Finance, au_ref: Finance-Unit }
+    - { type: group_ownership, principal_ref: eve.martin, group_ref: IT-Admins }
+    - { type: app_ownership,   principal_ref: eve.martin, app_ref: cicd-pipeline }
+    - { type: app_ownership,   principal_ref: alice.chen, app_ref: backup-service }
+  credentials:
+    - { ref: cicd-secret,   app_ref: cicd-pipeline,  type: password, display_name: github-actions }
+    - { ref: backup-secret, app_ref: backup-service, type: password, display_name: backup-job }
+  data_injects:
+    - { material: literal, location_type: key_vault_secret, location_ref: kv-northwind-prod,
+        name: db-connection-string, literal_value: "FAKE-Server=prod;Password=placeholder" }
+
+# The deliberate misconfiguration: one path chaining four techniques to Global
+# Administrator. Its entities are declared inline (named refs the docs can quote).
+attack_paths:
+  pipeline_to_ga:
+    objective:
+      name: "Global Administrator via CI/CD pipeline"
+      capability: entra_role
+      role: "Global Administrator"
+      impact: critical
+      description: >-
+        A leaked deployment service-principal secret escalates through application
+        ownership, group membership, a virtual-machine managed identity, and a Key
+        Vault secret theft, all the way to Global Administrator.
+    initial_access:
+      method: compromised_identity
+      principal_ref: deploy-agent   # a service principal — its secret is auto-minted
+
+    identities:
+      applications:
+        - { ref: deploy-agent }     # foothold: leaked CI/CD secret
+        - { ref: release-bot }      # pivot app it owns
+        - { ref: directory-sync }   # the looted Global Administrator app
+      groups:
+        - { ref: platform-eng }     # carries the VM control role
+    resources:
+      resource_groups:
+        - { ref: rg-compute, location: East US }
+      virtual_machines: [{ ref: vm-build01, resource_group: rg-compute }]
+      key_vaults:       [{ ref: kv-pipeline-secrets, resource_group: rg-compute }]
+
+    assignments:
+      # 1) deploy-agent owns release-bot -> can mint a credential on it and act as it.
+      - { id: own1, type: app_ownership, principal_ref: deploy-agent, app_ref: release-bot }
+      # 2) release-bot is a member of platform-eng.
+      - { id: mem1, type: group_membership, principal_ref: release-bot, group_ref: platform-eng }
+      # 3) platform-eng holds Virtual Machine Contributor on vm-build01 -> control the
+      #    VM and act as its system-assigned managed identity.
+      - { id: rbac1, type: azure_rbac, principal_ref: platform-eng,
+          role: "Virtual Machine Contributor", scope_ref: vm-build01 }
+      # 4) vm-build01's managed identity can read the pipeline vault.
+      - { id: rbac2, type: azure_rbac, principal_ref: vm-build01,
+          principal_type: managed_identity, mi_source: vm,
+          role: "Key Vault Secrets User", scope_ref: kv-pipeline-secrets }
+      # 5) the looted app is Global Administrator — controlling it is the escalation.
+      - { id: role1, type: entra_role, principal_ref: directory-sync, role: "Global Administrator" }
+
+    credentials:
+      - { ref: ga_secret, app_ref: directory-sync, type: password }
+
+    data_injects:
+      # plant directory-sync's client secret in the vault the VM's MI can read.
+      - { id: d1, material: app_secret, credential_ref: ga_secret,
+          location: key_vault_secret, location_ref: kv-pipeline-secrets,
+          name: client-secret-directory-sync }

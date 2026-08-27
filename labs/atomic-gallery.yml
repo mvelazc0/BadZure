@@ -1,0 +1,100 @@
+# =============================================================================
+# Documentation lab: the atomic technique gallery.
+#
+# One attack path per privilege-escalation technique, with STABLE path names so
+# the docs can embed each one by panel key (e.g. ?embed=attack-kv_theft). The
+# docs build renders this once; every technique page embeds a panel from it.
+#
+# Verify:  python BadZure.py check  --config docs/labs/atomic-gallery.yml
+# Preview: python BadZure.py report --config docs/labs/atomic-gallery.yml
+# =============================================================================
+tenant:
+  tenant_id: null
+  domain: null
+  subscription_id: null
+
+# A small realistic org the techniques pick their victim and target from. The
+# assignments block scatters benign grants (permission sprawl) so the posture
+# graphs show the attack spine standing out from surrounding context.
+baseline:
+  identities: { users: 12, groups: 5, applications: 10 }
+  resources:
+    resource_groups: 4
+    key_vaults: 3
+    storage_accounts: 2
+    cosmos_dbs: 2
+    virtual_machines: 2
+  assignments:
+    group_memberships: 6
+    entra_roles: 4
+    api_permissions: 4
+    azure_rbac: 4
+    group_ownerships: 3
+    app_ownerships: 2
+
+attack_paths:
+
+  # Identity plane -------------------------------------------------------------
+
+  app_ownership:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: ApplicationOwnershipAbuse
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+
+  app_admin:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: ApplicationAdministratorAbuse
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+
+  cloud_app_admin:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: CloudAppAdministratorAbuse
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+
+  # Cross-plane: managed identity ---------------------------------------------
+
+  mi_abuse:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: ManagedIdentityAbuse
+      source_type: vm
+      privilege_source: stored_credential
+      target_resource_type: key_vault
+      credential_type: secret
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+
+  # Resource plane: direct secret / certificate theft --------------------------
+
+  kv_theft:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: KeyVaultSecretTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+
+  storage_theft:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: StorageCertificateTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
+
+  cosmos_theft:
+    initial_access: { vector: compromised_credential, principal_type: user }
+    privilege_escalation:
+      technique: CosmosDBSecretTheft
+      assignment_type: direct
+    objective:
+      entra_role: 62e90394-69f5-4237-9190-012177145e10   # Global Administrator
