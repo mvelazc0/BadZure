@@ -190,6 +190,23 @@ def test_plan_does_not_use_detailed_exitcode():
     print("ok: terraform plan runs without -detailed-exitcode")
 
 
+def test_state_list_without_state_file_skips_terraform():
+    """A first build has no hub state: state_list must return [] without
+    running `terraform state list` (which fails and logs a warning)."""
+    import tempfile
+    from src.terraform_manager import TerraformManager
+    mgr = TerraformManager("terraform/telemetry")
+    mgr.terraform_dir = tempfile.mkdtemp(prefix="badzure-hub-")
+
+    def fail(*args, **kwargs):
+        raise AssertionError("terraform should not run without a state file")
+
+    mgr.tf.cmd = fail
+    assert mgr.state_list() == []
+    os.rmdir(mgr.terraform_dir)
+    print("ok: state_list skips terraform when there is no state file")
+
+
 def _run_all():
     tests = [(k, v) for k, v in sorted(globals().items())
              if k.startswith("test_") and callable(v)]

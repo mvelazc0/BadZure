@@ -86,6 +86,10 @@ class TerraformManager:
         """`terraform state list`: every resource address currently in this
         root's state. Empty on a fresh clone (no state file) or an empty state,
         which is how the telemetry hub decides whether to adopt."""
+        # No state file yet (first build, fresh clone): skip Terraform, which
+        # would fail with "No state file was found!" and log it as a warning.
+        if not os.path.exists(os.path.join(self.terraform_dir, "terraform.tfstate")):
+            return []
         return_code, stdout, stderr = self._run(self.tf.cmd, 'state', 'list',
                                                  capture_output=True)
         if return_code != 0:
