@@ -2680,3 +2680,71 @@ VALID_ASSIGNMENT_TYPES = ['direct', 'group_member', 'group_owner']
 # - directory: Role applies tenant-wide (default, existing behavior)
 # - application: Role scoped to a specific application only
 VALID_SCOPE_TYPES = ['directory', 'application']
+
+# ============================================================================
+# Telemetry constants (Phase 2 of dev-docs/redesign/telemetry-implementation-plan.md)
+# ============================================================================
+
+STORAGE_SERVICE_SUFFIXES = ("/blobServices/default", "/fileServices/default",
+                            "/queueServices/default", "/tableServices/default")
+
+# kind prefix -> (model entity map, sub-resource suffixes, destination_type, log_mode)
+# log_mode: "allLogs" (enable Azure's allLogs category group) or "discover" (enable
+# each category Azure reports for the resource, for types without allLogs).
+TELEMETRY_LOGGED_KINDS = {
+    "key_vault":          ("key_vaults",          ("",),  "Dedicated", "allLogs"),
+    "storage_account":    ("storage_accounts",    STORAGE_SERVICE_SUFFIXES, None, "allLogs"),
+    "function_storage":   ("function_apps",       STORAGE_SERVICE_SUFFIXES, None, "allLogs"),
+    "cosmos_db":          ("cosmos_dbs",          ("",),  "Dedicated", "allLogs"),
+    "app_service":        ("app_services",        ("",),  None, "allLogs"),
+    "function_app":       ("function_apps",       ("",),  None, "allLogs"),
+    "logic_app":          ("logic_apps",          ("",),  None, "allLogs"),
+    "automation_account": ("automation_accounts", ("",),  None, "allLogs"),
+    "app_service_plan":   ("app_services",        ("",),  None, "allLogs"),   # VERIFY_LIVE, see below
+    "function_plan":      ("function_apps",       ("",),  None, "allLogs"),   # VERIFY_LIVE, see below
+    "nsg":                ("virtual_machines",    ("",),  None, "allLogs"),
+}
+
+# Terraform resource types that exist in a lab but get no diagnostic setting.
+TELEMETRY_EXCLUDED_TYPES = {       # type -> (reason code, human reason)
+    "azurerm_linux_virtual_machine":   ("vm_needs_guest_agent", "VMs need a guest agent for useful logs (not in v1)"),
+    "azurerm_windows_virtual_machine": ("vm_needs_guest_agent", "VMs need a guest agent for useful logs (not in v1)"),
+    "azurerm_public_ip":               ("ddos_only", "Public IP logs only emit with DDoS Network Protection"),
+    "azurerm_virtual_network":         ("legacy_category", "VNet's only log category is legacy and never emits"),
+}
+TELEMETRY_NO_LOG_TYPES = frozenset({ # have no resource logs of their own
+    "azurerm_resource_group", "azurerm_network_interface", "azurerm_subnet",
+    "azurerm_network_interface_security_group_association",
+    "azurerm_cosmosdb_sql_database", "azurerm_cosmosdb_sql_container",
+    "azurerm_role_assignment", "azurerm_cosmosdb_sql_role_assignment",
+    "azurerm_key_vault_secret", "azurerm_key_vault_certificate",
+    "azurerm_storage_container", "azurerm_storage_blob",
+})
+TELEMETRY_VIA_WORKSPACE_TYPES = frozenset({"azurerm_application_insights"})
+# kind prefix -> the Terraform type it corresponds to (for the "every type decided" test)
+TELEMETRY_KIND_TF_TYPE = {
+    "key_vault": "azurerm_key_vault", "storage_account": "azurerm_storage_account",
+    "function_storage": "azurerm_storage_account", "cosmos_db": "azurerm_cosmosdb_account",
+    "app_service": "azurerm_linux_web_app", "function_app": "azurerm_linux_function_app",
+    "logic_app": "azurerm_logic_app_workflow", "automation_account": "azurerm_automation_account",
+    "app_service_plan": "azurerm_service_plan", "function_plan": "azurerm_service_plan",
+    "nsg": "azurerm_network_security_group",
+}
+# Entra categories. Used only when the live category list can't be read (Phase 5
+# discovers it from Azure). Snapshot of the portal's list, 2026-09-27.
+ENTRA_CATEGORIES_FALLBACK = (
+    "AuditLogs", "SignInLogs", "NonInteractiveUserSignInLogs",
+    "ServicePrincipalSignInLogs", "ManagedIdentitySignInLogs", "ProvisioningLogs",
+    "ADFSSignInLogs", "RiskyUsers", "UserRiskEvents", "NetworkAccessTrafficLogs",
+    "RiskyServicePrincipals", "ServicePrincipalRiskEvents", "EnrichedOffice365AuditLogs",
+    "MicrosoftGraphActivityLogs", "RemoteNetworkHealthLogs", "NetworkAccessAlerts",
+    "NetworkAccessConnectionEvents", "MicrosoftServicePrincipalSignInLogs",
+    "AzureADGraphActivityLogs", "NetworkAccessGenerativeAIInsights",
+    "GraphNotificationsActivityLogs", "RiskyAgents", "AgentRiskEvents",
+    "MicrosoftGraphPolicyLogs", "PreAuthenticationDiscoveryLogs",
+)
+# Subscription settings take no category groups, and this list is fixed by Azure.
+ACTIVITY_LOG_CATEGORIES = ("Administrative", "Security", "ServiceHealth", "Alert",
+                           "Recommendation", "Policy", "Autoscale", "ResourceHealth")
+TELEMETRY_HUB_RG = "badzure-telemetry"
+TELEMETRY_DIAG_SETTING_NAME = "badzure-diag"

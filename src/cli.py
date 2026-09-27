@@ -23,6 +23,7 @@ from src.reporting.pipeline import build_report_html
 import src.dataplane as dataplane
 import src.utils as utils
 from src.constants import WEBAPP_FOOTHOLD_VECTORS
+from src import telemetry
 
 
 class BuildCommand:
@@ -483,21 +484,26 @@ class CheckCommand:
         except ValueError as e:  # LabValidationError subclasses ValueError
             return self._fail(config_file, f"Config error: {e}", json_output)
 
+        plan = telemetry.derive_plan(scenario.model)
+
         results = [self._verdict(ov) for ov in (scenario.attack_paths or [])]
         reachable = sum(1 for r in results if r['reachable'])
         unreachable = len(results) - reachable
         ok = unreachable == 0
 
         if json_output:
-            print(json.dumps({
+            payload = {
                 "config": config_file,
                 "ok": ok,
                 "summary": {"total": len(results),
                             "reachable": reachable, "unreachable": unreachable},
                 "paths": results,
-            }, indent=2))
+            }
+            if plan is not None:
+                payload["telemetry"] = telemetry.plan_to_json(plan)
+            print(json.dumps(payload, indent=2))
         else:
-            self._render_human(config_file, results, reachable, unreachable, verbose)
+            self._render_human(config_file, results, reachable, unreachable, verbose, plan)
 
         return 0 if ok else 1
 
@@ -525,12 +531,16 @@ class CheckCommand:
         }
 
     @classmethod
-    def _render_human(cls, config_file, results, reachable, unreachable, verbose) -> None:
+    def _render_human(cls, config_file, results, reachable, unreachable, verbose,
+                       plan=None) -> None:
         logging.info(f"Checking declarative config: {config_file}  (offline - no Azure)")
         logging.info("=" * 60)
         if not results:
             logging.info("No attack paths to check (baseline-only config).")
             logging.info("=" * 60)
+            if plan is not None:
+                for line in telemetry.render_plan_lines(plan):
+                    logging.info(line)
             return
         for r in results:
             log = logging.info if r['reachable'] else logging.error
@@ -563,6 +573,9 @@ class CheckCommand:
                     act = f" [{s['action']}]" if s.get('action') else ""
                     log(f"    {i}. {s.get('name', 'step')}{arrow}{act}")
         logging.info("=" * 60)
+        if plan is not None:
+            for line in telemetry.render_plan_lines(plan):
+                logging.info(line)
         summary = (f"{len(results)} path(s) checked: "
                    f"{reachable} reachable, {unreachable} unreachable.")
         (logging.info if unreachable == 0 else logging.error)(summary)
