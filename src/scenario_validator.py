@@ -27,6 +27,7 @@ import logging
 from typing import Dict, List
 
 from src import capabilities
+from src import telemetry
 from src.constants import (
     VALID_TECHNIQUES, RESOURCE_FOOTHOLD_VECTORS, RESOURCE_SEED_VECTORS,
     WEBAPP_FOOTHOLD_VECTORS, WEBAPP_VULN_VARIANTS,
@@ -67,6 +68,8 @@ def validate(config: Dict) -> None:
     warnings: List[str] = []
 
     _validate_baseline(config.get("baseline"), errors)
+    if "telemetry" in config:
+        telemetry.validate_raw(config.get("telemetry"), errors, warnings)
     for name, path in attack_paths.items():
         # `enabled: false` parks a path — skip validation so a half-finished or
         # intentionally-broken parked path doesn't block the build.

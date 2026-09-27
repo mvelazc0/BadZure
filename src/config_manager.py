@@ -17,6 +17,11 @@ ENV_LLM_MODEL = 'BADZURE_LLM_MODEL'
 ENV_LLM_API_KEY = 'BADZURE_LLM_API_KEY'
 ENV_LLM_BASE_URL = 'BADZURE_LLM_BASE_URL'
 
+# Environment variable name for a bring-your-own telemetry workspace (see
+# src/telemetry.py). Defined here (next to the other env constants) and
+# imported by telemetry.py so there is exactly one definition.
+ENV_TELEMETRY_WORKSPACE = 'BADZURE_TELEMETRY_WORKSPACE'
+
 REPORT_METADATA_KEYS = frozenset({
     'title', 'lab_description', 'organization_description',
 })

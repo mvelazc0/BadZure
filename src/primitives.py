@@ -34,7 +34,12 @@ declares via optional(...), so this file is the single source of truth for
 "what does Terraform fill in when this field is omitted."
 """
 from dataclasses import dataclass, field, fields, MISSING
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    # Type-checking only: avoids an import cycle (telemetry.py is a leaf module
+    # that primitives.py must not actually import at runtime).
+    from src.telemetry import TelemetryConfig
 
 RANDOM = "random"
 ATTACK_PATH = "attack_path"
@@ -211,6 +216,12 @@ class DeploymentModel:
 
     # The building blocks wired between the entities above — a flat list.
     primitives: List[Primitive] = field(default_factory=list)
+
+    # Optional telemetry config (see src/telemetry.py). None means telemetry is
+    # off, which must change nothing else about the build. Deliberately NOT an
+    # entity map (it's a single config blob, not a symbolic-keyed collection),
+    # so it's not part of ENTITY_MAPS below.
+    telemetry: Optional["TelemetryConfig"] = None
 
     # Convenience entity-map registry: symbolic entity-kind -> attribute name.
     ENTITY_MAPS = (

@@ -32,6 +32,7 @@ from typing import Dict, List, Optional
 import random
 
 from src import reachability
+from src import telemetry
 from src.crypto import generate_certificate_and_key
 from src.entity_generator import EntityGenerator
 from src.name_resolver import NameResolver
@@ -293,6 +294,7 @@ class ScenarioLoader:
             public_ip=public_ip, azure_config_dir=azure_config_dir,
             primitives=primitives, **entities,
         )
+        model.telemetry = telemetry.parse(config.get("telemetry"))
 
         # 6. Reachability gate: confirm each attack path's objective is actually
         #    reachable from its initial_access through the deployed graph, and fill
