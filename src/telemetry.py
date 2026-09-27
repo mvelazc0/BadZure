@@ -259,6 +259,21 @@ def new_lab_id(rng: Optional[random.Random] = None) -> str:
     return "".join(rng.choice(alphabet) for _ in range(5))
 
 
+@dataclass
+class TelemetryContext:
+    """What the Terraform builder needs to wire telemetry into one lab's tfvars
+    (Phase 3 of the plan). Supplied by `build` and `plan` once the telemetry hub
+    is resolved; without one, `build_tfvars` never emits a `telemetry` tfvars key.
+
+    `workspace_id` is the destination Log Analytics workspace (managed or BYO,
+    already resolved: this module does not decide that here, `derive_plan` does).
+    `lab_id` is this build's `new_lab_id()`, round-tripped through the
+    `telemetry_lab_id` Terraform output so `show`/`destroy` can find the lab's
+    manifest entry after apply (see terraform/outputs.tf)."""
+    workspace_id: str
+    lab_id: str
+
+
 def function_storage_name_transform(name: str) -> str:
     """Mirror terraform/main.tf's azurerm_storage_account.function_storage name
     expression exactly, so `check`/`plan` can show the storage account name Azure

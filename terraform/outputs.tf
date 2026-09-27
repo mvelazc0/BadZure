@@ -98,3 +98,27 @@ output "application_client_ids" {
     for k, v in azuread_application_registration.spns : k => v.client_id
   }
 }
+
+# The lab's own id (var.telemetry.lab_id, minted by the builder at build time),
+# handed straight back out. This is how `show` and `destroy` (Phase 6) find this
+# lab's entry in the telemetry hub's manifest: the lab id round-trips through
+# tfvars -> state -> this output, since it is the only thing that survives
+# between `build` and `destroy`. Empty string when telemetry is off.
+output "telemetry_lab_id" {
+  description = "This lab's telemetry lab id (empty when telemetry is off)"
+  value       = var.telemetry.lab_id
+}
+
+# Every resource id this lab creates that the telemetry hub's manifest cares
+# about: everything a diagnostic setting can target, plus the VMs (excluded from
+# diagnostic settings themselves, see TELEMETRY_EXCLUDED_TYPES, but still part of
+# the lab's footprint the hub tracks). Read regardless of whether telemetry is on,
+# since it costs nothing when it is off.
+output "lab_resource_ids" {
+  description = "Every lab resource id the telemetry hub's manifest tracks"
+  value = concat(
+    values(local.diag_parent_ids),
+    [for v in azurerm_linux_virtual_machine.linux_vms : v.id],
+    [for v in azurerm_windows_virtual_machine.windows_vms : v.id],
+  )
+}

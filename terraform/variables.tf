@@ -224,3 +224,26 @@ variable "webapp_foothold_refs" {
   type        = list(string)
   default     = []
 }
+
+# Telemetry wiring (dev-docs/redesign/telemetry-implementation-plan.md, Phase 3).
+# workspace_id = "" is the off state: every resource keyed off diagnostic_targets
+# (empty by default) is a no-op, and Application Insights stays classic (not
+# workspace-based). The builder (src/terraform_builder.py) only ever sets this
+# variable when the model's `telemetry:` config is on AND a TelemetryContext was
+# supplied at build time; otherwise the default below is what Terraform sees.
+variable "telemetry" {
+  description = "Telemetry wiring. Empty workspace_id = telemetry off (every telemetry resource is a no-op)."
+  type = object({
+    workspace_id = string
+    lab_id       = string
+    site_logging = bool
+    diagnostic_targets = map(object({
+      parent           = string
+      suffix           = string
+      destination_type = optional(string)
+      log_mode         = string # "allLogs" | "discover"
+    }))
+    # (map key is the target's symbolic key, e.g. "st_fin/blob")
+  })
+  default = { workspace_id = "", lab_id = "", site_logging = false, diagnostic_targets = {} }
+}

@@ -473,7 +473,10 @@ resource "azurerm_service_plan" "function_plan" {
   depends_on = [azurerm_resource_group.rgroups]
 }
 
-# Application Insights for Function Apps
+# Application Insights for Function Apps. Workspace-based when telemetry is on
+# (var.telemetry.workspace_id set): its data lands in the telemetry hub's Log
+# Analytics workspace instead of the classic, App Insights-only store. Telemetry
+# off (workspace_id == "") passes null, which keeps today's classic behavior.
 resource "azurerm_application_insights" "function_insights" {
   for_each = var.function_apps
 
@@ -481,6 +484,7 @@ resource "azurerm_application_insights" "function_insights" {
   location            = each.value.location
   resource_group_name = each.value.resource_group_name
   application_type    = "web"
+  workspace_id        = var.telemetry.workspace_id != "" ? var.telemetry.workspace_id : null
 
   depends_on = [azurerm_resource_group.rgroups]
 }
@@ -587,6 +591,26 @@ resource "azurerm_linux_web_app" "app_services" {
   } : {}
 
   zip_deploy_file = each.value.app_variant != "" ? data.archive_file.webapp[each.key].output_path : null
+
+  # Site logging (file-system application + HTTP logs), gated on telemetry being
+  # on. Off by default (var.telemetry.site_logging is false): a no-op, no `logs`
+  # block at all. The diagnostic setting in telemetry.tf covers platform logs;
+  # this is the app's own request/application log stream, which only site
+  # logging (not a diagnostic setting) can turn on.
+  dynamic "logs" {
+    for_each = var.telemetry.site_logging ? [1] : []
+    content {
+      application_logs {
+        file_system_level = "Information"
+      }
+      http_logs {
+        file_system {
+          retention_in_days = 1
+          retention_in_mb   = 35
+        }
+      }
+    }
+  }
 
   # Keep System-Assigned Identity for attack path scenarios
   identity {

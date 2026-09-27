@@ -31,7 +31,7 @@ Three cross-block jobs that don't belong to a single handler live here:
      already-merged map. The prefix comes from the *referenced credential's*
      origin, not the inject's — hence a cross-block lookup.
 """
-from typing import Dict, List
+from typing import Dict, List, Optional
 import logging
 import os
 import re
@@ -45,7 +45,10 @@ from src.primitive_handlers import handler_for, CREDENTIAL, DATAPLANE_LOCATION_T
 from src.constants import (
     RESOURCE_FOOTHOLD_VECTORS, WEAK_FOOTHOLD_PASSWORD, FOOTHOLD_VECTOR_PROTOCOL,
     WEBAPP_FOOTHOLD_VECTORS, WEBAPP_VARIANT_DIR, WEBAPP_DEFAULT_VARIANT,
+    TELEMETRY_LOGGED_KINDS,
 )
+from src import telemetry
+from src.telemetry import TelemetryContext
 
 
 class LabValidationError(ValueError):
@@ -164,8 +167,14 @@ def _material_file_exists(path: str) -> bool:
 
 
 class TerraformBuilder:
-    def __init__(self, model: DeploymentModel, verify_files: bool = True):
+    def __init__(self, model: DeploymentModel, verify_files: bool = True,
+                 telemetry_ctx: Optional[TelemetryContext] = None):
         self.model = model
+        # Telemetry is emitted only when BOTH the model's `telemetry:` config is on
+        # AND a context (workspace id + lab id) was supplied. `build` and `plan`
+        # supply one once the telemetry hub is resolved; the `check` preflight
+        # never does, which keeps it offline and telemetry-silent (see build()).
+        self.telemetry_ctx = telemetry_ctx
         # Whether validate() checks that certificate/key/pfx paths resolve to real
         # files on disk. True for the real preflight (`check`) and `build` — a missing
         # cert file crashes `terraform apply`. Structural unit tests that reference
@@ -232,7 +241,46 @@ class TerraformBuilder:
         # App Services that are a vulnerable-web-app foothold — the
         # app_service_foothold_access output surfaces exactly these (URL + vuln path).
         tfvars["webapp_foothold_refs"] = self._webapp_foothold_refs()
+        # Telemetry off is invisible: emit the key only when the model's
+        # `telemetry:` config is on AND a context was supplied. A config with
+        # `telemetry: true` but no context (the `check` preflight) still gets no
+        # key here: `check` must stay offline no matter what the config says.
+        if self.model.telemetry is not None and self.telemetry_ctx is not None:
+            tfvars["telemetry"] = self._telemetry_tfvars(self.telemetry_ctx)
         return tfvars
+
+    def _telemetry_tfvars(self, ctx: TelemetryContext) -> Dict:
+        """Build the `telemetry` tfvars value from `telemetry.derive_plan(model)`,
+        the single source of the target list (Phase 2). Never a resource ID, never
+        a category: each target is a symbolic parent ref ("<kind>:<entity_key>")
+        plus a suffix, resolved to a real ID only inside terraform/telemetry.tf."""
+        plan = telemetry.derive_plan(self.model)
+        diagnostic_targets: Dict[str, Dict] = {}
+        for t in plan.targets:
+            # Defensive reference check: every target's entity_key must name a
+            # real entity in the map its kind is drawn from. derive_plan only ever
+            # builds targets by walking that same map, so this should never fire;
+            # it exists so a future bug in derive_plan surfaces here, offline,
+            # instead of as a broken `local.diag_parent_ids[...]` lookup in
+            # `terraform apply`.
+            map_attr = TELEMETRY_LOGGED_KINDS[t.kind][0]
+            if t.entity_key not in getattr(self.model, map_attr):
+                raise LabValidationError(
+                    f"Telemetry target '{t.key}': entity_key '{t.entity_key}' is "
+                    f"not a declared {map_attr}."
+                )
+            diagnostic_targets[t.key] = {
+                "parent": f"{t.kind}:{t.entity_key}",
+                "suffix": t.suffix,
+                "destination_type": t.destination_type,
+                "log_mode": t.log_mode,
+            }
+        return {
+            "workspace_id": ctx.workspace_id,
+            "lab_id": ctx.lab_id,
+            "site_logging": plan.site_logging,
+            "diagnostic_targets": diagnostic_targets,
+        }
 
     def _cosmos_dataplane_refs(self) -> List[str]:
         """Sorted cosmos_db refs targeted by a cosmos_document inject — the only
@@ -533,8 +581,13 @@ class TerraformBuilder:
         return families
 
 
-def build_tfvars(model: DeploymentModel, verify_files: bool = True) -> Dict:
+def build_tfvars(model: DeploymentModel, verify_files: bool = True,
+                  telemetry_ctx: Optional[TelemetryContext] = None) -> Dict:
     """Convenience entrypoint: validate + build the terraform.tfvars.json dict.
     `verify_files=False` skips the on-disk cert/key/pfx existence check for structural
-    unit tests that reference placeholder fixture files (never deployed)."""
-    return TerraformBuilder(model, verify_files=verify_files).build()
+    unit tests that reference placeholder fixture files (never deployed).
+    `telemetry_ctx` is the workspace id + lab id the builder needs to wire telemetry
+    in; omitted (the default), the tfvars carry no `telemetry` key even when the
+    model's `telemetry:` config is on (see TerraformBuilder.build)."""
+    return TerraformBuilder(model, verify_files=verify_files,
+                             telemetry_ctx=telemetry_ctx).build()
