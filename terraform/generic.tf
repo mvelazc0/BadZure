@@ -310,6 +310,12 @@ locals {
     { for k, v in var.attack_path_api_permission_assignments : "ap:${k}" => merge(v, { origin = "attack_path" }) },
   )
 
+  # null when the Exchange Online data source is not instantiated (no config asked
+  # for an exchange permission). Read through one() so the untaken branch of the
+  # ternary in generic_api_permission never indexes an empty list: Terraform
+  # evaluates both arms of a conditional, so [0] there would fail when count = 0.
+  exchange_sp_object_id = one(data.azuread_service_principal.exchange_online[*].object_id)
+
   g_app_credentials = merge(
     { for k, v in var.random_app_credentials : "random:${k}" => merge(v, { origin = "random" }) },
     { for k, v in var.attack_path_app_credentials : "ap:${k}" => merge(v, { origin = "attack_path" }) },
@@ -492,7 +498,7 @@ resource "azuread_app_role_assignment" "generic_api_permission" {
   principal_object_id = azuread_service_principal.spns[each.value.principal_ref].object_id
   resource_object_id = (
     each.value.api_type == "exchange" ?
-    data.azuread_service_principal.exchange_online.object_id :
+    local.exchange_sp_object_id :
     data.azuread_service_principal.microsoft_graph.object_id
   )
 

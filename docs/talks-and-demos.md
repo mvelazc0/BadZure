@@ -5,6 +5,14 @@ Conference talks, demos, and walkthroughs covering BadZure's capabilities and at
 !!! abstract "Heads Up"
     Some videos may feature older versions of BadZure. Refer to the current documentation for up-to-date guidance.
 
+### Black Hat Arsenal 2026: BadZure: Building Cloud Attack Labs with LLMs (August 2026)
+
+BlackHat Arsenal presentation introducing BadZure's GenAI driven capabilities.
+
+<div align="center">
+    <iframe width="720" height="405" src="https://www.youtube.com/embed/0cYHvgz32PE" frameborder="0" allowfullscreen></iframe>
+</div>
+
 ### BSides NYC 2025: Inside Cloud Attack Paths: End-to-End Adversary Simulation (November 2025)
 
 Conference talk covering end-to-end adversary simulation in cloud environments, demonstrating how BadZure deploys Entra ID and Azure attack paths for purple team exercises.

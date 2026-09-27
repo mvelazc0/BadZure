@@ -11,9 +11,11 @@
     const reportParams = new URLSearchParams(window.location.search);
     const requestedEmbeddedPanel = reportParams.get("embed");
     if (requestedEmbeddedPanel) document.documentElement.classList.add("embed-mode");
-    // Standalone reports stay dark. ``?theme=light|dark`` pins a palette so an
-    // embed can follow the host page's theme (e.g. the docs light/dark toggle);
-    // with no override the report honors prefers-color-scheme.
+    // Standalone reports stay dark, always. ``?theme=light|dark`` pins a palette
+    // so an embed can follow the host page's theme (e.g. the docs light/dark
+    // toggle); an EMBED with no override falls back to prefers-color-scheme until
+    // the host pins one. A standalone report never follows the OS preference: the
+    // graph palettes are chosen against the dark canvas.
     const requestedTheme = reportParams.get("theme");
     if (requestedTheme === "light" || requestedTheme === "dark") {
       document.documentElement.classList.add("theme-" + requestedTheme);
@@ -47,12 +49,14 @@
       --graph-edge-chip: #171c29;
     }
     /* Light palette. Applied when the host pins ``?theme=light`` (``.theme-light``)
-       or, absent any override, when the OS prefers light. ``.theme-dark`` opts back
-       out so an embed can always force dark. */
+       or, for an EMBED with no override, when the OS prefers light. ``.theme-dark``
+       opts back out so an embed can always force dark. The prefers-color-scheme
+       fallbacks are scoped to ``.embed-mode`` on purpose: a standalone report must
+       stay dark regardless of the reader's OS setting. */
     :root.theme-light,
     :root.theme-light body { color-scheme: light; }
     @media (prefers-color-scheme: light) {
-      :root:not(.theme-dark) { color-scheme: light; }
+      :root.embed-mode:not(.theme-dark) { color-scheme: light; }
     }
     :root.theme-light {
       --bg: #f4f6fb;
@@ -71,7 +75,7 @@
       --graph-edge-chip: #ffffff;
     }
     @media (prefers-color-scheme: light) {
-      :root:not(.theme-dark):not(.theme-light) {
+      :root.embed-mode:not(.theme-dark):not(.theme-light) {
         --bg: #f4f6fb;
         --panel: #ffffff;
         --panel-2: #eef1f8;
@@ -103,8 +107,12 @@
       background: linear-gradient(120deg, var(--primary-dark), var(--primary));
       box-shadow: 0 3px 12px rgba(0, 0, 0, .3);
     }
-    .report-header h1 { margin: 0 0 .4rem; font-size: 1.55rem; }
-    .report-header p { margin: 0; color: var(--muted); }
+    /* The banner gradient is built from --primary-dark/--primary, which the light
+       palette does not redefine, so it is deep blue in every theme. Pin the text to
+       light values rather than inheriting --text/--muted, which would otherwise turn
+       near-black on blue whenever a light palette is active. */
+    .report-header h1 { margin: 0 0 .4rem; font-size: 1.55rem; color: #ffffff; }
+    .report-header p { margin: 0; color: rgba(255, 255, 255, .8); }
     .tab-nav {
       display: flex;
       gap: .45rem;
