@@ -6,8 +6,8 @@ import os
 import json
 import logging
 import shutil
-from typing import Dict, Tuple
-from python_terraform import Terraform
+from typing import Dict, List, Tuple
+from python_terraform import IsNotFlagged, Terraform
 
 
 class TerraformNotFoundError(RuntimeError):
@@ -60,7 +60,10 @@ class TerraformManager:
         Azure resource name, a bad reference — WITHOUT touching Azure state. Requires an
         authenticated Azure session and a prior `init`. Return code: 0 = plan OK,
         non-zero = errors (stderr carries the diagnostics)."""
-        return self._run(self.tf.plan, input=False, capture_output=not verbose)
+        # python_terraform adds -detailed-exitcode by default, which exits 2 when the
+        # plan has changes; turn it off so only real errors are non-zero.
+        return self._run(self.tf.plan, input=False, detailed_exitcode=IsNotFlagged,
+                         capture_output=not verbose)
 
     def destroy(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Destroy Terraform resources."""
@@ -69,6 +72,26 @@ class TerraformManager:
     def show(self, verbose: bool = False) -> Tuple[int, str, str]:
         """Show Terraform state."""
         return self._run(self.tf.show, json=True, capture_output=not verbose)
+
+    def import_resource(self, address: str, resource_id: str) -> Tuple[int, str, str]:
+        """`terraform import <address> <resource_id>`: adopt a resource that
+        already exists in Azure into this root's state, instead of Terraform
+        planning to create a duplicate. Used by the telemetry hub's adoption
+        step (src/telemetry_hub.py) on a fresh clone or after state was lost.
+        Requires a tfvars file and a prior `init`; return code 0 = imported."""
+        return self._run(self.tf.cmd, 'import', address, resource_id,
+                         capture_output=True)
+
+    def state_list(self) -> List[str]:
+        """`terraform state list`: every resource address currently in this
+        root's state. Empty on a fresh clone (no state file) or an empty state,
+        which is how the telemetry hub decides whether to adopt."""
+        return_code, stdout, stderr = self._run(self.tf.cmd, 'state', 'list',
+                                                 capture_output=True)
+        if return_code != 0:
+            logging.debug(f"terraform state list: {stderr}")
+            return []
+        return [line for line in (stdout or '').splitlines() if line.strip()]
 
     def get_outputs(self) -> Dict:
         """Get Terraform outputs as a dictionary."""

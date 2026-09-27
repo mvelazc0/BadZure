@@ -171,3 +171,10 @@ generated*.html
 !tests/
 !tests/*.py
 !terraform/fixture_full.tfvars.json
+
+# Telemetry hub local bookkeeping (dev-docs/redesign/telemetry-implementation-plan.md,
+# Phase 4): per-machine state, never shared. terraform/telemetry/*.tf itself is
+# tracked as normal (only *.tfvars.json/.terraform/*.tfstate* are already ignored
+# above by the generic Terraform rules).
+terraform/telemetry/hub_settings.json
+terraform/telemetry/labs.json

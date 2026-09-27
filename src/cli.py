@@ -8,8 +8,10 @@ import time
 import json
 import tempfile
 import webbrowser
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, Optional
+import click
 import yaml
 from src.config_manager import ConfigManager
 from src.entity_generator import EntityGenerator
@@ -24,17 +26,29 @@ import src.dataplane as dataplane
 import src.utils as utils
 from src.constants import WEBAPP_FOOTHOLD_VECTORS
 from src import telemetry
+from src.azure_rest import AzureRest, TokenProvider
+from src.telemetry_hub import HubError, TelemetryHub
+
+
+def _utc_now_iso() -> str:
+    """UTC ISO 8601 timestamp with a trailing Z, the shape every telemetry
+    timestamp uses (hub_settings.json, labs.json)."""
+    return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 class BuildCommand:
     """Handles the build command to create misconfigured tenants."""
-    
+
     def __init__(self):
         self.config_mgr = ConfigManager()
         self.generator = EntityGenerator()
         self.terraform_mgr = TerraformManager()
         self.output_formatter = OutputFormatter()
-    
+        # Stamped by _ensure_telemetry_hub when telemetry is on (Phase 6 reads
+        # these to build the lab manifest entry); None while telemetry is off.
+        self.lab_id: Optional[str] = None
+        self.build_started_at: Optional[str] = None
+
     def execute(self, config_file: str, verbose: bool = False) -> None:
         """Execute the build. BadZure has ONE config shape now — the declarative
         graph IR. A retired legacy `mode:`/`privilege_escalation:` config is rejected
@@ -175,12 +189,13 @@ class BuildCommand:
     # DeploymentModel via the scenario loader and call build_tfvars directly
     # (no legacy-splice needed — legacy assignment variables default to {}).
     # ------------------------------------------------------------------
-    def _compile_and_write_tfvars(self, config: Dict):
-        """Compile a declarative config into a DeploymentModel and write
-        terraform.tfvars.json — the shared prep that both `build` (init + apply) and
-        `plan` (init + plan) run first. Returns (scenario, domain) on success, or None
-        after logging a clear error (bad tenant config, unresolvable public IP,
-        declarative/compile error, or a tfvars build/validation failure).
+    def _compile(self, config: Dict):
+        """Compile a declarative config into a DeploymentModel: the shared prep
+        that both `build` (init + apply) and `plan` (init + plan) run first,
+        BEFORE the telemetry hub step (when telemetry is on) and the tfvars
+        write. Returns (scenario, domain) on success, or None after logging a
+        clear error (bad tenant config, unresolvable public IP, or a
+        declarative/compile error).
 
         Sets AZURE_CONFIG_DIR as a side effect so downstream Terraform/Azure calls use
         the same config dir."""
@@ -213,24 +228,71 @@ class BuildCommand:
         for overlay in scenario.attack_paths:
             logging.info(f"Compiled attack path '{overlay.name}'")
 
-        # Everything is generic — produce the full tfvars directly.
+        return scenario, domain
+
+    def _write_tfvars(self, model, telemetry_ctx=None) -> bool:
+        """Build and write terraform.tfvars.json for `model`. `telemetry_ctx` is
+        only ever passed once the telemetry hub is resolved (or for `plan`, the
+        offline preview id); without one the tfvars carry no `telemetry` key even
+        when the model's `telemetry:` config is on. Returns True on success, or
+        logs a clear error and returns False on a tfvars build/validation
+        failure."""
         try:
-            tf_vars = build_tfvars(scenario.model)
+            tf_vars = build_tfvars(model, telemetry_ctx=telemetry_ctx)
         except ValueError as e:
             logging.error(f"Failed to build Terraform variables: {e}")
-            return None
+            return False
         self.terraform_mgr.write_terraform_vars(tf_vars)
-        return scenario, domain
+        return True
+
+    def _ensure_telemetry_hub(self, model) -> Optional[telemetry.TelemetryContext]:
+        """Ensure the telemetry hub exists (or already matches the config)
+        BEFORE anything in the lab is created. Returns a TelemetryContext to wire
+        into the lab tfvars on success; on a HubError, logs a loud refusal (the
+        same shape `_reachability_gate` uses) and returns None so the caller
+        stops before the lab apply. `lab_id` and `build_started_at` are stamped
+        on `self` here so later reporting can use the same values."""
+        hub_tf = TerraformManager("terraform/telemetry")
+        hub = TelemetryHub(
+            model.subscription_id, model.tenant_id, AzureRest(TokenProvider()),
+            hub_tf, hub_tf.terraform_dir,
+        )
+        try:
+            result = hub.ensure(model.telemetry)
+        except HubError as e:
+            logging.error("=" * 60)
+            logging.error(f"REFUSING TO DEPLOY - telemetry hub failed: {e}")
+            logging.error("Nothing in the lab was created.")
+            logging.error("=" * 60)
+            return None
+
+        for warning in result.warnings:
+            logging.warning(f"Telemetry: {warning}")
+        for note in result.notes:
+            logging.info(f"Telemetry: {note}")
+
+        self.lab_id = telemetry.new_lab_id()
+        self.build_started_at = _utc_now_iso()
+        return telemetry.TelemetryContext(workspace_id=result.workspace_id, lab_id=self.lab_id)
 
     def _build_declarative_mode(self, config: Dict, verbose: bool) -> None:
         """Build from a declarative graph config (Phase 3, Slice 1)."""
         start_time = time.time()
 
-        prepared = self._compile_and_write_tfvars(config)
+        prepared = self._compile(config)
         if prepared is None:
             return
         scenario, domain = prepared
         model = scenario.model
+
+        telemetry_ctx = None
+        if model.telemetry is not None:
+            telemetry_ctx = self._ensure_telemetry_hub(model)
+            if telemetry_ctx is None:
+                return   # _ensure_telemetry_hub already logged the loud refusal
+
+        if not self._write_tfvars(model, telemetry_ctx=telemetry_ctx):
+            return
 
         # Execute Terraform
         logging.info("Calling terraform init")
@@ -637,9 +699,34 @@ class PlanCommand:
         except SystemExit as e:
             return int(e.code) if e.code else 1
 
-        # Compile + write terraform.tfvars.json (also runs the builder's offline
+        # Compile the declarative config (same prep `build` runs before the
+        # telemetry hub step and the tfvars write).
+        prepared = self.build._compile(config)
+        if prepared is None:
+            return 1
+        scenario, _domain = prepared
+        model = scenario.model
+
+        telemetry_ctx = None
+        if model.telemetry is not None:
+            hub_tf = TerraformManager("terraform/telemetry")
+            hub = TelemetryHub(
+                model.subscription_id, model.tenant_id, AzureRest(TokenProvider()),
+                hub_tf, hub_tf.terraform_dir,
+            )
+            try:
+                preview = hub.preview(model.telemetry)
+            except HubError as e:
+                logging.error(f"Telemetry hub preflight failed: {e}")
+                return 1
+            for warning in preview.warnings:
+                logging.warning(f"Telemetry: {warning}")
+            workspace_id = preview.workspace_id or telemetry.managed_workspace_id(model.subscription_id)
+            telemetry_ctx = telemetry.TelemetryContext(workspace_id=workspace_id, lab_id="plan")
+
+        # Write terraform.tfvars.json (also runs the builder's offline
         # validation, e.g. the Key Vault name-charset lint).
-        if self.build._compile_and_write_tfvars(config) is None:
+        if not self.build._write_tfvars(model, telemetry_ctx=telemetry_ctx):
             return 1
 
         logging.info("Calling terraform init")
@@ -820,16 +907,24 @@ class ShowCommand:
 
 class DestroyCommand:
     """Handles the destroy command to remove all created resources."""
-    
+
     def __init__(self):
         self.terraform_mgr = TerraformManager()
-    
-    def execute(self, verbose: bool = False) -> None:
+        self.hub_terraform_mgr = TerraformManager("terraform/telemetry")
+
+    def execute(self, verbose: bool = False, telemetry: bool = False, yes: bool = False) -> None:
         """
         Execute the destroy command.
-        
+
         Args:
             verbose: Enable verbose output
+            telemetry: Also remove the telemetry hub (terraform/telemetry/) after
+                the lab is destroyed. False (the default, plain `destroy`) NEVER
+                touches the hub (it only prints a reminder when one exists), so
+                its behavior and output are exactly what they were before this
+                flag existed.
+            yes: Skip the hub's destroy confirmation prompt. Only meaningful with
+                telemetry=True.
         """
         try:
             TerraformManager.ensure_installed()
@@ -837,27 +932,77 @@ class DestroyCommand:
             logging.error(str(e))
             return
 
-        # Initialize Terraform
-        return_code, stdout, stderr = self.terraform_mgr.init()
-        if return_code != 0:
-            logging.error(f"Terraform init failed: {stderr}")
-            return
+        lab_state_path = os.path.join(self.terraform_mgr.terraform_dir, "terraform.tfstate")
+        no_lab_state = telemetry and not os.path.exists(lab_state_path)
 
-        logging.info("Calling terraform destroy, this may take several minutes ...")
-        return_code, stdout, stderr = self.terraform_mgr.destroy(verbose)
-        
-        if return_code != 0:
-            logging.error(f"Terraform apply failed: {stderr}")
-            logging.error(stdout)
-            logging.error(stderr)
-            return
-        
-        logging.info("Azure AD tenant resources have been successfully destroyed!")
+        if no_lab_state:
+            logging.info("No lab deployed.")
+        else:
+            # Initialize Terraform
+            return_code, stdout, stderr = self.terraform_mgr.init()
+            if return_code != 0:
+                logging.error(f"Terraform init failed: {stderr}")
+                return
 
-        # Cleanup state files
-        self.terraform_mgr.cleanup_state_files()
+            logging.info("Calling terraform destroy, this may take several minutes ...")
+            return_code, stdout, stderr = self.terraform_mgr.destroy(verbose)
+
+            if return_code != 0:
+                logging.error(f"Terraform apply failed: {stderr}")
+                logging.error(stdout)
+                logging.error(stderr)
+                # The lab destroy failed: stop here, never touch the hub.
+                return
+
+            logging.info("Azure AD tenant resources have been successfully destroyed!")
+
+            # Cleanup state files
+            self.terraform_mgr.cleanup_state_files()
+
+        hub_settings_path = os.path.join(self.hub_terraform_mgr.terraform_dir, "hub_settings.json")
+        hub_present = os.path.exists(hub_settings_path)
+
+        if telemetry:
+            hub = TelemetryHub("", "", AzureRest(TokenProvider()),
+                               self.hub_terraform_mgr, self.hub_terraform_mgr.terraform_dir)
+            confirm_fn = (lambda text: True) if yes else click.confirm
+            try:
+                if not hub.destroy(confirm_fn):
+                    logging.info("Telemetry hub kept; nothing was removed.")
+            except HubError as e:
+                logging.error(f"Telemetry hub destroy failed: {e}")
+                return
+        elif hub_present:
+            self._print_retained_workspace_reminder(hub_settings_path)
 
         logging.info("Good bye.")
+
+    def _print_retained_workspace_reminder(self, hub_settings_path: str) -> None:
+        """Plain `destroy` never touches the hub; when one exists, tell the
+        operator their telemetry workspace is still there and how to remove it.
+        Reads only the local hub_settings.json and the hub's local Terraform
+        state (`terraform output` reads the state file directly, no Azure
+        call), so this never blocks on network or credentials."""
+        try:
+            with open(hub_settings_path, "r", encoding="utf-8") as f:
+                hub_settings = json.load(f)
+        except (OSError, json.JSONDecodeError):
+            return
+
+        destination = hub_settings.get("destination_workspace_id") or ""
+        outputs = self.hub_terraform_mgr.get_outputs()
+
+        if destination:
+            name = destination.rsplit("/", 1)[-1]
+            logging.info(f"Lab destroyed. Telemetry workspace retained: {name} (yours; not touched).")
+            logging.info("BadZure's own settings on it can be removed with: "
+                         "python BadZure.py destroy --telemetry")
+        else:
+            name = outputs.get("workspace_name") or "the managed workspace"
+            retention = outputs.get("workspace_retention_days")
+            suffix = f" (retention {retention}d)" if retention is not None else ""
+            logging.info(f"Lab destroyed. Telemetry workspace retained: {name}{suffix}.")
+            logging.info("Remove it with: python BadZure.py destroy --telemetry")
 
 
 class GenerateCommand:

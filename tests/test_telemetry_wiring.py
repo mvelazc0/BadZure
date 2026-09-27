@@ -340,6 +340,43 @@ def test_terraform_validate():
         print("ok: terraform validate passed in a temp copy of terraform/")
 
 
+def test_hub_terraform_validate():
+    """Same opt-in validate as test_terraform_validate, but for the telemetry
+    hub's own root (terraform/telemetry/) — a separate Terraform root with its
+    own provider block and variables, never the lab's."""
+    if os.environ.get("BADZURE_TF_VALIDATE") != "1":
+        pytest.skip("set BADZURE_TF_VALIDATE=1 to run terraform validate")
+    if not _terraform_available():
+        pytest.skip("terraform not on PATH")
+
+    hub_dir = os.path.join(_TERRAFORM_DIR, "telemetry")
+    with tempfile.TemporaryDirectory(prefix="badzure-hub-tfvalidate-") as tmp:
+        for name in os.listdir(hub_dir):
+            if name.endswith((".tfstate", ".tfvars.json")):
+                continue
+            if name.startswith(".terraform"):
+                continue
+            src = os.path.join(hub_dir, name)
+            dst = os.path.join(tmp, name)
+            if os.path.isdir(src):
+                shutil.copytree(src, dst)
+            else:
+                shutil.copy2(src, dst)
+
+        init = subprocess.run(
+            ["terraform", "init", "-backend=false", "-input=false"],
+            cwd=tmp, capture_output=True, text=True, timeout=300,
+        )
+        assert init.returncode == 0, init.stdout + init.stderr
+
+        validate = subprocess.run(
+            ["terraform", "validate"],
+            cwd=tmp, capture_output=True, text=True, timeout=120,
+        )
+        assert validate.returncode == 0, validate.stdout + validate.stderr
+        print("ok: terraform validate passed in a temp copy of terraform/telemetry/")
+
+
 # ---------------------------------------------------------------------------
 # Self-run support: `python tests/test_telemetry_wiring.py`
 # ---------------------------------------------------------------------------
@@ -348,7 +385,7 @@ def _run_all():
              if k.startswith("test_") and callable(v)]
     failures = 0
     for name, t in tests:
-        if name == "test_terraform_validate":
+        if name in ("test_terraform_validate", "test_hub_terraform_validate"):
             if os.environ.get("BADZURE_TF_VALIDATE") != "1" or not _terraform_available():
                 print("skip")
                 continue

@@ -190,10 +190,17 @@ def show(verbose):
 
 @cli.command()
 @click.option('--verbose', is_flag=True, help="Enable verbose output")
-def destroy(verbose):
+@click.option('--telemetry', is_flag=True,
+              help="Also remove the telemetry hub (the persistent workspace and "
+                   "Activity Log export). Without this, the hub is never touched, "
+                   "only a reminder is printed when one exists.")
+@click.option('--yes', is_flag=True,
+              help="Skip the telemetry hub's destroy confirmation prompt (only "
+                   "meaningful with --telemetry)")
+def destroy(verbose, telemetry, yes):
     """Destroy all created resources in the tenant"""
     command = DestroyCommand()
-    command.execute(verbose)
+    command.execute(verbose, telemetry=telemetry, yes=yes)
 
 
 if __name__ == '__main__':
