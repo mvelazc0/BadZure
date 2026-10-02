@@ -263,6 +263,23 @@ def test_every_kind_has_hcl_parent():
     print("ok: every telemetry kind has a diag_parent_ids entry matching the §2 table")
 
 
+def test_parent_keys_match_parent_ids():
+    """diag_parent_keys (plan-time known, used to skip stale targets) must list
+    the same kinds as diag_parent_ids, each from its resource's for_each var."""
+    text = Path(_TERRAFORM_DIR, "telemetry.tf").read_text()
+    main = Path(_TERRAFORM_DIR, "main.tf").read_text()
+    keys = {m.group(2): m.group(1) for m in re.finditer(
+        r'for\s+k\s+in\s+keys\((var\.[a-z_]+)\)\s*:\s*"([a-z_]+):\$\{k\}"', text)}
+    assert set(keys) == set(TELEMETRY_LOGGED_KINDS), (set(keys), set(TELEMETRY_LOGGED_KINDS))
+    for kind, address in _KIND_TF_ADDRESS.items():
+        rtype, rname = address.split(".")
+        m = re.search(r'resource\s+"%s"\s+"%s"\s*\{\s*for_each\s*=\s*(var\.[a-z_]+)'
+                      % (rtype, rname), main)
+        assert m and m.group(1) == keys[kind], (kind, m and m.group(1), keys[kind])
+    assert "for_each                       = local.diag_targets" in text
+    print("ok: diag_parent_keys mirrors diag_parent_ids and the resources' for_each vars")
+
+
 def test_variable_default_is_off():
     text = Path(_TERRAFORM_DIR, "variables.tf").read_text()
     m = re.search(r'variable\s+"telemetry"\s*{.*?default\s*=\s*({.*?})\s*}\s*\n',
