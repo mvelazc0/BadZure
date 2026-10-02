@@ -20,8 +20,6 @@ locals {
     { for k, v in azurerm_linux_function_app.function_apps : "function_app:${k}" => v.id },
     { for k, v in azurerm_logic_app_workflow.logic_apps : "logic_app:${k}" => v.id },
     { for k, v in azurerm_automation_account.automation_accounts : "automation_account:${k}" => v.id },
-    { for k, v in azurerm_service_plan.app_service_plan : "app_service_plan:${k}" => v.id },
-    { for k, v in azurerm_service_plan.function_plan : "function_plan:${k}" => v.id },
     { for k, v in azurerm_network_security_group.vm_nsg : "nsg:${k}" => v.id },
   )
   diag_target_ids = {

@@ -242,8 +242,6 @@ _KIND_TF_ADDRESS = {
     "function_app": "azurerm_linux_function_app.function_apps",
     "logic_app": "azurerm_logic_app_workflow.logic_apps",
     "automation_account": "azurerm_automation_account.automation_accounts",
-    "app_service_plan": "azurerm_service_plan.app_service_plan",
-    "function_plan": "azurerm_service_plan.function_plan",
     "nsg": "azurerm_network_security_group.vm_nsg",
 }
 

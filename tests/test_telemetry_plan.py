@@ -93,27 +93,27 @@ def test_storage_fans_out_to_four():
     print("ok: a storage account fans out to exactly the four service suffixes")
 
 
-def test_function_app_yields_app_storage_and_plan():
+def test_function_app_yields_app_and_storage():
     model = _on_model(function_apps={"fn1": {"name": "func-fin-a1b2c"}})
     plan = telemetry.derive_plan(model)
     kinds = sorted(t.kind for t in plan.targets)
     assert kinds == sorted(
-        ["function_app", "function_plan"] + ["function_storage"] * 4)
+        ["function_app"] + ["function_storage"] * 4)
     storage_targets = [t for t in plan.targets if t.kind == "function_storage"]
     assert len(storage_targets) == 4
     assert all(t.key.startswith("fn1/fnstorage-") for t in storage_targets)
     # Never collides with a real storage_account target sharing the entity key.
     assert all("fnstorage-" in t.key for t in storage_targets)
-    print("ok: one Function App yields app + plan + 4 function_storage targets")
+    print("ok: one Function App yields app + 4 function_storage targets (its plan has no logs)")
 
 
-def test_app_service_yields_plan_and_site_logging():
+def test_app_service_yields_target_and_site_logging():
     model = _on_model(app_services={"app1": {"name": "app-portal-a1b2c"}})
     plan = telemetry.derive_plan(model)
     kinds = sorted(t.kind for t in plan.targets)
-    assert kinds == ["app_service", "app_service_plan"]
+    assert kinds == ["app_service"]
     assert plan.site_logging is True
-    print("ok: an App Service yields itself + its plan, and turns on site logging")
+    print("ok: an App Service yields itself (its plan has no logs) and turns on site logging")
 
 
 def test_no_site_logging_without_app_service():
@@ -215,7 +215,6 @@ def test_destination_types():
     assert by_kind["cosmos_db"] == "Dedicated"
     assert by_kind["storage_account"] is None
     assert by_kind["app_service"] is None
-    assert by_kind["app_service_plan"] is None
     print("ok: key vault and cosmos get Dedicated destination type, rest None")
 
 
@@ -337,13 +336,12 @@ def test_check_human_snapshot():
         "  Entra          on: every category (tenant-wide; what has data "
         "depends on the licence)",
         "  Activity Log   on (all categories, free to ingest)",
-        "  Resources      on, all logs: 8 settings on 5 resources",
-        "                   app-portal-a1b2c       all logs + site logging",
-        "                   app-portal-a1b2c-plan  all logs",
-        "                   kv-fin-a1b2c           all logs",
-        "                   stfina1b2c             blob, file, queue, table: all logs",
-        "                   vm_fin-nsg             all logs",
-        "  Not collected  vm-fin-a1b2c             VMs need a guest agent for "
+        "  Resources      on, all logs: 7 settings on 4 resources",
+        "                   app-portal-a1b2c  all logs + site logging",
+        "                   kv-fin-a1b2c      all logs",
+        "                   stfina1b2c        blob, file, queue, table: all logs",
+        "                   vm_fin-nsg        all logs",
+        "  Not collected  vm-fin-a1b2c        VMs need a guest agent for "
         "useful logs (not in v1)",
         "                 public IPs and VNets: no useful logs",
     ]
@@ -370,7 +368,7 @@ def test_managed_workspace_with_and_without_subscription():
 
 
 def test_display_names_follow_hcl():
-    """Service plans are '<name>-plan' and NSGs '<vm key>-nsg' in main.tf."""
+    """Function App storage uses main.tf's name transform; NSGs are '<vm key>-nsg'."""
     model = DeploymentModel(
         app_services={"app_a": {"name": "app-a"}},
         function_apps={"fn_b": {"name": "func-b-x"}},
@@ -379,9 +377,7 @@ def test_display_names_follow_hcl():
     model.telemetry = telemetry.parse(True, env={})
     names = {(t.kind, t.display_name) for t in telemetry.derive_plan(model).targets}
     assert ("app_service", "app-a") in names
-    assert ("app_service_plan", "app-a-plan") in names
     assert ("function_app", "func-b-x") in names
-    assert ("function_plan", "func-b-x-plan") in names
     assert ("function_storage", "fcbx") in names
     assert ("nsg", "vm_c-nsg") in names
     print("ok: display names follow the HCL name expressions")

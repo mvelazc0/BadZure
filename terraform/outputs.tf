@@ -110,9 +110,9 @@ output "telemetry_lab_id" {
 }
 
 # Every resource id this lab creates that the telemetry hub's manifest cares
-# about: everything a diagnostic setting can target, plus the VMs (excluded from
-# diagnostic settings themselves, see TELEMETRY_EXCLUDED_TYPES, but still part of
-# the lab's footprint the hub tracks). Read regardless of whether telemetry is on,
+# about: everything a diagnostic setting can target, plus the VMs and service
+# plans (no diagnostic setting of their own, see TELEMETRY_EXCLUDED_TYPES and
+# TELEMETRY_NO_LOG_TYPES, but still part of the lab's footprint the hub tracks). Read regardless of whether telemetry is on,
 # since it costs nothing when it is off.
 output "lab_resource_ids" {
   description = "Every lab resource id the telemetry hub's manifest tracks"
@@ -120,5 +120,7 @@ output "lab_resource_ids" {
     values(local.diag_parent_ids),
     [for v in azurerm_linux_virtual_machine.linux_vms : v.id],
     [for v in azurerm_windows_virtual_machine.windows_vms : v.id],
+    [for v in azurerm_service_plan.app_service_plan : v.id],
+    [for v in azurerm_service_plan.function_plan : v.id],
   )
 }

@@ -2700,8 +2700,6 @@ TELEMETRY_LOGGED_KINDS = {
     "function_app":       ("function_apps",       ("",),  None, "allLogs"),
     "logic_app":          ("logic_apps",          ("",),  None, "allLogs"),
     "automation_account": ("automation_accounts", ("",),  None, "allLogs"),
-    "app_service_plan":   ("app_services",        ("",),  None, "allLogs"),   # VERIFY_LIVE, see below
-    "function_plan":      ("function_apps",       ("",),  None, "allLogs"),   # VERIFY_LIVE, see below
     "nsg":                ("virtual_machines",    ("",),  None, "allLogs"),
 }
 
@@ -2719,6 +2717,9 @@ TELEMETRY_NO_LOG_TYPES = frozenset({ # have no resource logs of their own
     "azurerm_role_assignment", "azurerm_cosmosdb_sql_role_assignment",
     "azurerm_key_vault_secret", "azurerm_key_vault_certificate",
     "azurerm_storage_container", "azurerm_storage_blob",
+    # App Service plans (Microsoft.Web/serverFarms) expose only AllMetrics, and
+    # Azure rejects a setting with allLogs on them (verified live 2026-10-01).
+    "azurerm_service_plan",
 })
 TELEMETRY_VIA_WORKSPACE_TYPES = frozenset({"azurerm_application_insights"})
 # kind prefix -> the Terraform type it corresponds to (for the "every type decided" test)
@@ -2727,7 +2728,6 @@ TELEMETRY_KIND_TF_TYPE = {
     "function_storage": "azurerm_storage_account", "cosmos_db": "azurerm_cosmosdb_account",
     "app_service": "azurerm_linux_web_app", "function_app": "azurerm_linux_function_app",
     "logic_app": "azurerm_logic_app_workflow", "automation_account": "azurerm_automation_account",
-    "app_service_plan": "azurerm_service_plan", "function_plan": "azurerm_service_plan",
     "nsg": "azurerm_network_security_group",
 }
 # Entra categories. Used only when the live category list can't be read (Phase 5

@@ -295,8 +295,6 @@ def _display_name(kind: str, entity_key: str, entity: dict) -> str:
     name = entity.get("name", entity_key)
     if kind == "function_storage":
         return function_storage_name_transform(name)
-    if kind in ("app_service_plan", "function_plan"):
-        return f"{name}-plan"
     if kind == "nsg":
         return f"{entity_key}-nsg"
     return name
